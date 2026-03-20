@@ -66,7 +66,3 @@ src/
 │   └── theme.ts      # Fonts, colors, theme object
 └── components/       # Login, Dashboard, NavBar, etc.
 ```
-
-## Reference
-
-Original monolithic site preserved in `index (95).html` for reference. Migration complete — see `MIGRATION_PLAN.md` for details.
