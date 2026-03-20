@@ -24,7 +24,7 @@ Migrate the monolithic HTML/React app to a proper Vite + React + **TypeScript** 
 
 ---
 
-## Phase 2: Component Extraction
+## Phase 2: Component Extraction ✅
 
 **Goal:** Split the monolithic script into React components.
 
@@ -40,8 +40,10 @@ Migrate the monolithic HTML/React app to a proper Vite + React + **TypeScript** 
 | `Analytics.tsx` | ~2605–2750 | Elo chart |
 | `Chooser.tsx` | Team/player picker | Shared component |
 | `Settings.tsx` | Menu images, theme | Admin settings |
+| `SAT.tsx` | ~1750–2180 | SAT tournaments (list, create, detail, heats) |
+| `ActDetail.tsx` | ~1219–1360 | ACT detail view with edit |
 
-**Order:** App → Login → Dashboard → NewAct → History → Roster → Seasons → Analytics → Chooser → Settings
+**Order:** App → Login → Dashboard → NewAct → History → Roster → Seasons → Analytics → Chooser → Settings → SAT
 
 **Deliverable:** All views working; no functionality lost.
 
@@ -85,15 +87,17 @@ actappoll/
     ├── utils/
     │   └── elo.ts
     ├── components/
-    │   ├── Login.jsx
-    │   ├── Dashboard.jsx
-    │   ├── NewAct.jsx
-    │   ├── History.jsx
-    │   ├── Roster.jsx
-    │   ├── Seasons.jsx
-    │   ├── Analytics.jsx
-    │   ├── Chooser.jsx
-    │   └── Settings.jsx
+    │   ├── Login.tsx
+    │   ├── Dashboard.tsx
+    │   ├── NewAct.tsx
+    │   ├── History.tsx
+    │   ├── Roster.tsx
+    │   ├── Seasons.tsx
+    │   ├── Analytics.tsx
+    │   ├── Chooser.tsx
+    │   ├── Settings.tsx
+    │   ├── SAT.tsx
+    │   └── ActDetail.tsx
     └── styles/
         └── index.css
 ```
@@ -117,8 +121,8 @@ actappoll/
 
 ## Checklist Before Merge
 
-- [ ] All phases complete
-- [ ] `npm run build` succeeds
-- [ ] App matches original behavior
-- [ ] `.env` in `.gitignore`
-- [ ] README updated with setup steps
+- [x] All phases complete
+- [x] `npm run build` succeeds
+- [ ] App matches original behavior (manual verification)
+- [x] `.env` in `.gitignore`
+- [x] README updated with setup steps

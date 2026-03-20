@@ -13,7 +13,15 @@ import { useAuth } from './hooks/useAuth';
 import { Login } from './components/Login';
 import { NavBar } from './components/NavBar';
 import { Dashboard } from './components/Dashboard';
-import { Placeholder } from './components/Placeholder';
+import { History } from './components/History';
+import { Roster } from './components/Roster';
+import { Seasons } from './components/Seasons';
+import { Analytics } from './components/Analytics';
+import { NewAct } from './components/NewAct';
+import { ActDetail } from './components/ActDetail';
+import { Chooser } from './components/Chooser';
+import { Settings } from './components/Settings';
+import { SAT } from './components/SAT';
 import { defaultTheme } from './styles/theme';
 import type { AppData, Act } from './types';
 import { FONT_HEADER, FONT_BODY } from './styles/theme';
@@ -30,7 +38,7 @@ type View =
   | 'seasons';
 
 export default function App() {
-  const [showThemeEditor, setShowThemeEditor] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [menuImgs, setMenuImgs] = useState<Record<string, string>>(() => {
     try {
       const c = localStorage.getItem('actMenuImgCache');
@@ -55,7 +63,7 @@ export default function App() {
     }
   }, []);
 
-  const [theme] = useState(() => {
+  const [theme, setTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('actTheme');
       return saved
@@ -65,6 +73,49 @@ export default function App() {
       return { ...defaultTheme };
     }
   });
+
+  const updateTheme = useCallback(
+    (key: keyof typeof defaultTheme, val: string) => {
+      setTheme((prev: typeof defaultTheme) => {
+        const nt = { ...prev, [key]: val };
+        try {
+          const localOnly: Record<string, string> = {};
+          (Object.entries(nt) as [string, string][]).forEach(([k, v]) => {
+            if (
+              typeof k === 'string' &&
+              !k.startsWith('mi_') &&
+              !k.startsWith('mz_') &&
+              !k.startsWith('mp_') &&
+              !k.startsWith('mc_') &&
+              !k.startsWith('mb_')
+            )
+              localOnly[k] = v;
+          });
+          localStorage.setItem('actTheme', JSON.stringify(localOnly));
+        } catch {
+          // ignore
+        }
+        return nt;
+      });
+    },
+    []
+  );
+
+  const resetTheme = useCallback(() => {
+    setTheme({ ...defaultTheme });
+    setMenuImgs({});
+    try {
+      localStorage.removeItem('actTheme');
+      localStorage.removeItem('actMenuImgCache');
+    } catch {
+      // ignore
+    }
+    try {
+      fsSet('config', 'menuImages', {});
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     document.body.style.backgroundColor = theme.bgColor;
@@ -96,7 +147,7 @@ export default function App() {
   });
   const [view, setView] = useState<View>('dashboard');
   const [selAct, setSelAct] = useState<string | null>(null);
-  const [, setSelSat] = useState<string | null>(null);
+  const [selSat, setSelSat] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [src, setSrc] = useState<'loading' | 'firebase' | 'local'>('loading');
@@ -622,6 +673,127 @@ export default function App() {
       },
       [data, reload]
     ),
+    fixTeamNames: useCallback(async () => {
+      let fixed = 0;
+      for (const act of data.acts) {
+        const newTeams = act.teams.map((t) => {
+          if (t.members.length === 2 && t.members[0] && t.members[1]) {
+            const autoName =
+              t.members[0].split(' ')[0] + ' & ' + t.members[1].split(' ')[0];
+            if (t.name !== autoName) return { ...t, name: autoName };
+          }
+          return t;
+        });
+        const changed = newTeams.some((t, i) => t.name !== act.teams[i].name);
+        if (changed) {
+          const aid = act.id ?? act._id ?? '';
+          const d = { ...act, teams: newTeams, id: aid };
+          delete (d as Record<string, unknown>)._id;
+          try {
+            await fsSet('acts', aid, d);
+            fixed++;
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+      for (const sat of data.sats ?? []) {
+        let satChanged = false;
+        const newHeats = (sat.heats ?? []).map((h) => {
+          const newT = (h.teams ?? []).map((t) => {
+            if (
+              t.members &&
+              t.members.length === 2 &&
+              t.members[0] &&
+              t.members[1]
+            ) {
+              const an =
+                t.members[0].split(' ')[0] + ' & ' + t.members[1].split(' ')[0];
+              if (t.name !== an) {
+                satChanged = true;
+                return { ...t, name: an };
+              }
+            }
+            return t;
+          });
+          const newA = (h.advanced ?? []).map((t) => {
+            if (
+              t.members &&
+              t.members.length === 2 &&
+              t.members[0] &&
+              t.members[1]
+            ) {
+              const an =
+                t.members[0].split(' ')[0] + ' & ' + t.members[1].split(' ')[0];
+              if (t.name !== an) return { ...t, name: an };
+            }
+            return t;
+          });
+          const newS = (h.scores ?? []).map((s) => {
+            const tm = (h.teams ?? []).find((t) => t.name === s.name);
+            if (
+              tm?.members &&
+              tm.members.length === 2
+            ) {
+              const an =
+                tm.members[0].split(' ')[0] + ' & ' + tm.members[1].split(' ')[0];
+              if (s.name !== an) return { ...s, name: an };
+            }
+            return s;
+          });
+          return { ...h, teams: newT, advanced: newA, scores: newS };
+        });
+        if (satChanged) {
+          const sid = sat.id ?? sat._id ?? '';
+          try {
+            await fsSet('sats', sid, { ...sat, heats: newHeats, id: sid });
+          } catch {
+            // ignore
+          }
+        }
+      }
+      await reload();
+      return fixed;
+    }, [data, reload]),
+    renamePlayer: useCallback(
+      async (oldName: string, newName: string) => {
+        const p = data.players.find((x) => x.name === oldName);
+        if (!p) return;
+        const did = p.id ?? p._id ?? '';
+        await fsSet('players', did, { ...p, name: newName, id: did });
+        for (const act of data.acts) {
+          let changed = false;
+          const newTeams = act.teams.map((t) => {
+            const newMembers = t.members.map((m) => {
+              if (m === oldName) {
+                changed = true;
+                return newName;
+              }
+              return m;
+            });
+            return { ...t, members: newMembers };
+          });
+          const newRaces = (act.races ?? []).map((r) => ({
+            ...r,
+            results: r.results.map((x) =>
+              x.player === oldName ? { ...x, player: newName } : x
+            ),
+          }));
+          if (changed) {
+            const aid = act.id ?? act._id ?? '';
+            const d = { ...act, teams: newTeams, races: newRaces, id: aid };
+            delete (d as Record<string, unknown>)._id;
+            try {
+              await fsSet('acts', aid, d);
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        }
+        await reload();
+      },
+      [data, reload]
+    ),
   };
 
   if (loading) {
@@ -704,6 +876,16 @@ export default function App() {
           margin: '0 auto',
         }}
       >
+        {showSettings && (
+          <Settings
+            theme={theme}
+            updateTheme={updateTheme}
+            resetTheme={resetTheme}
+            menuImgs={menuImgs}
+            setMenuImgs={setMenuImgs}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
         {view === 'dashboard' && (
           <Dashboard
             data={data}
@@ -711,33 +893,86 @@ export default function App() {
             setSelAct={setSelAct}
             setSelSat={setSelSat}
             auth={auth}
-            onTheme={() => setShowThemeEditor(!showThemeEditor)}
+            onTheme={() => setShowSettings(!showSettings)}
             menuImgs={menuImgs}
           />
         )}
         {view === 'newact' && (
-          <Placeholder view="New ACT" onBack={() => setView('dashboard')} ops={ops} />
+          <NewAct
+            data={data}
+            ops={ops}
+            setView={(v) => setView(v as View)}
+            showToast={(msg) => {
+              setToast(msg);
+              setTimeout(() => setToast(null), 2500);
+            }}
+            setSelAct={setSelAct}
+          />
         )}
         {view === 'actdetail' && selAct && (
-          <Placeholder view="ACT Detail" onBack={() => setView('dashboard')} />
+          <ActDetail
+            act={data.acts.find((a) => (a.id ?? a._id) === selAct)}
+            data={data}
+            setView={(v) => setView(v as View)}
+            ops={ops}
+            showToast={(msg) => {
+              setToast(msg);
+              setTimeout(() => setToast(null), 2500);
+            }}
+            auth={auth}
+          />
         )}
         {view === 'players' && (
-          <Placeholder view="Roster" onBack={() => setView('dashboard')} />
+          <Roster
+            data={data}
+            ops={ops}
+            showToast={(msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); }}
+            auth={auth}
+            setView={(v) => setView(v as View)}
+          />
         )}
         {view === 'history' && (
-          <Placeholder view="History" onBack={() => setView('dashboard')} />
+          <History
+            data={data}
+            setView={(v) => setView(v as View)}
+            setSelAct={setSelAct}
+            ops={ops}
+            showToast={(msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); }}
+            auth={auth}
+          />
         )}
         {view === 'chooser' && (
-          <Placeholder view="Chooser" onBack={() => setView('dashboard')} />
+          <Chooser setView={(v) => setView(v as View)} />
         )}
         {view === 'analytics' && (
-          <Placeholder view="Analytics" onBack={() => setView('dashboard')} />
+          <Analytics
+            data={data}
+            setView={(v) => setView(v as View)}
+          />
         )}
         {view === 'sat' && (
-          <Placeholder view="SAT" onBack={() => setView('dashboard')} />
+          <SAT
+            data={data}
+            ops={ops}
+            showToast={(msg) => {
+              setToast(msg);
+              setTimeout(() => setToast(null), 2500);
+            }}
+            auth={auth}
+            setView={(v) => setView(v as View)}
+            setSelAct={setSelAct}
+            selSat={selSat}
+            setSelSat={setSelSat}
+          />
         )}
         {view === 'seasons' && (
-          <Placeholder view="Seasons" onBack={() => setView('dashboard')} />
+          <Seasons
+            data={data}
+            ops={ops}
+            showToast={(msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); }}
+            auth={auth}
+            setView={(v) => setView(v as View)}
+          />
         )}
       </main>
     </div>

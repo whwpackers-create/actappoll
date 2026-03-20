@@ -69,4 +69,4 @@ src/
 
 ## Reference
 
-Original monolithic site preserved in `index (95).html` until migration is complete. See `MIGRATION_PLAN.md` for the full migration roadmap.
+Original monolithic site preserved in `index (95).html` for reference. Migration complete — see `MIGRATION_PLAN.md` for details.
