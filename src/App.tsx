@@ -695,6 +695,7 @@ export default function App() {
         onMigrate={migrateToFirebase}
       />
       <main
+        className="app-main"
         style={{
           position: 'relative',
           zIndex: 1,

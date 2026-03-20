@@ -47,15 +47,15 @@ Migrate the monolithic HTML/React app to a proper Vite + React + **TypeScript** 
 
 ---
 
-## Phase 3: Styles & Cleanup
+## Phase 3: Styles & Cleanup ✅
 
 **Goal:** Organize styles, remove inline clutter.
 
-- [ ] Extract global CSS to `src/styles/index.css` (fonts, body, #root, media queries)
-- [ ] Extract MKWii font (consider external file or keep base64 if small)
-- [ ] Move shared style objects to `src/styles/theme.js` or CSS variables
-- [ ] Remove CDN scripts from HTML; ensure build uses npm packages
-- [ ] Add README with setup instructions and env var documentation
+- [x] Extract global CSS to `src/styles/index.css` (fonts, body, #root, media queries)
+- [x] Extract MKWii font (consider external file or keep base64 if small)
+- [x] Move shared style objects to `src/styles/theme.js` or CSS variables
+- [x] Remove CDN scripts from HTML; ensure build uses npm packages
+- [x] Add README with setup instructions and env var documentation
 
 **Deliverable:** Clean, maintainable styling; documented setup.
 
