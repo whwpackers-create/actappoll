@@ -1,5 +1,6 @@
 export interface Player {
   name: string;
+  id?: string;
   active?: boolean;
   retiredDate?: string;
   _id?: string;
@@ -28,10 +29,13 @@ export interface Act {
   teams: Team[];
   races: Race[];
   satId?: string;
+  satRound?: number;
   tiebreaker?: string;
   jerseyTiebreaker?: string;
   penalties?: (number[] | number)[][];
   penaltiesJson?: string;
+  grid?: unknown[][][];
+  gridJson?: string;
 }
 
 export interface Season {
@@ -49,8 +53,25 @@ export interface PlacementTeam {
   subs?: string[];
 }
 
+export interface SatHeatTeam {
+  members?: string[];
+  name?: string;
+}
+
+export interface SatHeatScore {
+  name?: string;
+}
+
+export interface SatHeat {
+  actId?: string;
+  teams?: SatHeatTeam[];
+  advanced?: SatHeatTeam[];
+  scores?: SatHeatScore[];
+}
+
 export interface Sat extends Act {
   placements?: Record<string, PlacementTeam[]>;
+  heats?: SatHeat[];
 }
 
 export interface AppData {

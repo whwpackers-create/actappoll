@@ -2,6 +2,7 @@ import { db } from '../config/firebase';
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   deleteDoc,
@@ -77,4 +78,18 @@ export async function loadAllData(): Promise<{
 
 export function gid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+export async function getAdminConfig(): Promise<{
+  password?: string;
+  Password?: string;
+  pw?: string;
+} | null> {
+  const snap = await getDoc(doc(db, 'config', 'admin'));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function getMenuImages(): Promise<Record<string, string>> {
+  const snap = await getDoc(doc(db, 'config', 'menuImages'));
+  return snap.exists() ? (snap.data() as Record<string, string>) : {};
 }
