@@ -450,6 +450,82 @@ export function computeStats(
   });
 }
 
+export interface BracketBreakdown {
+  pts0: number;
+  pts1: number;
+  ch0: number;
+  ch1: number;
+}
+
+export function computeActBracketBreakdown(
+  act: Act,
+  elosBefore: Record<string, number>
+): Record<string, BracketBreakdown> {
+  const result: Record<string, BracketBreakdown> = {};
+
+  const subMap: Record<string, string> = {};
+  act.teams.forEach((t) => {
+    if (t.subs) {
+      t.members.forEach((m, i) => {
+        if (t.subs?.[i]) subMap[m] = t.subs[i];
+      });
+    }
+  });
+  const remapName = (n: string) => subMap[n] ?? n;
+
+  const soloPlayers = new Set<string>();
+  act.teams.forEach((t) => {
+    const rm = t.members.map((m) => remapName(m));
+    if (rm.length >= 2 && rm[0] === rm[1]) soloPlayers.add(rm[0]);
+  });
+
+  if (soloPlayers.size === 0) return result;
+
+  const posMap: Record<string, 0 | 1> = {};
+  act.teams.forEach((t) => {
+    const rm = t.members.map((m) => remapName(m));
+    if (rm.length >= 2 && rm[0] !== rm[1]) {
+      posMap[rm[0]] = 0;
+      posMap[rm[1]] = 1;
+    }
+  });
+
+  const racePos: (0 | 1 | null)[] = act.races.map((r) => {
+    const nonSolo = r.results
+      .map((res) => remapName(res.player))
+      .filter((p) => !soloPlayers.has(p) && p in posMap);
+    if (nonSolo.length === 0) return null;
+    const c0 = nonSolo.filter((p) => posMap[p] === 0).length;
+    const c1 = nonSolo.filter((p) => posMap[p] === 1).length;
+    return c0 >= c1 ? 0 : 1;
+  });
+
+  const multi = act.satId ? SAT_MULTI : 1;
+
+  soloPlayers.forEach((name) => {
+    const pos0Opps = Object.entries(posMap).filter(([, v]) => v === 0).map(([k]) => k);
+    const pos1Opps = Object.entries(posMap).filter(([, v]) => v === 1).map(([k]) => k);
+    let pts0 = 0, pts1 = 0;
+    act.races.forEach((r, i) => {
+      const res = r.results.find((res) => remapName(res.player) === name);
+      if (!res) return;
+      if (racePos[i] === 0) pts0 += res.points;
+      else if (racePos[i] === 1) pts1 += res.points;
+    });
+    const oAvg0 = pos0Opps.length > 0
+      ? pos0Opps.reduce((s, o) => s + (elosBefore[o] ?? BASE_ELO), 0) / pos0Opps.length
+      : BASE_ELO;
+    const oAvg1 = pos1Opps.length > 0
+      ? pos1Opps.reduce((s, o) => s + (elosBefore[o] ?? BASE_ELO), 0) / pos1Opps.length
+      : BASE_ELO;
+    const ch0 = eloChange(elosBefore[name] ?? BASE_ELO, oAvg0, pts0) * multi;
+    const ch1 = eloChange(elosBefore[name] ?? BASE_ELO, oAvg1, pts1) * multi;
+    result[name] = { pts0, pts1, ch0, ch1 };
+  });
+
+  return result;
+}
+
 export interface TeamScore {
   team: Act['teams'][0];
   score: number;

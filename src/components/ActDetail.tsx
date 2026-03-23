@@ -1,5 +1,5 @@
 import { useState, Fragment } from 'react';
-import { teamScores, computeAllElos, BASE_ELO } from '../utils/elo';
+import { teamScores, computeAllElos, computeActBracketBreakdown, BASE_ELO } from '../utils/elo';
 import { fsSet, gid } from '../services/firestore';
 import { card, cHead, cTitle, cSub, inp, TC } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
@@ -197,6 +197,8 @@ export function ActDetail({
     chronoActs.slice(0, ci + 1),
     data.sats
   );
+
+  const bracketBreakdown = computeActBracketBreakdown(act, eB);
 
   const playerPts: Record<string, number> = {};
   act.teams.flatMap((t) => t.members).forEach((n) => {
@@ -1052,30 +1054,56 @@ export function ActDetail({
                 {x.score}
               </span>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {x.team.members.map((name) => {
-                  const pts = playerPts[name] ?? 0;
-                  const b = Math.round(eB[name] ?? BASE_ELO);
-                  const a = Math.round(eA[name] ?? BASE_ELO);
-                  const d = a - b;
-                  return (
-                    <span
-                      key={name}
-                      style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#888' }}
-                    >
-                      {name}:{' '}
-                      <strong style={{ color: '#f0e6d3' }}>{pts}pts</strong>
+                {x.team.members
+                  .filter((name, idx, arr) => arr.indexOf(name) === idx)
+                  .map((name) => {
+                    const isSolo = x.team.members.filter((m) => m === name).length > 1;
+                    const bd = bracketBreakdown[name];
+                    if (isSolo && bd) {
+                      const d0 = Math.round(bd.ch0);
+                      const d1 = Math.round(bd.ch1);
+                      return (
+                        <span key={name} style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#888', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span>
+                            {name} <span style={{ color: '#555' }}>(Top):</span>{' '}
+                            <strong style={{ color: '#f0e6d3' }}>{bd.pts0}pts</strong>
+                            <span style={{ color: d0 > 0 ? '#50fa7b' : d0 < 0 ? '#e94560' : '#555', marginLeft: 4 }}>
+                              {d0 > 0 ? '+' : ''}{d0} elo
+                            </span>
+                          </span>
+                          <span>
+                            {name} <span style={{ color: '#555' }}>(Bot):</span>{' '}
+                            <strong style={{ color: '#f0e6d3' }}>{bd.pts1}pts</strong>
+                            <span style={{ color: d1 > 0 ? '#50fa7b' : d1 < 0 ? '#e94560' : '#555', marginLeft: 4 }}>
+                              {d1 > 0 ? '+' : ''}{d1} elo
+                            </span>
+                          </span>
+                        </span>
+                      );
+                    }
+                    const pts = playerPts[name] ?? 0;
+                    const b = Math.round(eB[name] ?? BASE_ELO);
+                    const a = Math.round(eA[name] ?? BASE_ELO);
+                    const d = a - b;
+                    return (
                       <span
-                        style={{
-                          color: d > 0 ? '#50fa7b' : d < 0 ? '#e94560' : '#555',
-                          marginLeft: 4,
-                        }}
+                        key={name}
+                        style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#888' }}
                       >
-                        {d > 0 ? '+' : ''}
-                        {d} elo
+                        {name}:{' '}
+                        <strong style={{ color: '#f0e6d3' }}>{pts}pts</strong>
+                        <span
+                          style={{
+                            color: d > 0 ? '#50fa7b' : d < 0 ? '#e94560' : '#555',
+                            marginLeft: 4,
+                          }}
+                        >
+                          {d > 0 ? '+' : ''}
+                          {d} elo
+                        </span>
                       </span>
-                    </span>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           );
