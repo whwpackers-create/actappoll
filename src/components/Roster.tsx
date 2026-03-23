@@ -39,6 +39,7 @@ export function Roster({
   );
   const [renameModal, setRenameModal] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  const [mergeConfirm, setMergeConfirm] = useState<{ from: string; to: string } | null>(null);
 
   const stats = computeStats(data.players, data.acts, data.sats ?? []);
   const sorted = [...stats].sort((a, b) => a.name.localeCompare(b.name));
@@ -142,33 +143,29 @@ export function Roster({
           p.name !== renameModal
       );
       if (existing) {
-        if (
-          !confirm(
-            `Player "${newName.trim()}" already exists. Merge "${renameModal}" into "${newName.trim()}"? All ACTs and stats will be combined.`
-          )
-        ) {
-          return;
-        }
-        await ops.renamePlayer(renameModal, newName.trim());
-        const oldP = data.players.find((p) => p.name === renameModal);
-        if (oldP) {
-          const oid = oldP.id ?? oldP._id;
-          if (oid) {
-            try {
-              await fsDel('players', oid);
-            } catch {
-              // ignore
-            }
-          }
-        }
-        showToast('Merged! ' + renameModal + ' → ' + newName.trim());
         setRenameModal(null);
+        setMergeConfirm({ from: renameModal, to: newName.trim() });
       } else {
         await ops.renamePlayer(renameModal, newName.trim());
         showToast('Renamed!');
         setRenameModal(null);
       }
     });
+  };
+
+  const confirmMerge = async () => {
+    if (!mergeConfirm) return;
+    const { from, to } = mergeConfirm;
+    await ops.renamePlayer(from, to);
+    const oldP = data.players.find((p) => p.name === from);
+    if (oldP) {
+      const oid = oldP.id ?? oldP._id;
+      if (oid) {
+        try { await fsDel('players', oid); } catch { /* ignore */ }
+      }
+    }
+    showToast('Merged! ' + from + ' → ' + to);
+    setMergeConfirm(null);
   };
 
   const tc = {
@@ -422,6 +419,21 @@ export function Roster({
                 <button style={priBtn} onClick={confirmRename}>
                   Rename
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mergeConfirm && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+            <div style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 28, maxWidth: 380, width: '90%' }}>
+              <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', marginBottom: 8 }}>⚠️ Player Already Exists</div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#aaa', marginBottom: 20 }}>
+                <strong style={{ color: '#f0e6d3' }}>{mergeConfirm.to}</strong> already exists. Merge <strong style={{ color: '#f0e6d3' }}>{mergeConfirm.from}</strong> into them? All ACTs and stats will be combined.
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button style={secBtn} onClick={() => setMergeConfirm(null)}>Cancel</button>
+                <button style={priBtn} onClick={confirmMerge}>Merge</button>
               </div>
             </div>
           </div>
