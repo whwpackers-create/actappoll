@@ -130,27 +130,22 @@ export function Roster({
     });
   };
 
-  const confirmRename = () => {
+  const confirmRename = async () => {
     if (!renameModal || !newName.trim()) return;
-    auth.req(async () => {
-      if (newName.trim() === renameModal) {
-        setRenameModal(null);
-        return;
-      }
-      const existing = data.players.find(
-        (p) =>
-          p.name.toLowerCase() === newName.trim().toLowerCase() &&
-          p.name !== renameModal
-      );
-      if (existing) {
-        setRenameModal(null);
-        setMergeConfirm({ from: renameModal, to: newName.trim() });
-      } else {
-        await ops.renamePlayer(renameModal, newName.trim());
-        showToast('Renamed!');
-        setRenameModal(null);
-      }
-    });
+    if (newName.trim() === renameModal) { setRenameModal(null); return; }
+    const from = renameModal;
+    const to = newName.trim();
+    const existing = data.players.find(
+      (p) => p.name.toLowerCase() === to.toLowerCase() && p.name !== from
+    );
+    if (existing) {
+      setRenameModal(null);
+      setMergeConfirm({ from, to });
+    } else {
+      setRenameModal(null);
+      await ops.renamePlayer(from, to);
+      showToast('Renamed!');
+    }
   };
 
   const confirmMerge = async () => {
