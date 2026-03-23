@@ -827,7 +827,14 @@ export default function App() {
             try { await fsSet('sats', sid, d); } catch (e) { console.error(e); }
           }
         }
-        await reload();
+        // Update local state immediately so UI reflects change without waiting for reload
+        setData((prev) => ({
+          ...prev,
+          players: prev.players.map((pl) =>
+            pl.name === oldName ? { ...pl, name: newName } : pl
+          ),
+        }));
+        reload();
       },
       [data, reload]
     ),
