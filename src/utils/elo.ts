@@ -137,7 +137,7 @@ export function computeAllElos(
           const oAvg1 = pos1Opps.length > 0
             ? pos1Opps.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / pos1Opps.length
             : BASE_ELO;
-          ch = ((eloChange(elos[name], oAvg0, pts0) + eloChange(elos[name], oAvg1, pts1)) / 4) * multi;
+          ch = ((eloChange(elos[name], oAvg0, pts0) + eloChange(elos[name], oAvg1, pts1)) / 2) * multi;
         } else {
           const opp = ap.filter((p) => p !== name);
           const oAvg =
@@ -290,7 +290,7 @@ export function computeSeasonElos(
         const oAvg1 = pos1Opps.length > 0
           ? pos1Opps.reduce((s, o) => s + (sE[o] ?? BASE_ELO), 0) / pos1Opps.length
           : BASE_ELO;
-        ch = ((eloChange(sE[name], oAvg0, pts0) + eloChange(sE[name], oAvg1, pts1)) / 4) * multi;
+        ch = ((eloChange(sE[name], oAvg0, pts0) + eloChange(sE[name], oAvg1, pts1)) / 2) * multi;
       } else {
         const opp = ap.filter((p) => p !== name);
         const oAvg =
@@ -518,8 +518,8 @@ export function computeActBracketBreakdown(
     const oAvg1 = pos1Opps.length > 0
       ? pos1Opps.reduce((s, o) => s + (elosBefore[o] ?? BASE_ELO), 0) / pos1Opps.length
       : BASE_ELO;
-    const ch0 = (eloChange(elosBefore[name] ?? BASE_ELO, oAvg0, pts0) / 4) * multi;
-    const ch1 = (eloChange(elosBefore[name] ?? BASE_ELO, oAvg1, pts1) / 4) * multi;
+    const ch0 = (eloChange(elosBefore[name] ?? BASE_ELO, oAvg0, pts0) / 2) * multi;
+    const ch1 = (eloChange(elosBefore[name] ?? BASE_ELO, oAvg1, pts1) / 2) * multi;
     result[name] = { pts0, pts1, ch0, ch1 };
   });
 

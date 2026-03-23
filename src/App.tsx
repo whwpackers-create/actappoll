@@ -761,17 +761,19 @@ export default function App() {
         if (!p) return;
         const did = p.id ?? p._id ?? '';
         await fsSet('players', did, { ...p, name: newName, id: did });
+        const rn = (s: string) => (s === oldName ? newName : s);
         for (const act of data.acts) {
           let changed = false;
           const newTeams = act.teams.map((t) => {
             const newMembers = t.members.map((m) => {
-              if (m === oldName) {
-                changed = true;
-                return newName;
-              }
+              if (m === oldName) { changed = true; return newName; }
               return m;
             });
-            return { ...t, members: newMembers };
+            const newSubs = (t.subs ?? []).map((m) => {
+              if (m === oldName) { changed = true; return newName; }
+              return m;
+            });
+            return { ...t, members: newMembers, subs: newSubs };
           });
           const newRaces = (act.races ?? []).map((r) => ({
             ...r,
@@ -783,11 +785,48 @@ export default function App() {
             const aid = act.id ?? act._id ?? '';
             const d = { ...act, teams: newTeams, races: newRaces, id: aid };
             delete (d as Record<string, unknown>)._id;
-            try {
-              await fsSet('acts', aid, d);
-            } catch (e) {
-              console.error(e);
+            try { await fsSet('acts', aid, d); } catch (e) { console.error(e); }
+          }
+        }
+        for (const sat of data.sats) {
+          let changed = false;
+          const upd: Record<string, unknown> = {};
+          if (sat.roster) {
+            upd.roster = sat.roster.map((t) => {
+              const nm = t.members.map((m) => { if (m === oldName) { changed = true; return newName; } return m; });
+              const ns = (t.subs ?? []).map((m) => { if (m === oldName) { changed = true; return newName; } return m; });
+              return { ...t, members: nm, subs: ns };
+            });
+          }
+          if (sat.placements) {
+            const np: typeof sat.placements = {};
+            for (const [pl, teams] of Object.entries(sat.placements)) {
+              np[pl] = (teams ?? []).map((t) => {
+                const nm = (t.members ?? []).map((m) => { if (m === oldName) { changed = true; return newName; } return m; });
+                const ns = (t.subs ?? []).map((m) => { if (m === oldName) { changed = true; return newName; } return m; });
+                return { ...t, members: nm, subs: ns };
+              });
             }
+            upd.placements = np;
+          }
+          if (sat.heats) {
+            upd.heats = sat.heats.map((h) => ({
+              ...h,
+              teams: (h.teams ?? []).map((t) => ({ ...t, members: (t.members ?? []).map(rn), subs: (t.subs ?? []).map(rn) })),
+              advanced: (h.advanced ?? []).map((t) => { const hadOld = (t.members ?? []).includes(oldName) || (t.subs ?? []).includes(oldName); if (hadOld) changed = true; return { ...t, members: (t.members ?? []).map(rn), subs: (t.subs ?? []).map(rn) }; }),
+            }));
+          }
+          const newTeams = sat.teams.map((t) => {
+            const nm = t.members.map((m) => { if (m === oldName) { changed = true; return newName; } return m; });
+            const ns = (t.subs ?? []).map((m) => { if (m === oldName) { changed = true; return newName; } return m; });
+            return { ...t, members: nm, subs: ns };
+          });
+          const newRaces = (sat.races ?? []).map((r) => ({ ...r, results: r.results.map((x) => x.player === oldName ? { ...x, player: newName } : x) }));
+          if (changed) {
+            const sid = sat.id ?? sat._id ?? '';
+            const d = { ...sat, ...upd, teams: newTeams, races: newRaces, id: sid };
+            delete (d as Record<string, unknown>)._id;
+            try { await fsSet('sats', sid, d); } catch (e) { console.error(e); }
           }
         }
         await reload();

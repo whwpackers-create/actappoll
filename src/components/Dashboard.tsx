@@ -202,11 +202,7 @@ export function Dashboard({
             label: 'Inactive Players',
           },
           { icon: '🏁', val: data.acts.length, label: 'Total ACTs' },
-          {
-            icon: '🍺',
-            val: (data.acts.length * 64).toLocaleString(),
-            label: 'Beers Drank',
-          },
+          { icon: '🏆', val: '4/16', label: 'Spring 2026 SAT' },
         ].map((s, i) => (
           <div
             key={i}
