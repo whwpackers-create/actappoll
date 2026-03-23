@@ -49,18 +49,16 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (Object.keys(menuImgs).length === 0) {
-      getMenuImages()
-        .then((d) => {
-          setMenuImgs(d);
-          try {
-            localStorage.setItem('actMenuImgCache', JSON.stringify(d));
-          } catch {
-            // ignore
-          }
-        })
-        .catch(() => {});
-    }
+    getMenuImages()
+      .then((d) => {
+        setMenuImgs(d);
+        try {
+          localStorage.setItem('actMenuImgCache', JSON.stringify(d));
+        } catch {
+          // ignore
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const [theme, setTheme] = useState(() => {
