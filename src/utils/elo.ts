@@ -96,17 +96,56 @@ export function computeAllElos(
         }
       });
 
+      // Map each non-solo player to their slot (0 = top bracket, 1 = bottom bracket)
+      const posMap: Record<string, 0 | 1> = {};
+      act.teams.forEach((t) => {
+        const rm = t.members.map((m) => remapName(m));
+        if (rm.length >= 2 && rm[0] !== rm[1]) {
+          posMap[rm[0]] = 0;
+          posMap[rm[1]] = 1;
+        }
+      });
+
+      // Classify each race as top (0) or bottom (1) bracket based on non-solo participants
+      const racePos: (0 | 1 | null)[] = act.races.map((r) => {
+        const nonSolo = r.results
+          .map((res) => remapName(res.player))
+          .filter((p) => !soloPlayers.has(p) && p in posMap);
+        if (nonSolo.length === 0) return null;
+        const c0 = nonSolo.filter((p) => posMap[p] === 0).length;
+        const c1 = nonSolo.filter((p) => posMap[p] === 1).length;
+        return c0 >= c1 ? 0 : 1;
+      });
+
       ap.forEach((name) => {
         if (!(name in elos)) elos[name] = BASE_ELO;
-        const opp = ap.filter((p) => p !== name);
-        const oAvg =
-          opp.length > 0
-            ? opp.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / opp.length
+        let ch: number;
+        if (soloPlayers.has(name)) {
+          // Calculate ELO separately for each bracket then sum
+          const pos0Opps = Object.entries(posMap).filter(([, v]) => v === 0).map(([k]) => k);
+          const pos1Opps = Object.entries(posMap).filter(([, v]) => v === 1).map(([k]) => k);
+          let pts0 = 0, pts1 = 0;
+          act.races.forEach((r, i) => {
+            const res = r.results.find((res) => remapName(res.player) === name);
+            if (!res) return;
+            if (racePos[i] === 0) pts0 += res.points;
+            else if (racePos[i] === 1) pts1 += res.points;
+          });
+          const oAvg0 = pos0Opps.length > 0
+            ? pos0Opps.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / pos0Opps.length
             : BASE_ELO;
-        const eloPoints = soloPlayers.has(name)
-          ? (pp[name] ?? 0) / 2
-          : pp[name] ?? 0;
-        const ch = eloChange(elos[name], oAvg, eloPoints) * multi;
+          const oAvg1 = pos1Opps.length > 0
+            ? pos1Opps.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / pos1Opps.length
+            : BASE_ELO;
+          ch = (eloChange(elos[name], oAvg0, pts0) + eloChange(elos[name], oAvg1, pts1)) * multi;
+        } else {
+          const opp = ap.filter((p) => p !== name);
+          const oAvg =
+            opp.length > 0
+              ? opp.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / opp.length
+              : BASE_ELO;
+          ch = eloChange(elos[name], oAvg, pp[name] ?? 0) * multi;
+        }
         elos[name] += ch;
         if (!hist[name]) hist[name] = [];
         hist[name].push({
@@ -183,29 +222,83 @@ export function computeSeasonElos(
   });
 
   sActs.forEach((act) => {
-    const ap = act.teams.flatMap((t) => t.members);
-    const pp: Record<string, number> = {};
-    ap.forEach((p) => {
-      pp[p] = 0;
+    const subMap: Record<string, string> = {};
+    act.teams.forEach((t) => {
+      if (t.subs) {
+        t.members.forEach((m, i) => {
+          if (t.subs?.[i]) subMap[m] = t.subs[i];
+        });
+      }
     });
+    const remapName = (n: string) => subMap[n] ?? n;
+
+    const ap = [...new Set(act.teams.flatMap((t) => t.members).map(remapName))];
+    const pp: Record<string, number> = {};
+    ap.forEach((p) => { pp[p] = 0; });
     act.races.forEach((r) =>
       r.results.forEach((res) => {
-        if (res.player in pp) pp[res.player] += res.points;
+        const pn = remapName(res.player);
+        if (pn in pp) pp[pn] += res.points;
       })
     );
     const multi = act.satId ? SAT_MULTI : 1;
+
+    const soloPlayers = new Set<string>();
+    act.teams.forEach((t) => {
+      const rm = t.members.map((m) => remapName(m));
+      if (rm.length >= 2 && rm[0] === rm[1]) soloPlayers.add(rm[0]);
+    });
+
+    const posMap: Record<string, 0 | 1> = {};
+    act.teams.forEach((t) => {
+      const rm = t.members.map((m) => remapName(m));
+      if (rm.length >= 2 && rm[0] !== rm[1]) {
+        posMap[rm[0]] = 0;
+        posMap[rm[1]] = 1;
+      }
+    });
+
+    const racePos: (0 | 1 | null)[] = act.races.map((r) => {
+      const nonSolo = r.results
+        .map((res) => remapName(res.player))
+        .filter((p) => !soloPlayers.has(p) && p in posMap);
+      if (nonSolo.length === 0) return null;
+      const c0 = nonSolo.filter((p) => posMap[p] === 0).length;
+      const c1 = nonSolo.filter((p) => posMap[p] === 1).length;
+      return c0 >= c1 ? 0 : 1;
+    });
 
     ap.forEach((name) => {
       if (!(name in sE))
         sE[name] = Math.round(
           BASE_ELO * (1 - CARRY) + (atE[name] ?? BASE_ELO) * CARRY
         );
-      const opp = ap.filter((p) => p !== name);
-      const oAvg =
-        opp.length > 0
-          ? opp.reduce((s, o) => s + (sE[o] ?? BASE_ELO), 0) / opp.length
+      let ch: number;
+      if (soloPlayers.has(name)) {
+        const pos0Opps = Object.entries(posMap).filter(([, v]) => v === 0).map(([k]) => k);
+        const pos1Opps = Object.entries(posMap).filter(([, v]) => v === 1).map(([k]) => k);
+        let pts0 = 0, pts1 = 0;
+        act.races.forEach((r, i) => {
+          const res = r.results.find((res) => remapName(res.player) === name);
+          if (!res) return;
+          if (racePos[i] === 0) pts0 += res.points;
+          else if (racePos[i] === 1) pts1 += res.points;
+        });
+        const oAvg0 = pos0Opps.length > 0
+          ? pos0Opps.reduce((s, o) => s + (sE[o] ?? BASE_ELO), 0) / pos0Opps.length
           : BASE_ELO;
-      const ch = eloChange(sE[name], oAvg, pp[name] ?? 0) * multi;
+        const oAvg1 = pos1Opps.length > 0
+          ? pos1Opps.reduce((s, o) => s + (sE[o] ?? BASE_ELO), 0) / pos1Opps.length
+          : BASE_ELO;
+        ch = (eloChange(sE[name], oAvg0, pts0) + eloChange(sE[name], oAvg1, pts1)) * multi;
+      } else {
+        const opp = ap.filter((p) => p !== name);
+        const oAvg =
+          opp.length > 0
+            ? opp.reduce((s, o) => s + (sE[o] ?? BASE_ELO), 0) / opp.length
+            : BASE_ELO;
+        ch = eloChange(sE[name], oAvg, pp[name] ?? 0) * multi;
+      }
       sE[name] += ch;
       if (!sH[name]) sH[name] = [];
       sH[name].push({
