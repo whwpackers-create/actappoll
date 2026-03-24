@@ -435,6 +435,8 @@ export default function App() {
           console.error(e);
           setData((nd) => ({ ...nd, acts: [...nd.acts, d as Act] }));
           saveLocal({ ...data, acts: [...data.acts, d as Act] });
+          setToast('⚠️ Firebase save failed — ACT saved locally only. Check connection.');
+          setTimeout(() => setToast(null), 5000);
         }
       },
       [reload, data]
