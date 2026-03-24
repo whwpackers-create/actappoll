@@ -172,7 +172,13 @@ export function History({
             </option>
           ))}
         </select>
+        <datalist id="hist-plist">
+          {data.players.map((p) => (
+            <option key={p.name} value={p.name} />
+          ))}
+        </datalist>
         <input
+          list="hist-plist"
           placeholder="Filter by player..."
           value={playerSearch}
           onChange={(e) => setPlayerSearch(e.target.value)}
