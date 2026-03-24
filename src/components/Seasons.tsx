@@ -39,6 +39,10 @@ export function Seasons({
   const [ce, setCe] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
 
   const saved = [...(data.seasons ?? [])];
   const all = [...saved];
@@ -71,6 +75,27 @@ export function Seasons({
       setShowAdd(false);
       showToast('Added!');
     });
+  };
+
+  const startEdit = (s: (typeof all)[0]) => {
+    const sid = s.id ?? s._id ?? s.name;
+    setEditingId(sid);
+    setEditName(s.name);
+    setEditStart(s.startDate);
+    setEditEnd(s.endDate);
+  };
+
+  const saveEdit = async (s: (typeof all)[0]) => {
+    const sid = s.id ?? s._id ?? s.name;
+    if (!editName || !editStart || !editEnd) return;
+    if ((s as { isPreset?: boolean }).isPreset) {
+      await ops.addSeason({ ...s, id: sid, name: editName, startDate: editStart, endDate: editEnd });
+      delete (s as { isPreset?: boolean }).isPreset;
+    } else {
+      await ops.updateSeason(sid, { name: editName, startDate: editStart, endDate: editEnd });
+    }
+    setEditingId(null);
+    showToast('Updated!');
   };
 
   const delS = (s: (typeof all)[0]) => {
@@ -231,27 +256,48 @@ export function Seasons({
                       ▼
                     </button>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontFamily: FONT_HEADER,
-                        fontSize: 14,
-                        color: '#f0e6d3',
-                      }}
-                    >
-                      {s.name}
+                  {editingId === sid ? (
+                    <div style={{ flex: 1, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <input
+                        style={{ ...inp, flex: 1, minWidth: 100 }}
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Name"
+                      />
+                      <input
+                        style={{ ...inp, minWidth: 120 }}
+                        type="date"
+                        value={editStart}
+                        onChange={(e) => setEditStart(e.target.value)}
+                      />
+                      <input
+                        style={{ ...inp, minWidth: 120 }}
+                        type="date"
+                        value={editEnd}
+                        onChange={(e) => setEditEnd(e.target.value)}
+                      />
+                      <button onClick={() => auth.req(() => saveEdit(s))} style={{ ...priBtn, padding: '6px 12px', fontSize: 12 }}>Save</button>
+                      <button onClick={() => setEditingId(null)} style={{ ...secBtn, padding: '6px 12px', fontSize: 12 }}>Cancel</button>
                     </div>
-                    <div
-                      style={{
-                        fontFamily: FONT_MONO,
-                        fontSize: 9,
-                        color: '#555',
-                      }}
-                    >
-                      {s.startDate} → {s.endDate} · {ac} ACTs
+                  ) : (
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: FONT_HEADER, fontSize: 14, color: '#f0e6d3' }}>
+                        {s.name}
+                      </div>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#555' }}>
+                        {s.startDate} → {s.endDate} · {ac} ACTs
+                      </div>
                     </div>
-                  </div>
-                  {!(s as { isPreset?: boolean }).isPreset && (
+                  )}
+                  {editingId !== sid && (
+                    <button
+                      onClick={() => auth.req(() => startEdit(s))}
+                      style={{ background: 'none', border: 'none', color: '#a09880', cursor: 'pointer', fontSize: 14, padding: '0 4px' }}
+                    >
+                      ✏️
+                    </button>
+                  )}
+                  {editingId !== sid && !(s as { isPreset?: boolean }).isPreset && (
                     <button
                       onClick={() => delS(s)}
                       style={{ ...delBtn, fontSize: 14 }}
