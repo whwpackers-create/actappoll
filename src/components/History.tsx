@@ -65,6 +65,7 @@ export function History({
   const [histSort, setHistSort] = useState('date');
   const [histMonth, setHistMonth] = useState('');
   const [histYear, setHistYear] = useState('');
+  const [playerSearch, setPlayerSearch] = useState('');
 
   const histYears = [
     ...new Set(data.acts.map((a) => new Date(a.date).getFullYear())),
@@ -79,6 +80,15 @@ export function History({
       const d = new Date(a.date);
       if (histYear && d.getFullYear() !== parseInt(histYear)) return false;
       if (histMonth && d.getMonth() !== parseInt(histMonth)) return false;
+      if (playerSearch.trim()) {
+        const q = playerSearch.trim().toLowerCase();
+        const inAct = a.teams.some((t) =>
+          [...t.members, ...(t.subs ?? [])].some((m) =>
+            m.toLowerCase().includes(q)
+          )
+        );
+        if (!inAct) return false;
+      }
       return true;
     })
     .sort((a, b) => {
@@ -162,6 +172,16 @@ export function History({
             </option>
           ))}
         </select>
+        <input
+          placeholder="Filter by player..."
+          value={playerSearch}
+          onChange={(e) => setPlayerSearch(e.target.value)}
+          style={{
+            ...selectStyle,
+            cursor: 'text',
+            minWidth: 160,
+          }}
+        />
         <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556' }}>
           {sorted.length} ACTs
         </span>
