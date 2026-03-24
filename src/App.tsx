@@ -428,6 +428,12 @@ export default function App() {
         const id = act.id ?? gid();
         const d = { ...act, id };
         delete (d as Record<string, unknown>)._id;
+        // Firestore doesn't support undefined values — strip them before saving
+        Object.keys(d).forEach((k) => {
+          if ((d as Record<string, unknown>)[k] === undefined) {
+            delete (d as Record<string, unknown>)[k];
+          }
+        });
         try {
           await fsSet('acts', id, d);
           await reload();
