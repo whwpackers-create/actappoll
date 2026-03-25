@@ -83,8 +83,10 @@ export function Analytics({ data, setView }: AnalyticsProps) {
   selected.forEach((name) => {
     const p = stats.find((s) => s.name === name);
     if (p?.eloHistory) {
+      // Exclude SAT placement bonus entries (isSat + points===0) — they store
+      // ELO computed after all future acts, causing false spikes in the chart
       p.eloHistory.forEach((h) => {
-        if (h.date) allDates.push(h.date);
+        if (h.date && !(h.isSat && h.points === 0)) allDates.push(h.date);
       });
     }
   });
@@ -94,15 +96,25 @@ export function Analytics({ data, setView }: AnalyticsProps) {
   let maxE = 0;
   const lines = selected.map((name, ni) => {
     const p = stats.find((s) => s.name === name);
-    const hist = p?.eloHistory ?? [];
+    // Filter out SAT placement bonus entries for the same reason
+    const hist = (p?.eloHistory ?? []).filter((h) => !(h.isSat && h.points === 0));
     const finalElo = p ? Math.round(p.elo) : 1000;
-    const pts: { date: string; elo: number; idx: number }[] = [];
+    // First date the player actually appeared in an ACT
+    const firstDate = hist.length > 0
+      ? [...hist].sort((a, b) => a.date.localeCompare(b.date))[0].date
+      : null;
+    const pts: { date: string; elo: number | null; idx: number }[] = [];
     let curElo = 1000;
     uniqueDates.forEach((date, di) => {
+      const isLast = di === uniqueDates.length - 1;
+      // Don't show a line before the player's first recorded ACT
+      if (firstDate && date < firstDate) {
+        pts.push({ date, elo: null, idx: di });
+        return;
+      }
       const entry = hist.find((h) => h.date === date) ?? null;
       if (entry) curElo = Math.round(entry.elo);
       // Snap the last point to the real leaderboard ELO so chart always matches
-      const isLast = di === uniqueDates.length - 1;
       const displayElo = isLast ? finalElo : curElo;
       pts.push({ date, elo: displayElo, idx: di });
       if (displayElo < minE) minE = displayElo;
@@ -368,8 +380,11 @@ export function Analytics({ data, setView }: AnalyticsProps) {
               })}
               {lines.map((line) => {
                 let d = '';
+                let segStarted = false;
                 line.pts.forEach((pt, i) => {
-                  d += (i === 0 ? 'M' : 'L') + scaleX(i) + ',' + scaleY(pt.elo);
+                  if (pt.elo === null) { segStarted = false; return; }
+                  if (!segStarted) { d += 'M' + scaleX(i) + ',' + scaleY(pt.elo); segStarted = true; }
+                  else { d += 'L' + scaleX(i) + ',' + scaleY(pt.elo); }
                 });
                 return (
                   <path
@@ -386,11 +401,11 @@ export function Analytics({ data, setView }: AnalyticsProps) {
               {hoverPt &&
                 lines.map((line) => {
                   const pt = line.pts[hoverPt.idx];
-                  return pt ? (
+                  return pt && pt.elo !== null ? (
                     <circle
                       key={line.name}
                       cx={scaleX(hoverPt.idx)}
-                      cy={scaleY(pt.elo)}
+                      cy={scaleY(pt.elo as number)}
                       r="5"
                       fill={line.color}
                       stroke="#1a1e28"
@@ -451,7 +466,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                 </div>
                 {lines.map((line) => {
                   const pt = line.pts[hoverPt.idx];
-                  return pt ? (
+                  return pt && pt.elo !== null ? (
                     <div
                       key={line.name}
                       style={{
@@ -512,8 +527,8 @@ export function Analytics({ data, setView }: AnalyticsProps) {
           >
             {lines.map((line) => {
               const last = line.pts[line.pts.length - 1];
-              const first = line.pts[0];
-              const diff = last ? last.elo - (first?.elo ?? 0) : 0;
+              const firstNonNull = line.pts.find((p) => p.elo !== null);
+              const diff = last?.elo != null && firstNonNull?.elo != null ? last.elo - firstNonNull.elo : 0;
               return (
                 <div
                   key={line.name}
