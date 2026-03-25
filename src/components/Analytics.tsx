@@ -95,14 +95,18 @@ export function Analytics({ data, setView }: AnalyticsProps) {
   const lines = selected.map((name, ni) => {
     const p = stats.find((s) => s.name === name);
     const hist = p?.eloHistory ?? [];
+    const finalElo = p ? Math.round(p.elo) : 1000;
     const pts: { date: string; elo: number; idx: number }[] = [];
     let curElo = 1000;
     uniqueDates.forEach((date, di) => {
       const entry = hist.find((h) => h.date === date) ?? null;
       if (entry) curElo = Math.round(entry.elo);
-      pts.push({ date, elo: curElo, idx: di });
-      if (curElo < minE) minE = curElo;
-      if (curElo > maxE) maxE = curElo;
+      // Snap the last point to the real leaderboard ELO so chart always matches
+      const isLast = di === uniqueDates.length - 1;
+      const displayElo = isLast ? finalElo : curElo;
+      pts.push({ date, elo: displayElo, idx: di });
+      if (displayElo < minE) minE = displayElo;
+      if (displayElo > maxE) maxE = displayElo;
     });
     return { name, pts, color: colors[ni % colors.length] };
   });

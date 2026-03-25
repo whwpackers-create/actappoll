@@ -4,6 +4,8 @@ export const BASE_ELO = 1000;
 export const MAX_PTS = 24;
 export const K_BASE = 40;
 export const LOSS_DAMP = 0.55;
+export const LOW_ELO_PROTECT = 300; // ELO range below BASE where protection applies
+export const MAX_EXTRA_DAMP = 0.55; // max extra loss reduction at the floor (55%)
 export const CARRY = 0.3;
 export const SAT_MULTI = 1.25;
 export const SAT_PLACEMENT_BONUS: Record<string, number> = {
@@ -28,6 +30,11 @@ function eloChange(pE: number, oE: number, pts: number): number {
   let ch = k * (norm - exp);
   if (ch < 0) {
     ch *= LOSS_DAMP;
+    // Extra protection for low-ELO players: scales from 0% at BASE_ELO down to MAX_EXTRA_DAMP at (BASE_ELO - LOW_ELO_PROTECT)
+    if (pE < BASE_ELO) {
+      const extraDamp = Math.min((BASE_ELO - pE) / LOW_ELO_PROTECT, 1) * MAX_EXTRA_DAMP;
+      ch *= (1 - extraDamp);
+    }
     ch = Math.max(ch, -25);
   }
   return Math.min(Math.round(ch * 10) / 10, 45);
