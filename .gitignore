@@ -16,3 +16,5 @@ dist
 
 # cringe
 legacy
+# Local Netlify folder
+.netlify

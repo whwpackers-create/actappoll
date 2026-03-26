@@ -19,6 +19,19 @@ export const MMR_LOSS_MAX = 1.75;   // max loss multiplier (low MMR, overranked 
 export const MMR_LOSS_MIN = 0.5;    // min loss multiplier (high MMR, underranked in season)
 export const SEASON_DAMP_AFTER = 12;  // ACTs in a season after which changes are dampened
 export const SEASON_DAMP_FACTOR = 0.6; // multiplier applied to ch after SEASON_DAMP_AFTER ACTs
+
+export const SEASON_RANKS = [
+  { name: 'Diamond',  min: 1400, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
+  { name: 'Platinum', min: 1200, color: '#e2e8f0', bg: 'rgba(226,232,240,0.10)', icon: '🔹' },
+  { name: 'Gold',     min: 1050, color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: '🥇' },
+  { name: 'Silver',   min: 900,  color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', icon: '🥈' },
+  { name: 'Bronze',   min: 750,  color: '#cd7f32', bg: 'rgba(205,127,50,0.10)',  icon: '🥉' },
+  { name: 'Copper',   min: 0,    color: '#b45309', bg: 'rgba(180,83,9,0.10)',    icon: '🪙' },
+] as const;
+
+export function getSeasonRank(elo: number) {
+  return SEASON_RANKS.find((r) => elo >= r.min) ?? SEASON_RANKS[SEASON_RANKS.length - 1];
+}
 export const SAT_PLACEMENT_BONUS: Record<string, number> = {
   winner: 25,
   runnerUp: 15,

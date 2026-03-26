@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { computeSeasonElos, teamScores, BASE_ELO } from '../utils/elo';
+import { computeSeasonElos, teamScores, BASE_ELO, getSeasonRank } from '../utils/elo';
 import { gid } from '../services/firestore';
 import { PRESETS } from '../constants';
 import {
@@ -522,6 +522,7 @@ export function Seasons({
                         pp?.retiredDate &&
                         (!vs.endDate ||
                           new Date(pp.retiredDate) <= new Date(vs.endDate));
+                      const rank = getSeasonRank(p.elo);
                       return (
                         <div
                           key={p.name}
@@ -531,14 +532,8 @@ export function Seasons({
                             gap: 8,
                             alignItems: 'center',
                             padding: '10px 14px',
-                            background:
-                              i < 3
-                                ? 'rgba(42,80,130,0.1)'
-                                : 'rgba(18,22,30,0.3)',
-                            border:
-                              i === 0
-                                ? '1.5px solid rgba(90,150,190,0.3)'
-                                : '1px solid rgba(34,42,54,0.5)',
+                            background: rank.bg,
+                            border: `1px solid ${rank.color}33`,
                             borderRadius: 8,
                           }}
                         >
@@ -563,9 +558,28 @@ export function Seasons({
                                 fontFamily: FONT_HEADER,
                                 fontSize: 16,
                                 color: '#e0e4ea',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                flexWrap: 'wrap',
                               }}
                             >
                               {p.name}
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  color: rank.color,
+                                  background: rank.bg,
+                                  border: `1px solid ${rank.color}55`,
+                                  borderRadius: 4,
+                                  padding: '1px 6px',
+                                  letterSpacing: 0.5,
+                                  fontFamily: FONT_MONO,
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {rank.icon} {rank.name.toUpperCase()}
+                              </span>
                               {showRetired && (
                                 <span
                                   style={{
