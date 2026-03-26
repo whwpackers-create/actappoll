@@ -10,6 +10,7 @@ export const CARRY = 0.3; // kept for reference but no longer used in season sta
 export const SAT_MULTI = 1.25;
 export const PLACEMENT_ACTS = 7;    // ACTs needed to exit placement; 2× K-factor during placement
 export const SEASON_BASE_ELO = 800; // everyone starts here each season (below leaderboard 1000)
+export const SEASON_K_MULTI = 2.0;  // base amplifier on all season changes — creates spread over short seasons
 export const MMR_SCALE = 400;       // gap between MMR and season ELO at which factors hit their extremes
 export const MMR_GAIN_MAX = 2.0;    // max gain multiplier (high MMR, far below season ELO)
 export const MMR_GAIN_MIN = 0.5;    // min gain multiplier (low MMR, far above season ELO)
@@ -313,6 +314,8 @@ export function computeSeasonElos(
             : BASE_ELO;
         ch = eloChange(sE[name], oAvg, pp[name] ?? 0) * multi;
       }
+      // Amplify base change so short seasons (10-15 ACTs) produce meaningful spread
+      ch *= SEASON_K_MULTI;
       // MMR influence: overall ELO acts as a skill anchor that pulls season ELO toward it
       // High MMR vs low season ELO → gain more, lose less (you're underranked this season)
       // Low MMR vs high season ELO → gain less, lose more (you're overranked this season)
