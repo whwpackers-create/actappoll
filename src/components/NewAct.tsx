@@ -510,22 +510,34 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
               </button>
             </div>
           ) : (
-            <div
-              style={{
-                marginBottom: 20,
-                padding: 12,
-                background: 'rgba(192,132,252,0.06)',
-                borderRadius: 8,
-                border: '1px solid rgba(192,132,252,0.15)',
-              }}
-            >
-              <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#a09880' }}>
-                12-man order: <strong style={{ color: '#8be9fd' }}>Group B (5-8)</strong> →{' '}
-                <strong style={{ color: '#f5a623' }}>Group C (9-12)</strong> →{' '}
-                <strong style={{ color: '#e94560' }}>Group A (1-4)</strong> → repeat
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#666', marginBottom: 8 }}>
+                Pick race order (A = slots 1-4, B = slots 5-8, C = slots 9-12):
               </div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#555', marginTop: 4 }}>
-                P1 = Group A, P2 = Group B, P3 = Group C
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(['ABC','ACB','BAC','BCA','CAB','CBA'] as const).map((ord) => {
+                  const labels: Record<string, string> = { A: '1-4', B: '5-8', C: '9-12' };
+                  const active = raceOrder === ord;
+                  return (
+                    <button
+                      key={ord}
+                      onClick={() => { setRaceOrder(ord); setPlayerMap(null); }}
+                      style={{
+                        ...togBtn,
+                        flex: 'none',
+                        padding: '8px 14px',
+                        ...(active ? { background: 'rgba(192,132,252,0.18)', borderColor: '#c084fc', color: '#c084fc' } : {}),
+                      }}
+                    >
+                      {ord.split('').map((l, i) => (
+                        <span key={i}>
+                          {i > 0 && <span style={{ opacity: 0.4 }}> → </span>}
+                          {l} <span style={{ fontSize: 9, opacity: 0.6 }}>({labels[l]})</span>
+                        </span>
+                      ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -615,12 +627,13 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
               </div>
 
               {[0, 1, 2, 3].map((ri) => {
+                const groupLabels: Record<string, string> = { A: '1-4', B: '5-8', C: '9-12' };
                 const orderLabel =
                   actType === '8man'
                     ? raceOrder === 'B'
                       ? '5-8 → 1-4'
                       : '1-4 → 5-8'
-                    : 'B→C→A';
+                    : raceOrder.split('').map((l) => groupLabels[l] ?? l).join('→');
                 return (
                   <Fragment key={ri}>
                     <div
@@ -844,8 +857,9 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                                   }}
                                 />
                                 <button
-                                  onClick={() => setPen(ri, ti, ei, penVal + 1)}
+                                  onClick={() => setPen(ri, ti, ei, penVal === 0 ? 1 : penVal === 1 ? 0.5 : 0)}
                                   onDoubleClick={() => setPen(ri, ti, ei, 0)}
+                                  title="Click: ⚠ → -2 → -1 → clear. Dbl-click: clear"
                                   style={{
                                     background:
                                       penVal > 0 ? 'rgba(255,60,60,0.25)' : 'rgba(255,255,255,0.02)',
@@ -863,14 +877,14 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                                     minWidth: 24,
                                   }}
                                 >
-                                  {penVal > 0 ? `-${penVal * 2}` : '⚠'}
+                                  {penVal > 0 ? `-${Math.round(penVal * 2)}` : '⚠'}
                                 </button>
                               </div>
                             );
                           })}
                         </div>
                         {(() => {
-                          const rPen = penalties[ri][ti].reduce((s, v) => s + v, 0);
+                          const rPenPts = penalties[ri][ti].reduce((s, v) => s + v * -2, 0);
                           return (
                             <div
                               style={{
@@ -884,8 +898,8 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                               }}
                             >
                               {rTot(ri, ti)}
-                              {rPen > 0 && (
-                                <span style={{ color: '#ff6b6b' }}> ({rPen * -2} pen)</span>
+                              {rPenPts < 0 && (
+                                <span style={{ color: '#ff6b6b' }}> ({rPenPts} pen)</span>
                               )}
                             </div>
                           );
