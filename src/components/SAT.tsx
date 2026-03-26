@@ -458,7 +458,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   // === LIST ===
   if (mode === 'list' && !selSat) {
     return (
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ width: '100%' }}>
         <button
           onClick={() => setView('dashboard')}
           style={{
@@ -733,7 +733,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   // === CREATE ===
   if (mode === 'create') {
     return (
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <div style={{ width: '100%' }}>
         <div style={card}>
           <div style={cTitle}>{'🏆'} New SAT</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16, marginBottom: 16 }}>
@@ -961,7 +961,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
     });
 
     return (
-      <div style={{ maxWidth: 960, margin: '0 auto' }}>
+      <div style={{ width: '100%' }}>
         <button
           style={{
             background: 'none',

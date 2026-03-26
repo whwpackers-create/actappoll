@@ -307,7 +307,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       <button
         onClick={() => setView('dashboard')}
         style={{

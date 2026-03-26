@@ -935,9 +935,8 @@ export default function App() {
         style={{
           position: 'relative',
           zIndex: 1,
-          ...(view === 'dashboard'
-            ? { padding: '16px', minHeight: 'calc(100vh - 62px)' }
-            : { padding: '24px 16px 80px', maxWidth: 1100, margin: '0 auto' }),
+          padding: '16px',
+          minHeight: 'calc(100vh - 62px)',
         }}
       >
         {showSettings && (

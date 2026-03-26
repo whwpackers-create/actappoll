@@ -163,7 +163,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
   };
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       {backBtn}
       <div
         style={{

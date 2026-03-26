@@ -177,7 +177,7 @@ export function Seasons({
   );
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       {backBtn}
       <div style={card}>
         <div style={cHead}>

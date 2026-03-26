@@ -253,7 +253,7 @@ export function ActDetail({
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       <button
         style={{
           background: 'none',

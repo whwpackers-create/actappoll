@@ -67,7 +67,7 @@ export function Chooser({ setView }: ChooserProps) {
 
   if (phase === 'ready') {
     return (
-      <div style={{ maxWidth: 500, margin: '0 auto' }}>
+      <div style={{ width: '100%' }}>
         {backBtn}
         <div
           style={{
@@ -127,7 +127,7 @@ export function Chooser({ setView }: ChooserProps) {
 
   if (phase === 'countdown') {
     return (
-      <div style={{ maxWidth: 500, margin: '0 auto' }}>
+      <div style={{ width: '100%' }}>
         <div
           style={{
             background: 'rgba(12,14,22,0.75)',
@@ -161,7 +161,7 @@ export function Chooser({ setView }: ChooserProps) {
   }
 
   return (
-    <div style={{ maxWidth: 500, margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       <div
         style={{
           background: 'rgba(12,14,22,0.75)',

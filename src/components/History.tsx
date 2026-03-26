@@ -96,26 +96,6 @@ export function History({
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-  const getRoundTot = (
-    g: unknown[][][] | undefined,
-    p: (number[] | number)[][] | undefined,
-    ri: number,
-    ti: number
-  ): number | null => {
-    if (!g || !g[ri] || !g[ri][ti]) return null;
-    const arr = g[ri][ti] as (number | undefined)[];
-    let s = 0;
-    for (const v of arr) s += v ?? 0;
-    if (p && p[ri]) {
-      const pv = p[ri][ti];
-      if (Array.isArray(pv)) {
-        for (const x of pv) s += (x ?? 0) * -2;
-      } else if (typeof pv === 'number') {
-        s += pv * -2;
-      }
-    }
-    return s;
-  };
 
   const selectStyle = {
     background: 'rgba(255,255,255,0.04)',
@@ -129,7 +109,7 @@ export function History({
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       {backBtn}
       <div
         style={{
@@ -230,23 +210,6 @@ export function History({
             chronoActs.slice(0, ci + 1),
             undefined
           );
-
-          let grid = act.grid;
-          if (!grid && act.gridJson) {
-            try {
-              grid = JSON.parse(act.gridJson) as typeof act.grid;
-            } catch {
-              // ignore
-            }
-          }
-          let pen = act.penalties;
-          if (!pen && act.penaltiesJson) {
-            try {
-              pen = JSON.parse(act.penaltiesJson) as typeof act.penalties;
-            } catch {
-              // ignore
-            }
-          }
 
           return (
             <div
@@ -364,253 +327,121 @@ export function History({
                     </div>
                   )}
 
-                  {grid && (
-                    <div style={{ overflowX: 'auto', marginBottom: 10 }}>
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '40px repeat(4,1fr)',
-                          gap: 0,
-                          border: '1px solid rgba(255,255,255,0.04)',
-                          borderRadius: 6,
-                          overflow: 'hidden',
-                          minWidth: 400,
-                        }}
-                      >
-                        <div
-                          style={{
-                            padding: 3,
-                            fontFamily: FONT_MONO,
-                            fontSize: 8,
-                            color: '#444',
-                            textAlign: 'center',
-                            background: 'rgba(255,255,255,0.01)',
-                          }}
-                        >
-                          RND
-                        </div>
-                        {act.teams.map((t, ti) => (
+                  {(() => {
+                    const numRounds = act.races.length || 4;
+                    const rankOrder = ts.map(x => x.team.name);
+                    return (
+                      <div style={{ overflowX: 'auto', marginBottom: 10 }}>
+                        <div style={{ minWidth: 360 }}>
+                          {/* Header */}
                           <div
-                            key={ti}
                             style={{
-                              padding: '3px 2px',
-                              textAlign: 'center',
-                              background: 'rgba(255,255,255,0.01)',
-                              borderBottom: `2px solid ${TC[ti]}`,
+                              display: 'grid',
+                              gridTemplateColumns: `1fr repeat(${numRounds}, 36px) 44px 56px`,
+                              gap: 0,
+                              background: 'rgba(255,255,255,0.03)',
+                              borderRadius: '6px 6px 0 0',
+                              borderBottom: '1px solid rgba(255,255,255,0.06)',
+                              padding: '4px 8px',
                             }}
                           >
-                            <div
-                              style={{
-                                fontFamily: FONT_HEADER,
-                                fontSize: 10,
-                                color: '#f0e6d3',
-                              }}
-                            >
-                              {t.name}
-                            </div>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445' }}>PLAYER</span>
+                            {Array.from({ length: numRounds }, (_, i) => (
+                              <span key={i} style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', textAlign: 'center' }}>R{i + 1}</span>
+                            ))}
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#e94560', textAlign: 'center' }}>TOT</span>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', textAlign: 'right' }}>ELO</span>
                           </div>
-                        ))}
-                        {[0, 1, 2, 3].map((ri) => (
-                          <Fragment key={ri}>
-                            <div
-                              style={{
-                                padding: '3px 2px',
-                                textAlign: 'center',
-                                borderBottom:
-                                  '1px solid rgba(255,255,255,0.02)',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontFamily: FONT_MONO,
-                                  fontSize: 9,
-                                  color: '#666',
-                                }}
-                              >
-                                R{ri + 1}
-                              </span>
-                            </div>
-                            {act.teams.map((_, ti) => {
-                              const rt = getRoundTot(
-                                grid as unknown[][][],
-                                pen,
-                                ri,
-                                ti
-                              );
-                              return (
-                                <div
-                                  key={ti}
-                                  style={{
-                                    padding: '2px 4px',
-                                    borderBottom:
-                                      '1px solid rgba(255,255,255,0.02)',
-                                    textAlign: 'center',
-                                    borderLeft: `1px solid ${TC[ti]}22`,
-                                  }}
-                                >
-                                  <span
-                                    style={{
-                                      fontFamily: FONT_HEADER,
-                                      fontSize: 12,
-                                      color: TC[ti],
-                                    }}
-                                  >
-                                    {rt !== null ? rt : '—'}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </Fragment>
-                        ))}
-                        <div
-                          style={{
-                            padding: 3,
-                            background: 'rgba(233,69,96,0.04)',
-                            fontFamily: FONT_MONO,
-                            fontSize: 8,
-                            color: '#e94560',
-                            textAlign: 'center',
-                          }}
-                        >
-                          TOT
-                        </div>
-                        {act.teams.map((_, ti) => {
-                          const sc = ts.find(
-                            (x) => x.team.name === act.teams[ti].name
-                          );
-                          return (
-                            <div
-                              key={ti}
-                              style={{
-                                padding: 3,
-                                background: 'rgba(233,69,96,0.03)',
-                                textAlign: 'center',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontFamily: FONT_HEADER,
-                                  fontSize: 13,
-                                  color: TC[ti],
-                                }}
-                              >
-                                {sc ? sc.score : 0}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns:
-                        'repeat(auto-fill,minmax(180px,1fr))',
-                      gap: 6,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {ts.map((x, i) => (
-                      <div
-                        key={x.team.name}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: 6,
-                          background:
-                            i === 0
-                              ? 'rgba(233,69,96,0.06)'
-                              : i === 1
-                                ? 'rgba(245,166,35,0.04)'
-                                : 'rgba(255,255,255,0.02)',
-                          borderLeft: `3px solid ${
-                            i === 0
-                              ? '#e94560'
-                              : i === 1
-                                ? '#f5a623'
-                                : '#333'
-                          }`,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontFamily: FONT_HEADER,
-                              fontSize: 13,
-                              color:
-                                i === 0
-                                  ? '#e94560'
-                                  : i === 1
-                                    ? '#f5a623'
-                                    : '#888',
-                            }}
-                          >
-                            {i === 0 ? '👑' : i === 1 ? '🥈' : ''}{' '}
-                            {x.team.name}
-                          </span>
-                          <span
-                            style={{
-                              fontFamily: FONT_HEADER,
-                              fontSize: 15,
-                              color: i === 0 ? '#e94560' : '#888',
-                            }}
-                          >
-                            {x.score}
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            display: 'flex',
-                            gap: 8,
-                            marginTop: 3,
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          {x.team.members.map((name) => {
-                            const pts = pp[name] || 0;
-                            const b = Math.round(eB[name] || BASE_ELO);
-                            const a = Math.round(eA[name] || BASE_ELO);
-                            const d = a - b;
+                          {/* Rows grouped by team */}
+                          {act.teams.map((team, ti) => {
+                            const teamRank = rankOrder.indexOf(team.name);
+                            const teamScore = ts.find(x => x.team.name === team.name)?.score ?? 0;
                             return (
-                              <span
-                                key={name}
-                                style={{
-                                  fontFamily: FONT_MONO,
-                                  fontSize: 9,
-                                  color: '#666',
-                                }}
-                              >
-                                {name.split(' ')[0]}:{' '}
-                                <strong style={{ color: '#c8bfa8' }}>
-                                  {pts}
-                                </strong>
-                                <span
+                              <Fragment key={ti}>
+                                {/* Team header row */}
+                                <div
                                   style={{
-                                    color:
-                                      d > 0
-                                        ? '#50fa7b'
-                                        : d < 0
-                                          ? '#e94560'
-                                          : '#444',
-                                    marginLeft: 2,
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '3px 8px',
+                                    background: `${TC[ti]}14`,
+                                    borderLeft: `3px solid ${TC[ti]}`,
+                                    marginTop: ti > 0 ? 2 : 0,
                                   }}
                                 >
-                                  ({d > 0 ? '+' : ''}{d})
-                                </span>
-                              </span>
+                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: TC[ti], letterSpacing: 1 }}>
+                                    {teamRank === 0 ? '👑 ' : teamRank === 1 ? '🥈 ' : ''}{team.name}
+                                  </span>
+                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: TC[ti] }}>{teamScore} pts</span>
+                                </div>
+                                {/* Member rows */}
+                                {team.members.map((member, mi) => {
+                                  const displayName = team.subs?.[mi] || member;
+                                  const isSub = !!(team.subs?.[mi]);
+                                  const roundPts = act.races.map(r => {
+                                    const res = r.results.find(x => x.player === displayName || x.player === member);
+                                    return res?.points ?? null;
+                                  });
+                                  const total = roundPts.reduce((s: number, v) => s + (v ?? 0), 0);
+                                  const eloB = Math.round(eB[member] || BASE_ELO);
+                                  const eloA = Math.round(eA[member] || BASE_ELO);
+                                  const eloDiff = eloA - eloB;
+                                  return (
+                                    <div
+                                      key={member}
+                                      style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: `1fr repeat(${numRounds}, 36px) 44px 56px`,
+                                        gap: 0,
+                                        padding: '4px 8px',
+                                        borderBottom: '1px solid rgba(255,255,255,0.02)',
+                                        background: mi % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <div>
+                                        <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#d0d4dc' }}>
+                                          {displayName.split(' ')[0]}
+                                        </span>
+                                        {isSub && (
+                                          <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc', marginLeft: 4 }}>sub</span>
+                                        )}
+                                      </div>
+                                      {roundPts.map((pts, ri) => (
+                                        <span
+                                          key={ri}
+                                          style={{
+                                            fontFamily: FONT_MONO,
+                                            fontSize: 11,
+                                            color: pts !== null ? '#c8bfa8' : '#333',
+                                            textAlign: 'center',
+                                          }}
+                                        >
+                                          {pts !== null ? pts : '—'}
+                                        </span>
+                                      ))}
+                                      <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#e94560', textAlign: 'center' }}>{total}</span>
+                                      <span
+                                        style={{
+                                          fontFamily: FONT_MONO,
+                                          fontSize: 10,
+                                          color: eloDiff > 0 ? '#50fa7b' : eloDiff < 0 ? '#e94560' : '#444',
+                                          textAlign: 'right',
+                                        }}
+                                      >
+                                        {eloDiff > 0 ? '+' : ''}{eloDiff}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </Fragment>
                             );
                           })}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
                 </div>
                 <button
                   onClick={(e) => {
