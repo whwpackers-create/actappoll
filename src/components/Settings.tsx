@@ -48,6 +48,7 @@ function persistMenuImgs(imgs: Record<string, string>) {
   SEASON_RANKS.forEach((r) => {
     if (imgs['ri_' + r.key]) fbImages['ri_' + r.key] = imgs['ri_' + r.key];
   });
+  if (imgs['site_logo']) fbImages['site_logo'] = imgs['site_logo'];
   fsSet('config', 'menuImages', fbImages);
   try {
     localStorage.setItem('actMenuImgCache', JSON.stringify(fbImages));
@@ -774,6 +775,149 @@ export function Settings({
             </div>
           );
         })}
+      </div>
+
+      <div
+        style={{
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          paddingTop: 16,
+          marginTop: 16,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: FONT_HEADER,
+            fontSize: 14,
+            color: '#e0d080',
+            marginBottom: 8,
+          }}
+        >
+          Site Logo
+        </div>
+        <div
+          style={{
+            fontFamily: FONT_MONO,
+            fontSize: 10,
+            color: '#667',
+            marginBottom: 12,
+          }}
+        >
+          Shown in the navigation bar. Use a PNG with transparent background.
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 6,
+            padding: 10,
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {menuImgs['site_logo'] ? (
+              <img
+                src={menuImgs['site_logo']}
+                style={{ maxWidth: 56, maxHeight: 56, objectFit: 'contain' }}
+                alt="Site Logo"
+              />
+            ) : (
+              <span style={{ fontSize: 32 }}>🏎️</span>
+            )}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3', marginBottom: 4 }}>
+              Navigation Logo
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>
+              Replaces the default 🏎️ icon
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <label
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 4,
+                padding: '4px 10px',
+                fontSize: 8,
+                fontFamily: FONT_MONO,
+                color: '#aab',
+                cursor: 'pointer',
+              }}
+            >
+              {menuImgs['site_logo'] ? 'Replace' : 'Upload'}
+              <input
+                type="file"
+                accept="image/png,image/gif,image/webp,image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const src2 = ev.target?.result as string;
+                    const i2 = new Image();
+                    i2.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      const max = 200;
+                      const scale = Math.min(max / Math.max(i2.width, i2.height), 1);
+                      canvas.width = i2.width * scale;
+                      canvas.height = i2.height * scale;
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                        ctx.drawImage(i2, 0, 0, canvas.width, canvas.height);
+                        const out = canvas.toDataURL('image/png');
+                        setMenuImgs((prev) => {
+                          const n = { ...prev, site_logo: out };
+                          persistMenuImgs(n);
+                          return n;
+                        });
+                      }
+                    };
+                    i2.src = src2;
+                  };
+                  reader.readAsDataURL(f);
+                }}
+              />
+            </label>
+            {menuImgs['site_logo'] && (
+              <button
+                onClick={() =>
+                  setMenuImgs((prev) => {
+                    const n = { ...prev };
+                    delete n['site_logo'];
+                    persistMenuImgs(n);
+                    return n;
+                  })
+                }
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(233,69,96,0.2)',
+                  borderRadius: 4,
+                  padding: '2px 6px',
+                  fontSize: 8,
+                  fontFamily: FONT_MONO,
+                  color: '#e94560',
+                  cursor: 'pointer',
+                }}
+              >
+                x
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div

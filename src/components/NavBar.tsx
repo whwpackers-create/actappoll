@@ -9,6 +9,7 @@ interface NavBarProps {
   src: 'firebase' | 'local' | 'loading';
   onSync: () => void;
   onMigrate: () => void;
+  menuImgs?: Record<string, string>;
 }
 
 export function NavBar({
@@ -18,7 +19,9 @@ export function NavBar({
   src,
   onSync,
   onMigrate,
+  menuImgs,
 }: NavBarProps) {
+  const siteLogo = menuImgs?.['site_logo'] ?? '';
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
       <div
@@ -51,28 +54,38 @@ export function NavBar({
             }}
             onClick={() => setView('dashboard')}
           >
-            <span style={{ fontSize: 24 }}>🏎️</span>
-            <span
-              style={{
-                fontFamily: FONT_HEADER,
-                fontSize: 22,
-                color: '#1a1e28',
-                letterSpacing: 2,
-                textShadow: '0 1px 0 rgba(255,255,255,0.4)',
-              }}
-            >
-              ACT
-            </span>
-            <span
-              style={{
-                fontFamily: FONT_MONO,
-                fontSize: 8,
-                color: '#4a4e58',
-                letterSpacing: 2,
-              }}
-            >
-              ALL CUP TOUR
-            </span>
+            {siteLogo ? (
+              <img
+                src={siteLogo}
+                alt="ACT Logo"
+                style={{ height: 44, objectFit: 'contain', display: 'block' }}
+              />
+            ) : (
+              <>
+                <span style={{ fontSize: 24 }}>🏎️</span>
+                <span
+                  style={{
+                    fontFamily: FONT_HEADER,
+                    fontSize: 22,
+                    color: '#1a1e28',
+                    letterSpacing: 2,
+                    textShadow: '0 1px 0 rgba(255,255,255,0.4)',
+                  }}
+                >
+                  ACT
+                </span>
+                <span
+                  style={{
+                    fontFamily: FONT_MONO,
+                    fontSize: 8,
+                    color: '#4a4e58',
+                    letterSpacing: 2,
+                  }}
+                >
+                  ALL CUP TOUR
+                </span>
+              </>
+            )}
             <span
               style={{
                 background: '#c03040',

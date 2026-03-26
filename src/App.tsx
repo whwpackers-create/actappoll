@@ -57,9 +57,20 @@ export default function App() {
         } catch {
           // ignore
         }
+        if (d['site_logo']) {
+          const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+          if (link) link.href = d['site_logo'];
+        }
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (menuImgs['site_logo']) {
+      const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      if (link) link.href = menuImgs['site_logo'];
+    }
+  }, [menuImgs]);
 
   const [theme, setTheme] = useState(() => {
     try {
@@ -917,15 +928,16 @@ export default function App() {
         src={src}
         onSync={refreshData}
         onMigrate={migrateToFirebase}
+        menuImgs={menuImgs}
       />
       <main
         className="app-main"
         style={{
           position: 'relative',
           zIndex: 1,
-          padding: '24px 16px 80px',
-          maxWidth: 1100,
-          margin: '0 auto',
+          ...(view === 'dashboard'
+            ? { padding: '16px', minHeight: 'calc(100vh - 62px)' }
+            : { padding: '24px 16px 80px', maxWidth: 1100, margin: '0 auto' }),
         }}
       >
         {showSettings && (
