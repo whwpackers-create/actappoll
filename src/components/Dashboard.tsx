@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { computeStats } from '../utils/elo';
+import { computeStats, PLACEMENT_ACTS } from '../utils/elo';
 import type { AppData } from '../types';
 import type { AuthState } from '../hooks/useAuth';
 import type { PlayerStats } from '../types';
@@ -473,7 +473,11 @@ export function Dashboard({
                       }}
                     >
                       {[
-                        { l: 'ELO', v: Math.round(p.elo), c: '#e94560' },
+                        {
+                          l: p.actCount < PLACEMENT_ACTS ? 'PLACE' : 'ELO',
+                          v: p.actCount < PLACEMENT_ACTS ? `${p.actCount}/${PLACEMENT_ACTS}` : Math.round(p.elo),
+                          c: p.actCount < PLACEMENT_ACTS ? '#f5a623' : '#e94560',
+                        },
                         {
                           l: '30D',
                           v: (ch30 > 0 ? '+' : '') + ch30,

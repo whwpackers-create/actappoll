@@ -8,6 +8,7 @@ export const LOW_ELO_PROTECT = 300; // ELO range below BASE where protection app
 export const MAX_EXTRA_DAMP = 0.55; // max extra loss reduction at the floor (55%)
 export const CARRY = 0.3;
 export const SAT_MULTI = 1.25;
+export const PLACEMENT_ACTS = 7; // ACTs needed to exit placement; 2× K-factor during placement
 export const SAT_PLACEMENT_BONUS: Record<string, number> = {
   winner: 25,
   runnerUp: 15,
@@ -47,10 +48,12 @@ export function computeAllElos(
 ): { elos: Record<string, number>; hist: Record<string, EloHistoryEntry[]> } {
   const elos: Record<string, number> = {};
   const hist: Record<string, EloHistoryEntry[]> = {};
+  const actCounts: Record<string, number> = {}; // tracks ACTs played so far per player (for placement)
 
   players.forEach((p) => {
     elos[p.name] = BASE_ELO;
     hist[p.name] = [];
+    actCounts[p.name] = 0;
   });
 
   [...acts]
@@ -153,6 +156,8 @@ export function computeAllElos(
               : BASE_ELO;
           ch = eloChange(elos[name], oAvg, pp[name] ?? 0) * multi;
         }
+        // 2× K-factor during placement (first PLACEMENT_ACTS ACTs)
+        if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= 2;
         elos[name] += ch;
         if (!hist[name]) hist[name] = [];
         hist[name].push({
@@ -164,6 +169,7 @@ export function computeAllElos(
           points: pp[name] ?? 0,
           isSat: !!act.satId,
         });
+        actCounts[name] = (actCounts[name] ?? 0) + 1;
       });
     });
 
