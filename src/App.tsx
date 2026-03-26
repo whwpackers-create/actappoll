@@ -857,6 +857,89 @@ export default function App() {
       },
       [data, reload]
     ),
+    mergePlayers: useCallback(
+      async (fromName: string, toName: string) => {
+        // Find the player being removed (the "from" side)
+        const fromPlayer = data.players.find((x) => x.name === fromName);
+        if (!fromPlayer) throw new Error(`Player "${fromName}" not found`);
+        const fromId = fromPlayer.id ?? fromPlayer._id;
+        if (!fromId) throw new Error(`Player "${fromName}" has no document ID`);
+
+        const rn = (s: string) => (s === fromName ? toName : s);
+
+        // Update all ACTs: replace fromName → toName in teams, subs, races
+        for (const act of data.acts) {
+          let changed = false;
+          const newTeams = act.teams.map((t) => {
+            const newMembers = t.members.map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+            const newSubs = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+            return { ...t, members: newMembers, subs: newSubs };
+          });
+          const newRaces = (act.races ?? []).map((r) => ({
+            ...r,
+            results: r.results.map((x) => x.player === fromName ? { ...x, player: toName } : x),
+          }));
+          if (changed) {
+            const aid = act.id ?? act._id ?? '';
+            const d = { ...act, teams: newTeams, races: newRaces, id: aid };
+            delete (d as Record<string, unknown>)._id;
+            try { await fsSet('acts', aid, d); } catch (e) { console.error('act update failed:', e); }
+          }
+        }
+
+        // Update all SATs: replace fromName → toName
+        for (const sat of data.sats) {
+          let changed = false;
+          const upd: Record<string, unknown> = {};
+          if (sat.roster) {
+            upd.roster = sat.roster.map((t) => {
+              const nm = t.members.map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+              const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+              return { ...t, members: nm, subs: ns };
+            });
+          }
+          if (sat.placements) {
+            const np: typeof sat.placements = {};
+            for (const [pl, teams] of Object.entries(sat.placements)) {
+              np[pl] = (teams ?? []).map((t) => {
+                const nm = (t.members ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+                const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+                return { ...t, members: nm, subs: ns };
+              });
+            }
+            upd.placements = np;
+          }
+          if (sat.heats) {
+            upd.heats = sat.heats.map((h) => ({
+              ...h,
+              teams: (h.teams ?? []).map((t) => ({ ...t, members: (t.members ?? []).map(rn), subs: (t.subs ?? []).map(rn) })),
+              advanced: (h.advanced ?? []).map((t) => {
+                const hadOld = (t.members ?? []).includes(fromName) || (t.subs ?? []).includes(fromName);
+                if (hadOld) changed = true;
+                return { ...t, members: (t.members ?? []).map(rn), subs: (t.subs ?? []).map(rn) };
+              }),
+            }));
+          }
+          const newTeams = sat.teams.map((t) => {
+            const nm = t.members.map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+            const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+            return { ...t, members: nm, subs: ns };
+          });
+          const newRaces = (sat.races ?? []).map((r) => ({ ...r, results: r.results.map((x) => x.player === fromName ? { ...x, player: toName } : x) }));
+          if (changed) {
+            const sid = sat.id ?? sat._id ?? '';
+            const d = { ...sat, ...upd, teams: newTeams, races: newRaces, id: sid };
+            delete (d as Record<string, unknown>)._id;
+            try { await fsSet('sats', sid, d); } catch (e) { console.error('sat update failed:', e); }
+          }
+        }
+
+        // Delete the "from" player document — the "to" player doc stays untouched
+        await fsDel('players', fromId);
+        reload();
+      },
+      [data, reload]
+    ),
   };
 
   if (loading) {

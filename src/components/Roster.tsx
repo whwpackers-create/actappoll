@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { computeStats } from '../utils/elo';
-import { gid, fsDel } from '../services/firestore';
+import { gid } from '../services/firestore';
 import {
   card,
   cHead,
@@ -140,7 +140,7 @@ export function Roster({
     );
     if (existing) {
       setRenameModal(null);
-      setMergeConfirm({ from, to });
+      setMergeConfirm({ from, to: existing.name }); // use exact stored name, not user-typed
     } else {
       setRenameModal(null);
       await ops.renamePlayer(from, to);
@@ -151,17 +151,13 @@ export function Roster({
   const confirmMerge = async () => {
     if (!mergeConfirm) return;
     const { from, to } = mergeConfirm;
-    // Capture ID before any async ops can change data
-    const oldP = data.players.find((p) => p.name === from);
-    const oid = oldP?.id ?? oldP?._id;
-    setMergeConfirm(null); // Close modal immediately so user isn't stuck
+    setMergeConfirm(null);
     try {
-      await ops.renamePlayer(from, to);
-      if (oid) await fsDel('players', oid);
+      await ops.mergePlayers(from, to);
       showToast('Merged! ' + from + ' → ' + to);
     } catch (e) {
       console.error('Merge failed:', e);
-      showToast('Merge failed — check connection');
+      showToast('Merge failed: ' + (e instanceof Error ? e.message : 'unknown error'));
     }
   };
 

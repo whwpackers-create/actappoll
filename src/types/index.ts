@@ -120,6 +120,7 @@ export interface AppOps {
   updatePlayer: (name: string, updates: Partial<AppData['players'][0]>) => Promise<void>;
   fixTeamNames: () => Promise<number>;
   renamePlayer: (oldName: string, newName: string) => Promise<void>;
+  mergePlayers: (fromName: string, toName: string) => Promise<void>;
   addSeason: (s: AppData['seasons'][0]) => Promise<void>;
   deleteSeason: (id: string) => Promise<void>;
   updateSeason: (id: string, updates: Partial<AppData['seasons'][0]>) => Promise<void>;
