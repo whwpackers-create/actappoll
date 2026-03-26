@@ -57,14 +57,11 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
       Array.from({ length: 4 }, () =>
         Array.from({ length: tsz * 2 }, (_, ei) => {
           if (type === '8man') return ro === 'A' ? ei % tsz : tsz - 1 - (ei % tsz);
+          // 12-man: A,B,C,A,B,C — each player once per half, not consecutive pairs
           const map: Record<string, number> = { A: 0, B: 1, C: 2 };
           const seq: number[] = [];
           for (let i = 0; i < ro.length; i++) seq.push(map[ro[i]] ?? 0);
-          const raceSeq: number[] = [];
-          seq.forEach((x) => {
-            raceSeq.push(x);
-            raceSeq.push(x);
-          });
+          const raceSeq = [...seq, ...seq];
           return raceSeq[ei] ?? 0;
         })
       )
@@ -633,7 +630,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                     ? raceOrder === 'B'
                       ? '5-8 → 1-4'
                       : '1-4 → 5-8'
-                    : raceOrder.split('').map((l) => groupLabels[l] ?? l).join('→');
+                    : [...raceOrder.split(''), ...raceOrder.split('')].map((l) => groupLabels[l] ?? l).join('→');
                 return (
                   <Fragment key={ri}>
                     <div
