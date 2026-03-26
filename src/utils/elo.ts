@@ -17,6 +17,8 @@ export const MMR_GAIN_MAX = 2.0;    // max gain multiplier (high MMR, far below 
 export const MMR_GAIN_MIN = 0.5;    // min gain multiplier (low MMR, far above season ELO)
 export const MMR_LOSS_MAX = 1.75;   // max loss multiplier (low MMR, overranked in season)
 export const MMR_LOSS_MIN = 0.5;    // min loss multiplier (high MMR, underranked in season)
+export const SEASON_DAMP_AFTER = 12;  // ACTs in a season after which changes are dampened
+export const SEASON_DAMP_FACTOR = 0.6; // multiplier applied to ch after SEASON_DAMP_AFTER ACTs
 export const SAT_PLACEMENT_BONUS: Record<string, number> = {
   winner: 25,
   runnerUp: 15,
@@ -239,6 +241,7 @@ export function computeSeasonElos(
     sE[p.name] = SEASON_BASE_ELO; // flat start — no carryover; MMR influences gain/loss rates instead
     sH[p.name] = [];
   });
+  const sActCounts: Record<string, number> = {}; // per-player ACT count within this season
 
   sActs.forEach((act) => {
     const subMap: Record<string, string> = {};
@@ -339,7 +342,10 @@ export function computeSeasonElos(
       const lossFactor = Math.max(MMR_LOSS_MIN, Math.min(MMR_LOSS_MAX, 1 - mmrDiff / MMR_SCALE));
       if (ch > 0) ch *= gainFactor;
       else if (ch < 0) ch *= lossFactor;
+      // Dampen changes after SEASON_DAMP_AFTER ACTs — rating stabilises late in the season
+      if ((sActCounts[name] ?? 0) >= SEASON_DAMP_AFTER) ch *= SEASON_DAMP_FACTOR;
       sE[name] += ch;
+      sActCounts[name] = (sActCounts[name] ?? 0) + 1;
       if (!sH[name]) sH[name] = [];
       sH[name].push({
         actId: act.id ?? act._id ?? '',
