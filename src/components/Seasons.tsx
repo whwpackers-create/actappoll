@@ -24,6 +24,7 @@ interface SeasonsProps {
   showToast: (msg: string) => void;
   auth: AuthState;
   setView: (v: string) => void;
+  menuImgs: Record<string, string>;
 }
 
 export function Seasons({
@@ -32,6 +33,7 @@ export function Seasons({
   showToast,
   auth,
   setView,
+  menuImgs,
 }: SeasonsProps) {
   const [sel, setSel] = useState<string | null>(null);
   const [cn, setCn] = useState('');
@@ -523,12 +525,13 @@ export function Seasons({
                         (!vs.endDate ||
                           new Date(pp.retiredDate) <= new Date(vs.endDate));
                       const rank = getSeasonRank(p.elo);
+                      const rankImg = menuImgs['ri_' + rank.key] ?? '';
                       return (
                         <div
                           key={p.name}
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: '40px 1fr auto',
+                            gridTemplateColumns: '40px 36px 1fr auto',
                             gap: 8,
                             alignItems: 'center',
                             padding: '10px 14px',
@@ -552,6 +555,13 @@ export function Seasons({
                               </div>
                             )}
                           </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {rankImg ? (
+                              <img src={rankImg} style={{ width: 30, height: 30, objectFit: 'contain' }} alt={rank.name} />
+                            ) : (
+                              <span style={{ fontSize: 22 }}>{rank.icon}</span>
+                            )}
+                          </div>
                           <div>
                             <div
                               style={{
@@ -569,16 +579,15 @@ export function Seasons({
                                 style={{
                                   fontSize: 10,
                                   color: rank.color,
-                                  background: rank.bg,
-                                  border: `1px solid ${rank.color}55`,
+                                  ...(rankImg ? {} : { background: rank.bg, border: `1px solid ${rank.color}55` }),
                                   borderRadius: 4,
-                                  padding: '1px 6px',
+                                  padding: rankImg ? '0' : '1px 6px',
                                   letterSpacing: 0.5,
                                   fontFamily: FONT_MONO,
                                   whiteSpace: 'nowrap',
                                 }}
                               >
-                                {rank.icon} {rank.name.toUpperCase()}
+                                {rankImg ? rank.name.toUpperCase() : `${rank.icon} ${rank.name.toUpperCase()}`}
                               </span>
                               {showRetired && (
                                 <span

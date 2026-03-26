@@ -1,6 +1,7 @@
 import { fsSet } from '../services/firestore';
 import { inp } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
+import { SEASON_RANKS } from '../utils/elo';
 import type { Theme } from '../styles/theme';
 
 const MENU_KEYS = [
@@ -43,6 +44,9 @@ function persistMenuImgs(imgs: Record<string, string>) {
     if (imgs['mc_' + k]) fbImages['mc_' + k] = imgs['mc_' + k];
     if (imgs['mb_' + k]) fbImages['mb_' + k] = imgs['mb_' + k];
     if (imgs['mx_' + k]) fbImages['mx_' + k] = imgs['mx_' + k];
+  });
+  SEASON_RANKS.forEach((r) => {
+    if (imgs['ri_' + r.key]) fbImages['ri_' + r.key] = imgs['ri_' + r.key];
   });
   fsSet('config', 'menuImages', fbImages);
   try {
@@ -767,6 +771,165 @@ export function Settings({
                   </div>
                 </div>
               )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          paddingTop: 16,
+          marginTop: 16,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: FONT_HEADER,
+            fontSize: 14,
+            color: '#e0d080',
+            marginBottom: 8,
+          }}
+        >
+          Rank Emblems
+        </div>
+        <div
+          style={{
+            fontFamily: FONT_MONO,
+            fontSize: 10,
+            color: '#667',
+            marginBottom: 12,
+          }}
+        >
+          Upload PNG emblems for each seasonal rank. Transparent backgrounds are
+          preserved.
+        </div>
+        {SEASON_RANKS.map((rank) => {
+          const imgKey = 'ri_' + rank.key;
+          const img = menuImgs[imgKey] ?? '';
+          return (
+            <div
+              key={rank.key}
+              style={{
+                marginBottom: 8,
+                background: 'rgba(255,255,255,0.02)',
+                border: `1px solid ${rank.color}33`,
+                borderRadius: 6,
+                padding: '10px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {img ? (
+                  <img
+                    src={img}
+                    style={{ width: 32, height: 32, objectFit: 'contain' }}
+                    alt={rank.name}
+                  />
+                ) : (
+                  <span style={{ fontSize: 22 }}>{rank.icon}</span>
+                )}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontFamily: FONT_HEADER,
+                    fontSize: 12,
+                    color: rank.color,
+                  }}
+                >
+                  {rank.name.toUpperCase()}
+                </div>
+                <div
+                  style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}
+                >
+                  {rank.min}+ ELO
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <label
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 4,
+                    padding: '3px 8px',
+                    fontSize: 8,
+                    fontFamily: FONT_MONO,
+                    color: '#aab',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {img ? 'Replace' : 'Upload'}
+                  <input
+                    type="file"
+                    accept="image/png,image/gif,image/webp,image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const src = ev.target?.result as string;
+                        const i2 = new Image();
+                        i2.onload = () => {
+                          const canvas = document.createElement('canvas');
+                          const max = 128;
+                          const scale = Math.min(max / Math.max(i2.width, i2.height), 1);
+                          canvas.width = i2.width * scale;
+                          canvas.height = i2.height * scale;
+                          const ctx = canvas.getContext('2d');
+                          if (ctx) {
+                            ctx.drawImage(i2, 0, 0, canvas.width, canvas.height);
+                            const out = canvas.toDataURL('image/png');
+                            setMenuImgs((prev) => {
+                              const n = { ...prev, [imgKey]: out };
+                              persistMenuImgs(n);
+                              return n;
+                            });
+                          }
+                        };
+                        i2.src = src;
+                      };
+                      reader.readAsDataURL(f);
+                    }}
+                  />
+                </label>
+                {img && (
+                  <button
+                    onClick={() =>
+                      setMenuImgs((prev) => {
+                        const n = { ...prev };
+                        delete n[imgKey];
+                        persistMenuImgs(n);
+                        return n;
+                      })
+                    }
+                    style={{
+                      background: 'none',
+                      border: '1px solid rgba(233,69,96,0.2)',
+                      borderRadius: 4,
+                      padding: '2px 6px',
+                      fontSize: 8,
+                      fontFamily: FONT_MONO,
+                      color: '#e94560',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    x
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}

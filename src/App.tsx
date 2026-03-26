@@ -1024,6 +1024,7 @@ export default function App() {
             showToast={(msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); }}
             auth={auth}
             setView={(v) => setView(v as View)}
+            menuImgs={menuImgs}
           />
         )}
       </main>
