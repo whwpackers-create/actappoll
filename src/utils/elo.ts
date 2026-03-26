@@ -9,9 +9,10 @@ export const MAX_EXTRA_DAMP = 0.55; // max extra loss reduction at the floor (55
 export const CARRY = 0.3; // kept for reference but no longer used in season starting ELO
 export const SAT_MULTI = 1.25;
 export const PLACEMENT_ACTS = 7;    // ACTs needed to exit placement; 2× K-factor during placement
-export const SEASON_BASE_ELO = 800; // everyone starts here each season (below leaderboard 1000)
-export const SEASON_K_MULTI = 2.0;  // base amplifier on all season changes — creates spread over short seasons
-export const MMR_SCALE = 400;       // gap between MMR and season ELO at which factors hit their extremes
+export const SEASON_BASE_ELO = 800;        // everyone starts here each season (below leaderboard 1000)
+export const SEASON_K_MULTI = 2.0;         // base amplifier on all season changes — creates spread over short seasons
+export const SEASON_COMP_MMR_WEIGHT = 0.4; // how much opponent MMR vs season ELO affects competition level (0=season only, 1=MMR only)
+export const MMR_SCALE = 400;              // gap between MMR and season ELO at which factors hit their extremes
 export const MMR_GAIN_MAX = 2.0;    // max gain multiplier (high MMR, far below season ELO)
 export const MMR_GAIN_MIN = 0.5;    // min gain multiplier (low MMR, far above season ELO)
 export const MMR_LOSS_MAX = 1.75;   // max loss multiplier (low MMR, overranked in season)
@@ -286,6 +287,11 @@ export function computeSeasonElos(
       return c0 >= c1 ? 0 : 1;
     });
 
+    // Helper: blend an opponent's MMR and season ELO for competition level
+    const blendOpp = (o: string) =>
+      (atE[o] ?? BASE_ELO) * SEASON_COMP_MMR_WEIGHT +
+      (sE[o] ?? SEASON_BASE_ELO) * (1 - SEASON_COMP_MMR_WEIGHT);
+
     ap.forEach((name) => {
       if (!(name in sE)) sE[name] = SEASON_BASE_ELO;
       let ch: number;
@@ -299,19 +305,27 @@ export function computeSeasonElos(
           if (racePos[i] === 0) pts0 += res.points;
           else if (racePos[i] === 1) pts1 += res.points;
         });
+        // Blend MMR + season ELO for opponent strength
         const oAvg0 = pos0Opps.length > 0
-          ? pos0Opps.reduce((s, o) => s + (sE[o] ?? BASE_ELO), 0) / pos0Opps.length
+          ? pos0Opps.reduce((s, o) => s + blendOpp(o), 0) / pos0Opps.length
           : BASE_ELO;
         const oAvg1 = pos1Opps.length > 0
-          ? pos1Opps.reduce((s, o) => s + (sE[o] ?? BASE_ELO), 0) / pos1Opps.length
+          ? pos1Opps.reduce((s, o) => s + blendOpp(o), 0) / pos1Opps.length
           : BASE_ELO;
         ch = ((eloChange(sE[name], oAvg0, pts0) + eloChange(sE[name], oAvg1, pts1)) / 2) * multi;
       } else {
-        const opp = ap.filter((p) => p !== name);
-        const oAvg =
-          opp.length > 0
-            ? opp.reduce((s, o) => s + (sE[o] ?? BASE_ELO), 0) / opp.length
-            : BASE_ELO;
+        // Position-based opponents: compare against same-slot players from other teams only
+        const playerTeam = act.teams.find((t) => t.members.map(remapName).includes(name));
+        const playerPos = playerTeam ? playerTeam.members.map(remapName).indexOf(name) : -1;
+        const posOpps = playerPos >= 0
+          ? act.teams
+              .filter((t) => t !== playerTeam)
+              .map((t) => remapName(t.members[playerPos]))
+              .filter((n) => n && n !== name)
+          : ap.filter((p) => p !== name); // fallback: all opponents
+        const oAvg = posOpps.length > 0
+          ? posOpps.reduce((s, o) => s + blendOpp(o), 0) / posOpps.length
+          : BASE_ELO;
         ch = eloChange(sE[name], oAvg, pp[name] ?? 0) * multi;
       }
       // Amplify base change so short seasons (10-15 ACTs) produce meaningful spread
