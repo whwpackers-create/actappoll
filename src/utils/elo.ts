@@ -6,9 +6,15 @@ export const K_BASE = 40;
 export const LOSS_DAMP = 0.55;
 export const LOW_ELO_PROTECT = 300; // ELO range below BASE where protection applies
 export const MAX_EXTRA_DAMP = 0.55; // max extra loss reduction at the floor (55%)
-export const CARRY = 0.3;
+export const CARRY = 0.3; // kept for reference but no longer used in season starting ELO
 export const SAT_MULTI = 1.25;
-export const PLACEMENT_ACTS = 7; // ACTs needed to exit placement; 2× K-factor during placement
+export const PLACEMENT_ACTS = 7;    // ACTs needed to exit placement; 2× K-factor during placement
+export const SEASON_BASE_ELO = 800; // everyone starts here each season (below leaderboard 1000)
+export const MMR_SCALE = 400;       // gap between MMR and season ELO at which factors hit their extremes
+export const MMR_GAIN_MAX = 2.0;    // max gain multiplier (high MMR, far below season ELO)
+export const MMR_GAIN_MIN = 0.5;    // min gain multiplier (low MMR, far above season ELO)
+export const MMR_LOSS_MAX = 1.75;   // max loss multiplier (low MMR, overranked in season)
+export const MMR_LOSS_MIN = 0.5;    // min loss multiplier (high MMR, underranked in season)
 export const SAT_PLACEMENT_BONUS: Record<string, number> = {
   winner: 25,
   runnerUp: 15,
@@ -228,9 +234,7 @@ export function computeSeasonElos(
   const sH: Record<string, EloHistoryEntry[]> = {};
 
   players.forEach((p) => {
-    sE[p.name] = Math.round(
-      BASE_ELO * (1 - CARRY) + (atE[p.name] ?? BASE_ELO) * CARRY
-    );
+    sE[p.name] = SEASON_BASE_ELO; // flat start — no carryover; MMR influences gain/loss rates instead
     sH[p.name] = [];
   });
 
@@ -282,10 +286,7 @@ export function computeSeasonElos(
     });
 
     ap.forEach((name) => {
-      if (!(name in sE))
-        sE[name] = Math.round(
-          BASE_ELO * (1 - CARRY) + (atE[name] ?? BASE_ELO) * CARRY
-        );
+      if (!(name in sE)) sE[name] = SEASON_BASE_ELO;
       let ch: number;
       if (soloPlayers.has(name)) {
         const pos0Opps = Object.entries(posMap).filter(([, v]) => v === 0).map(([k]) => k);
@@ -312,6 +313,15 @@ export function computeSeasonElos(
             : BASE_ELO;
         ch = eloChange(sE[name], oAvg, pp[name] ?? 0) * multi;
       }
+      // MMR influence: overall ELO acts as a skill anchor that pulls season ELO toward it
+      // High MMR vs low season ELO → gain more, lose less (you're underranked this season)
+      // Low MMR vs high season ELO → gain less, lose more (you're overranked this season)
+      const mmr = atE[name] ?? BASE_ELO;
+      const mmrDiff = mmr - sE[name];
+      const gainFactor = Math.max(MMR_GAIN_MIN, Math.min(MMR_GAIN_MAX, 1 + mmrDiff / MMR_SCALE));
+      const lossFactor = Math.max(MMR_LOSS_MIN, Math.min(MMR_LOSS_MAX, 1 - mmrDiff / MMR_SCALE));
+      if (ch > 0) ch *= gainFactor;
+      else if (ch < 0) ch *= lossFactor;
       sE[name] += ch;
       if (!sH[name]) sH[name] = [];
       sH[name].push({

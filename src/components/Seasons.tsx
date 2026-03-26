@@ -667,21 +667,22 @@ export function Seasons({
             color: '#a09880',
           }}
         >
-          Everyone starts at{' '}
-          <strong style={{ color: '#c084fc' }}>1000</strong>. Rating adjusts
-          after each ACT based on points (max 24) vs expected performance.
+          Everyone starts each season at{' '}
+          <strong style={{ color: '#c084fc' }}>800</strong> — no carryover.
           <br />
           <br />
-          <strong style={{ color: '#50fa7b' }}>Playing up:</strong> Beat
-          higher-rated = bonus.
+          <strong style={{ color: '#f5a623' }}>MMR anchor:</strong> Your
+          all-time leaderboard Elo acts as a skill anchor.
           <br />
-          <strong style={{ color: '#e94560' }}>Playing down:</strong> Lose to
-          lower = bigger hit, but{' '}
-          <strong style={{ color: '#f5a623' }}>dampened</strong> (max -25).
+          <strong style={{ color: '#50fa7b' }}>MMR above season Elo</strong> →
+          gain more per win, lose less per loss (you're underranked).
+          <br />
+          <strong style={{ color: '#e94560' }}>MMR below season Elo</strong> →
+          gain less per win, lose more per loss (you're overranked).
           <br />
           <br />
-          <strong style={{ color: '#c084fc' }}>Seasonal</strong> resets with 30%
-          carryover.
+          Competition level still matters — beating higher-ranked opponents
+          earns more than beating lower-ranked ones.
         </div>
       </div>
     </div>
