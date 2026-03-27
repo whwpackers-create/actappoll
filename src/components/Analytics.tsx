@@ -664,10 +664,10 @@ export function Analytics({ data, setView }: AnalyticsProps) {
 
         {/* Searchable player pickers */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-          {([
+          {[
             { val: h2hP1, setVal: setH2hP1, q: h2hQ1, setQ: setH2hQ1, show: h2hShow1, setShow: setH2hShow1, label: 'Player 1', color: '#e94560' },
             { val: h2hP2, setVal: setH2hP2, q: h2hQ2, setQ: setH2hQ2, show: h2hShow2, setShow: setH2hShow2, label: 'Player 2', color: '#50fa7b' },
-          ] as const).map(({ val, setVal, q, setQ, show, setShow, label, color }) => {
+          ].map(({ val, setVal, q, setQ, show, setShow, label, color }) => {
             const filtered = allPlayerNames.filter((n) => n.toLowerCase().includes(q.toLowerCase())).slice(0, 10);
             return (
               <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}>
