@@ -1,9 +1,42 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { computeStats, PLACEMENT_ACTS } from '../utils/elo';
-import type { AppData } from '../types';
+import type { AppData, Act, Sat } from '../types';
 import type { AuthState } from '../hooks/useAuth';
 import type { PlayerStats } from '../types';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
+
+function getPlayerFinishes(name: string, acts: Act[]) {
+  const counts = [0, 0, 0, 0, 0]; // idx 0=1st, 1=2nd, 2=3rd, 3=4th, 4=5th+
+  for (const act of acts) {
+    let activeName = name;
+    for (const team of act.teams ?? []) {
+      const idx = (team.members ?? []).indexOf(name);
+      if (idx !== -1) { activeName = team.subs?.[idx] || name; break; }
+    }
+    for (const race of act.races ?? []) {
+      const sorted = [...(race.results ?? [])].sort((a, b) => b.points - a.points);
+      const pos = sorted.findIndex((r) => r.player === activeName);
+      if (pos === -1) continue;
+      counts[Math.min(pos, 4)]++;
+    }
+  }
+  return counts;
+}
+
+function getSatPlacements(name: string, sats: Sat[]) {
+  const out: { satName: string; placement: string; date: string }[] = [];
+  for (const sat of sats) {
+    if (!sat.placements) continue;
+    for (const [place, teams] of Object.entries(sat.placements)) {
+      for (const team of teams) {
+        if ((team.members ?? []).includes(name) || (team.subs ?? []).includes(name)) {
+          out.push({ satName: sat.name, placement: place, date: sat.date });
+        }
+      }
+    }
+  }
+  return out.sort((a, b) => b.date.localeCompare(a.date));
+}
 
 interface DashboardProps {
   data: AppData;
@@ -139,6 +172,7 @@ export function Dashboard({
     .map((p) => p.name);
   const [sortBy, setSortBy] = useState('elo');
   const [filterStatus, setFilterStatus] = useState('active');
+  const [selPlayer, setSelPlayer] = useState<string | null>(null);
 
   let filtered: PlayerStats[] = [...stats];
   if (filterStatus === 'active')
@@ -159,6 +193,19 @@ export function Dashboard({
     return b.elo - a.elo;
   });
 
+  const selPlayerStats = useMemo(() => {
+    if (!selPlayer) return null;
+    const ps = stats.find((s) => s.name === selPlayer);
+    if (!ps) return null;
+    const finishes = getPlayerFinishes(selPlayer, data.acts);
+    const totalFinishes = finishes.reduce((a, b) => a + b, 0);
+    const satPlacements = getSatPlacements(selPlayer, data.sats ?? []);
+    const peakElo = ps.eloHistory.length > 0 ? Math.round(Math.max(...ps.eloHistory.map((h) => h.elo))) : Math.round(ps.elo);
+    const lbRank = filtered.findIndex((p) => p.name === selPlayer) + 1;
+    return { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selPlayer, stats, data.acts, data.sats]);
+
   const totalActive = activePlayers.length;
   const selS = {
     background: '#181c24',
@@ -173,6 +220,7 @@ export function Dashboard({
   };
 
   return (
+    <>
     <div
       style={{
         width: '100%',
@@ -371,12 +419,14 @@ export function Dashboard({
                   <div
                     key={p.name}
                     className="lb-row"
+                    onClick={() => setSelPlayer(p.name)}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: '54px 1fr auto',
                       gap: 10,
                       alignItems: 'center',
                       padding: '16px 20px',
+                      cursor: 'pointer',
                       background:
                         rank <= 3
                           ? 'linear-gradient(90deg,rgba(42,80,130,0.14) 0%,rgba(18,22,30,0.5) 100%)'
@@ -386,7 +436,10 @@ export function Dashboard({
                           ? '1.5px solid rgba(180,160,60,0.4)'
                           : '1px solid rgba(106,96,64,0.15)',
                       borderRadius: 8,
+                      transition: 'background 0.15s',
                     }}
+                    onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(42,80,130,0.22)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.background = rank <= 3 ? 'linear-gradient(90deg,rgba(42,80,130,0.14) 0%,rgba(18,22,30,0.5) 100%)' : 'rgba(18,22,30,0.35)'; }}
                   >
                     {/* Rank */}
                     <div style={{ textAlign: 'center' }}>
@@ -572,5 +625,117 @@ export function Dashboard({
         </div>
       </div>
     </div>
+
+    {/* Player detail modal */}
+    {selPlayer && selPlayerStats && (() => {
+      const { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank } = selPlayerStats!;
+      const ch30 = ps.change30d ?? 0;
+      const finishLabels = ['1st', '2nd', '3rd', '4th', '5th+'];
+      const finishColors = ['#fbbf24', '#94a3b8', '#cd7f32', '#4aade0', '#445'];
+      const avgPts = ps.actCount ? (ps.pts / ps.actCount).toFixed(1) : '0';
+      const avgPtsRace = ps.raceCount ? (ps.pts / ps.raceCount).toFixed(1) : '0';
+      const winRate = ps.actCount ? (ps.wins / ps.actCount * 100).toFixed(1) : '0';
+      const jsRate = ps.actCount ? ((ps.jerseySwaps ?? 0) / ps.actCount * 100).toFixed(1) : '0';
+      const isPlacing = ps.actCount < PLACEMENT_ACTS;
+      const satWins = countSatWins(data.sats ?? [], ps.name);
+
+      const coreStats = [
+        { l: 'ACTs', v: ps.actCount, c: '#c8bfa8' },
+        { l: 'Races', v: ps.raceCount ?? 0, c: '#c8bfa8' },
+        { l: 'Total Pts', v: ps.pts, c: '#50fa7b' },
+        { l: 'ACT Wins', v: ps.wins, c: '#fbbf24' },
+        { l: 'Avg Pts/ACT', v: avgPts, c: '#c8bfa8' },
+        { l: 'Avg Pts/Race', v: avgPtsRace, c: '#c8bfa8' },
+        { l: 'Win Rate', v: winRate + '%', c: '#c8bfa8' },
+        { l: 'Jersey Swap', v: jsRate + '%', c: '#c084fc' },
+      ];
+
+      return (
+        <div
+          onClick={() => setSelPlayer(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#10131c', border: '1.5px solid #2a3040', borderRadius: 14, padding: '28px 30px', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}
+          >
+            {/* Close */}
+            <button onClick={() => setSelPlayer(null)} style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none', color: '#556', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+
+            {/* Header */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+                <span style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f0e6d3' }}>{ps.name}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556' }}>#{lbRank}</span>
+                {satWins > 0 && <span style={{ fontSize: 11, color: '#f5a623', background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4, padding: '2px 8px' }}>🏆 {satWins} SAT win{satWins > 1 ? 's' : ''}</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e94560' }}>
+                  {isPlacing ? `Placement: ${ps.actCount}/${PLACEMENT_ACTS}` : `ELO ${Math.round(ps.elo)}`}
+                </span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#445' }}>Peak {peakElo}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: ch30 > 0 ? '#50fa7b' : ch30 < 0 ? '#e94560' : '#445' }}>
+                  30d {ch30 > 0 ? '+' : ''}{ch30}
+                </span>
+              </div>
+            </div>
+
+            {/* Core stats grid */}
+            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', letterSpacing: 1, marginBottom: 10 }}>OVERVIEW</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 24 }}>
+              {coreStats.map(({ l, v, c }) => (
+                <div key={l} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginBottom: 4 }}>{l}</div>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: c }}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Race finish distribution */}
+            {totalFinishes > 0 && (
+              <>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', letterSpacing: 1, marginBottom: 12 }}>RACE FINISHES</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                  {finishes.map((count: number, i: number) => {
+                    const pct = totalFinishes > 0 ? (count / totalFinishes) * 100 : 0;
+                    return (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '36px 1fr 36px 38px', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: finishColors[i] }}>{finishLabels[i]}</span>
+                        <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                          <div style={{ width: pct + '%', height: '100%', background: finishColors[i], borderRadius: 4, transition: 'width 0.3s' }} />
+                        </div>
+                        <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: finishColors[i], textAlign: 'right' }}>{count}</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', textAlign: 'right' }}>{pct.toFixed(0)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* SAT placements */}
+            {satPlacements.length > 0 && (
+              <>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', letterSpacing: 1, marginBottom: 10 }}>SAT RECORD</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {satPlacements.map((sp: { satName: string; placement: string; date: string }, i: number) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 6, padding: '8px 12px' }}>
+                      <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#c8bfa8' }}>{sp.satName}</span>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{sp.date}</span>
+                        <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: sp.placement === 'winner' ? '#fbbf24' : sp.placement === '2nd' ? '#94a3b8' : sp.placement === '3rd' ? '#cd7f32' : '#c8bfa8' }}>
+                          {sp.placement === 'winner' ? '🏆 1st' : sp.placement}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    })()}
+    </>
   );
 }
