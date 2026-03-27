@@ -550,7 +550,7 @@ export function Dashboard({
               >
                 {menuImgLayer(key, menuImgs)}
                 {mkBar(
-                  key === 'roster' ? 'Roster' : key === 'analytics' ? 'Elo Analytics' : key.charAt(0).toUpperCase() + key.slice(1),
+                  key === 'roster' ? 'Roster' : key === 'analytics' ? 'Analytics' : key.charAt(0).toUpperCase() + key.slice(1),
                   () =>
                     setView(
                       key === 'roster' ? 'players' : key === 'analytics' ? 'analytics' : key
