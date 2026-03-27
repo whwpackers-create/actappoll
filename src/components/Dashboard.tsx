@@ -76,24 +76,24 @@ function mkBar(
       onClick={onClick}
       onMouseOver={(e) => {
         if (!selected) {
-          e.currentTarget.style.borderColor = '#b8a040';
-          e.currentTarget.style.background = 'rgba(180,160,60,0.06)';
+          e.currentTarget.style.borderColor = '#5070a0';
+          e.currentTarget.style.background = 'rgba(60,90,150,0.1)';
         }
       }}
       onMouseOut={(e) => {
         if (!selected) {
-          e.currentTarget.style.borderColor = '#6a6040';
+          e.currentTarget.style.borderColor = '#2a3550';
           e.currentTarget.style.background = 'transparent';
         }
       }}
       style={{
         display: 'block',
         width: '100%',
-        padding: '16px 0',
+        padding: '22px 0',
         textAlign: 'center',
         cursor: 'pointer',
-        background: selected ? 'rgba(180,160,60,0.08)' : 'transparent',
-        border: selected ? '2px solid #c0a840' : '2px solid #6a6040',
+        background: selected ? 'rgba(60,90,150,0.12)' : 'transparent',
+        border: selected ? '2px solid #4a6898' : '2px solid #2a3550',
         borderRadius: 4,
         position: 'relative',
         boxShadow: selected
@@ -202,9 +202,23 @@ export function Dashboard({
     const satPlacements = getSatPlacements(selPlayer, data.sats ?? []);
     const peakElo = ps.eloHistory.length > 0 ? Math.round(Math.max(...ps.eloHistory.map((h) => h.elo))) : Math.round(ps.elo);
     const lbRank = filtered.findIndex((p) => p.name === selPlayer) + 1;
-    return { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank };
+    const seasonRanks = [...(data.seasons ?? [])]
+      .sort((a, b) => b.startDate.localeCompare(a.startDate))
+      .map((season) => {
+        const seasonActs = data.acts.filter((a) => a.date >= season.startDate && a.date <= season.endDate);
+        if (seasonActs.length === 0) return null;
+        const seasonStats = computeStats(data.players, seasonActs, data.sats ?? []);
+        const participated = seasonStats.filter((s) => s.actCount > 0);
+        const sorted = [...participated].sort((a, b) => b.elo - a.elo);
+        const rank = sorted.findIndex((s) => s.name === selPlayer) + 1;
+        const pStat = seasonStats.find((s) => s.name === selPlayer);
+        if (!pStat || pStat.actCount === 0 || rank === 0) return null;
+        return { seasonName: season.name, rank, total: sorted.length, elo: Math.round(pStat.elo), pts: pStat.pts, actCount: pStat.actCount };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    return { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank, seasonRanks };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selPlayer, stats, data.acts, data.sats]);
+  }, [selPlayer, stats, data.acts, data.sats, data.seasons, data.players]);
 
   const totalActive = activePlayers.length;
   const selS = {
@@ -235,7 +249,7 @@ export function Dashboard({
           gridTemplateColumns: 'repeat(4,1fr)',
           gap: 0,
           marginBottom: 20,
-          border: '2px solid #c8a030',
+          border: '2px solid #2a3550',
           borderRadius: 6,
           overflow: 'hidden',
         }}
@@ -294,7 +308,7 @@ export function Dashboard({
         className="dash-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 240px',
+          gridTemplateColumns: '1fr 200px',
           gap: 16,
         }}
       >
@@ -302,7 +316,7 @@ export function Dashboard({
           style={{
             background: 'rgba(8,12,22,0.85)',
             backdropFilter: 'blur(4px)',
-            border: '2px solid #c8a030',
+            border: '2px solid #2a3550',
             borderRadius: 8,
             padding: 16,
             position: 'relative',
@@ -433,10 +447,10 @@ export function Dashboard({
                           : 'rgba(18,22,30,0.35)',
                       border:
                         rank === 1
-                          ? '1.5px solid rgba(200,160,48,0.6)'
+                          ? '1.5px solid rgba(80,120,200,0.5)'
                           : rank <= 3
-                          ? '1px solid rgba(96,130,180,0.25)'
-                          : '1px solid rgba(60,80,120,0.15)',
+                          ? '1px solid rgba(60,90,150,0.3)'
+                          : '1px solid rgba(30,45,80,0.4)',
                       borderRadius: 8,
                       transition: 'background 0.15s',
                     }}
@@ -482,19 +496,19 @@ export function Dashboard({
                       style={{ display: 'grid', gridTemplateColumns: 'repeat(5,auto)', gap: 20, textAlign: 'right' }}
                     >
                       {[
-                        { l: 'POINTS', v: p.pts, c: '#fbbf24' },
-                        { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#60a5fa' },
-                        { l: 'WINS', v: p.wins, c: '#fbbf24' },
                         {
                           l: p.actCount < PLACEMENT_ACTS ? 'PLACEMENT' : 'ELO',
                           v: p.actCount < PLACEMENT_ACTS ? `${p.actCount}/${PLACEMENT_ACTS}` : Math.round(p.elo),
-                          c: p.actCount < PLACEMENT_ACTS ? '#fbbf24' : '#60a5fa',
+                          c: p.actCount < PLACEMENT_ACTS ? '#fde68a' : '#93c5fd',
                         },
                         {
                           l: '30D CHANGE',
                           v: (ch30 > 0 ? '+' : '') + ch30,
-                          c: ch30 > 0 ? '#4ade80' : ch30 < 0 ? '#f87171' : '#445',
+                          c: ch30 > 0 ? '#86efac' : ch30 < 0 ? '#fca5a5' : '#556',
                         },
+                        { l: 'POINTS', v: p.pts, c: '#fde68a' },
+                        { l: 'WINS', v: p.wins, c: '#86efac' },
+                        { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#f9a8d4' },
                       ].map((c, ci) => (
                         <div key={ci}>
                           <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1, marginBottom: 3 }}>
@@ -630,7 +644,7 @@ export function Dashboard({
 
     {/* Player detail modal */}
     {selPlayer && selPlayerStats && (() => {
-      const { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank } = selPlayerStats!;
+      const { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank, seasonRanks } = selPlayerStats!;
       const ch30 = ps.change30d ?? 0;
       const finishLabels = ['1st', '2nd', '3rd', '4th'];
       const finishColors = ['#fbbf24', '#94a3b8', '#cd7f32', '#4aade0'];
@@ -659,7 +673,7 @@ export function Dashboard({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#0d1020', border: '2px solid #c8a030', borderRadius: 14, padding: '28px 30px', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', position: 'relative', boxShadow: '0 0 40px rgba(200,160,48,0.12)' }}
+            style={{ background: '#0d1020', border: '2px solid #2a4070', borderRadius: 14, padding: '28px 30px', width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto', position: 'relative', boxShadow: '0 0 40px rgba(40,80,160,0.2)' }}
           >
             {/* Close */}
             <button onClick={() => setSelPlayer(null)} style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none', color: '#556', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>✕</button>
@@ -692,6 +706,25 @@ export function Dashboard({
                 </div>
               ))}
             </div>
+
+            {/* Season rankings */}
+            {seasonRanks.length > 0 && (
+              <>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 10 }}>SEASON RANKINGS</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 24 }}>
+                  {seasonRanks.map((sr, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 70px 50px', gap: 8, alignItems: 'center', background: 'rgba(30,50,80,0.2)', border: '1px solid rgba(100,140,200,0.12)', borderRadius: 6, padding: '8px 12px' }}>
+                      <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#c8d4e8' }}>{sr.seasonName}</span>
+                      <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: sr.rank === 1 ? '#fde68a' : sr.rank === 2 ? '#94a3b8' : sr.rank === 3 ? '#cd7f32' : '#93c5fd', textAlign: 'center' }}>
+                        #{sr.rank}<span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>/{sr.total}</span>
+                      </span>
+                      <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#93c5fd', textAlign: 'center' }}>ELO {sr.elo}</span>
+                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', textAlign: 'right' }}>{sr.actCount} ACTs</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Race finish distribution */}
             {totalFinishes > 0 && (
