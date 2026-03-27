@@ -23,7 +23,7 @@ import { Chooser } from './components/Chooser';
 import { Settings } from './components/Settings';
 import { SAT } from './components/SAT';
 import { defaultTheme } from './styles/theme';
-import type { AppData, Act } from './types';
+import type { AppData, Act, Player } from './types';
 import { FONT_HEADER, FONT_BODY } from './styles/theme';
 
 type View =
@@ -859,25 +859,34 @@ export default function App() {
     ),
     mergePlayers: useCallback(
       async (fromName: string, toName: string) => {
-        // Find the player being removed (the "from" side)
-        const fromPlayer = data.players.find((x) => x.name === fromName);
-        if (!fromPlayer) throw new Error(`Player "${fromName}" not found`);
-        const fromId = fromPlayer.id ?? fromPlayer._id;
-        if (!fromId) throw new Error(`Player "${fromName}" has no document ID`);
+        // Fetch fresh player list directly from Firestore to get real document IDs
+        // (avoids stale closure issues with data)
+        const freshPlayers = await fsGet<Player>('players');
+        const fromPlayer = freshPlayers.find(
+          (x) => x.name === fromName || x.name.toLowerCase() === fromName.toLowerCase()
+        );
+        if (!fromPlayer) throw new Error(`Player "${fromName}" not found in Firestore (${freshPlayers.length} players loaded)`);
+        const fromId = fromPlayer._id; // _id is always the real Firestore doc ID from fsGet
 
-        const rn = (s: string) => (s === fromName ? toName : s);
+        // Resolve the exact stored toName from fresh data
+        const toPlayer = freshPlayers.find(
+          (x) => x.name === toName || x.name.toLowerCase() === toName.toLowerCase()
+        );
+        const resolvedToName = toPlayer?.name ?? toName;
 
-        // Update all ACTs: replace fromName → toName in teams, subs, races
+        const rn = (s: string) => (s === fromName ? resolvedToName : s);
+
+        // Update all ACTs: replace fromName → resolvedToName in teams, subs, races
         for (const act of data.acts) {
           let changed = false;
           const newTeams = act.teams.map((t) => {
-            const newMembers = t.members.map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
-            const newSubs = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+            const newMembers = t.members.map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
+            const newSubs = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
             return { ...t, members: newMembers, subs: newSubs };
           });
           const newRaces = (act.races ?? []).map((r) => ({
             ...r,
-            results: r.results.map((x) => x.player === fromName ? { ...x, player: toName } : x),
+            results: r.results.map((x) => x.player === fromName ? { ...x, player: resolvedToName } : x),
           }));
           if (changed) {
             const aid = act.id ?? act._id ?? '';
@@ -887,14 +896,14 @@ export default function App() {
           }
         }
 
-        // Update all SATs: replace fromName → toName
+        // Update all SATs: replace fromName → resolvedToName
         for (const sat of data.sats) {
           let changed = false;
           const upd: Record<string, unknown> = {};
           if (sat.roster) {
             upd.roster = sat.roster.map((t) => {
-              const nm = t.members.map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
-              const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+              const nm = t.members.map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
+              const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
               return { ...t, members: nm, subs: ns };
             });
           }
@@ -902,8 +911,8 @@ export default function App() {
             const np: typeof sat.placements = {};
             for (const [pl, teams] of Object.entries(sat.placements)) {
               np[pl] = (teams ?? []).map((t) => {
-                const nm = (t.members ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
-                const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+                const nm = (t.members ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
+                const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
                 return { ...t, members: nm, subs: ns };
               });
             }
@@ -921,11 +930,11 @@ export default function App() {
             }));
           }
           const newTeams = sat.teams.map((t) => {
-            const nm = t.members.map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
-            const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return toName; } return m; });
+            const nm = t.members.map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
+            const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
             return { ...t, members: nm, subs: ns };
           });
-          const newRaces = (sat.races ?? []).map((r) => ({ ...r, results: r.results.map((x) => x.player === fromName ? { ...x, player: toName } : x) }));
+          const newRaces = (sat.races ?? []).map((r) => ({ ...r, results: r.results.map((x) => x.player === fromName ? { ...x, player: resolvedToName } : x) }));
           if (changed) {
             const sid = sat.id ?? sat._id ?? '';
             const d = { ...sat, ...upd, teams: newTeams, races: newRaces, id: sid };
@@ -934,7 +943,7 @@ export default function App() {
           }
         }
 
-        // Delete the "from" player document — the "to" player doc stays untouched
+        // Delete the "from" player document using the real Firestore doc ID
         await fsDel('players', fromId);
         reload();
       },
