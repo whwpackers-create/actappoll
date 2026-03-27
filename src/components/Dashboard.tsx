@@ -89,7 +89,7 @@ function mkBar(
       style={{
         display: 'block',
         width: '100%',
-        padding: '22px 0',
+        padding: '30px 0',
         textAlign: 'center',
         cursor: 'pointer',
         background: selected ? 'rgba(60,90,150,0.12)' : 'transparent',
@@ -97,7 +97,7 @@ function mkBar(
         borderRadius: 4,
         position: 'relative',
         boxShadow: selected
-          ? '0 0 12px rgba(180,160,60,0.15), inset 0 0 20px rgba(180,160,60,0.04)'
+          ? '0 0 12px rgba(60,90,150,0.3), inset 0 0 20px rgba(60,90,150,0.06)'
           : 'none',
         transition: 'border-color 0.2s, background 0.2s',
       }}
@@ -105,7 +105,7 @@ function mkBar(
       <span
         style={{
           fontFamily: Fh,
-          fontSize: 22,
+          fontSize: 26,
           fontWeight: 900,
           color: selected ? '#e8e0c0' : '#c0c4cc',
           letterSpacing: 1,
@@ -282,8 +282,8 @@ export function Dashboard({
                 style={{
                   fontFamily: FONT_HEADER,
                   fontSize: 26,
-                  color: '#fbbf24',
-                  textShadow: '0 2px 8px rgba(200,160,48,0.35)',
+                  color: '#ffffff',
+                  textShadow: '0 2px 6px rgba(0,0,0,0.5)',
                 }}
               >
                 {s.val}
