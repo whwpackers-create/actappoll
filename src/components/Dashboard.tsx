@@ -373,87 +373,47 @@ export function Dashboard({
                     className="lb-row"
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '46px 1fr auto',
-                      gap: 6,
+                      gridTemplateColumns: '54px 1fr auto',
+                      gap: 10,
                       alignItems: 'center',
-                      padding: '10px 14px',
+                      padding: '16px 20px',
                       background:
                         rank <= 3
-                          ? 'linear-gradient(90deg,rgba(42,80,130,0.12) 0%,rgba(18,22,30,0.4) 100%)'
-                          : 'rgba(18,22,30,0.3)',
+                          ? 'linear-gradient(90deg,rgba(42,80,130,0.14) 0%,rgba(18,22,30,0.5) 100%)'
+                          : 'rgba(18,22,30,0.35)',
                       border:
                         rank === 1
                           ? '1.5px solid rgba(180,160,60,0.4)'
                           : '1px solid rgba(106,96,64,0.15)',
-                      borderRadius: 6,
+                      borderRadius: 8,
                     }}
                   >
+                    {/* Rank */}
                     <div style={{ textAlign: 'center' }}>
                       {medal ? (
-                        <div style={{ fontSize: 24 }}>{medal}</div>
+                        <div style={{ fontSize: 28 }}>{medal}</div>
                       ) : (
-                        <div
-                          style={{
-                            fontFamily: FONT_HEADER,
-                            fontSize: 16,
-                            color: '#4a5a6a',
-                          }}
-                        >
+                        <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#4a5a6a' }}>
                           #{rank}
                         </div>
                       )}
                     </div>
+                    {/* Name + sub-stats */}
                     <div>
-                      <div
-                        style={{
-                          fontFamily: FONT_HEADER,
-                          fontSize: 18,
-                          color: '#e0e4ea',
-                          textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                        }}
-                      >
+                      <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#e0e4ea', marginBottom: 4 }}>
                         {p.name}
                         {satWins > 0 && (
-                          <span
-                            style={{
-                              marginLeft: 6,
-                              fontSize: 10,
-                              color: '#f5a623',
-                              background: 'rgba(245,166,35,0.12)',
-                              border: '1px solid rgba(245,166,35,0.25)',
-                              borderRadius: 4,
-                              padding: '1px 6px',
-                            }}
-                          >
+                          <span style={{ marginLeft: 8, fontSize: 11, color: '#f5a623', background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4, padding: '2px 7px' }}>
                             🏆x{satWins}
                           </span>
                         )}
                         {!activePlayers.includes(p.name) && (
-                          <span
-                            style={{
-                              marginLeft: 6,
-                              fontSize: 9,
-                              color: '#888',
-                              background: 'rgba(255,255,255,0.06)',
-                              border: '1px solid rgba(255,255,255,0.08)',
-                              borderRadius: 4,
-                              padding: '1px 5px',
-                            }}
-                          >
+                          <span style={{ marginLeft: 8, fontSize: 10, color: '#888', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 6px' }}>
                             Retired
                           </span>
                         )}
                       </div>
-                      <div
-                        style={{
-                          fontFamily: FONT_MONO,
-                          fontSize: 10,
-                          color: '#556',
-                          display: 'flex',
-                          gap: 10,
-                          flexWrap: 'wrap',
-                        }}
-                      >
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                         <span>{p.actCount} ACTs</span>
                         <span>{p.raceCount ?? 0} races</span>
                         <span>{avgPts} avg pts/ACT</span>
@@ -461,53 +421,31 @@ export function Dashboard({
                         <span>{jsRate}% Jersey Swap</span>
                       </div>
                     </div>
+                    {/* Stats */}
                     <div
                       className="lb-stats"
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(5,auto)',
-                        gap: 14,
-                        textAlign: 'right',
-                      }}
+                      style={{ display: 'grid', gridTemplateColumns: 'repeat(5,auto)', gap: 20, textAlign: 'right' }}
                     >
                       {[
+                        { l: 'POINTS', v: p.pts, c: '#5a8' },
+                        { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#a7c' },
+                        { l: 'WINS', v: p.wins, c: '#ca8' },
                         {
-                          l: p.actCount < PLACEMENT_ACTS ? 'PLACE' : 'ELO',
+                          l: p.actCount < PLACEMENT_ACTS ? 'PLACEMENT' : 'ELO',
                           v: p.actCount < PLACEMENT_ACTS ? `${p.actCount}/${PLACEMENT_ACTS}` : Math.round(p.elo),
                           c: p.actCount < PLACEMENT_ACTS ? '#f5a623' : '#e94560',
                         },
                         {
-                          l: '30D',
+                          l: '30D CHANGE',
                           v: (ch30 > 0 ? '+' : '') + ch30,
-                          c:
-                            ch30 > 0 ? '#5a8' : ch30 < 0 ? '#e94560' : '#445',
-                        },
-                        { l: 'WINS', v: p.wins, c: '#ca8' },
-                        { l: 'PTS', v: p.pts, c: '#5a8' },
-                        {
-                          l: 'JS',
-                          v: p.jerseySwaps ?? 0,
-                          c: '#a7c',
+                          c: ch30 > 0 ? '#5a8' : ch30 < 0 ? '#e94560' : '#445',
                         },
                       ].map((c, ci) => (
                         <div key={ci}>
-                          <div
-                            style={{
-                              fontFamily: FONT_MONO,
-                              fontSize: 8,
-                              color: '#445',
-                              letterSpacing: 1,
-                            }}
-                          >
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1, marginBottom: 3 }}>
                             {c.l}
                           </div>
-                          <div
-                            style={{
-                              fontFamily: FONT_HEADER,
-                              fontSize: 16,
-                              color: c.c,
-                            }}
-                          >
+                          <div style={{ fontFamily: FONT_HEADER, fontSize: 20, color: c.c }}>
                             {c.v}
                           </div>
                         </div>

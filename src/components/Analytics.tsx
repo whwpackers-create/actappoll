@@ -652,42 +652,42 @@ export function Analytics({ data, setView }: AnalyticsProps) {
           backdropFilter: 'blur(4px)',
           border: '2px solid #2a3040',
           borderRadius: 12,
-          padding: 24,
+          padding: 28,
         }}
       >
-        <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#f0e6d3', marginBottom: 4, letterSpacing: 2 }}>
-          ⚔️ Head to Head
+        <div style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f0e6d3', marginBottom: 4, letterSpacing: 3, fontWeight: 'bold' }}>
+          VERSUS
         </div>
-        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556', marginBottom: 16 }}>
-          Compare two players race-by-race across shared ACTs
+        <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#667', marginBottom: 22 }}>
+          Compare two racers across ACT history and see who finished ahead more often.
         </div>
 
-        {/* Searchable player pickers */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+        {/* Player inputs — full width side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
           {[
-            { val: h2hP1, setVal: setH2hP1, q: h2hQ1, setQ: setH2hQ1, show: h2hShow1, setShow: setH2hShow1, label: 'Player 1', color: '#e94560' },
-            { val: h2hP2, setVal: setH2hP2, q: h2hQ2, setQ: setH2hQ2, show: h2hShow2, setShow: setH2hShow2, label: 'Player 2', color: '#50fa7b' },
-          ].map(({ val, setVal, q, setQ, show, setShow, label, color }) => {
+            { val: h2hP1, setVal: setH2hP1, q: h2hQ1, setQ: setH2hQ1, show: h2hShow1, setShow: setH2hShow1, label: 'Player 1' },
+            { val: h2hP2, setVal: setH2hP2, q: h2hQ2, setQ: setH2hQ2, show: h2hShow2, setShow: setH2hShow2, label: 'Player 2' },
+          ].map(({ val, setVal, q, setQ, show, setShow, label }) => {
             const filtered = allPlayerNames.filter((n) => n.toLowerCase().includes(q.toLowerCase())).slice(0, 10);
             return (
-              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>{label}</span>
+              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 5, position: 'relative' }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#667', letterSpacing: 1 }}>{label}</span>
                 <input
                   value={val && !show ? val : q}
                   onChange={(e) => { setQ(e.target.value); setShow(true); setVal(''); }}
                   onFocus={() => { setQ(''); setShow(true); }}
                   onBlur={() => setTimeout(() => setShow(false), 150)}
-                  placeholder="Type to search..."
+                  placeholder="Search player..."
                   style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: `2px solid ${val ? color : 'rgba(255,255,255,0.1)'}`,
-                    borderRadius: 6,
-                    padding: '8px 12px',
-                    fontFamily: FONT_MONO,
-                    fontSize: 13,
-                    color: val ? color : '#f0e6d3',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${val ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`,
+                    borderRadius: 8,
+                    padding: '12px 16px',
+                    fontFamily: FONT_HEADER,
+                    fontSize: 16,
+                    color: '#f0e6d3',
                     outline: 'none',
-                    minWidth: 180,
+                    width: '100%',
                     boxSizing: 'border-box',
                   }}
                 />
@@ -699,18 +699,18 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                     right: 0,
                     background: '#1a1e28',
                     border: '1px solid #3a4050',
-                    borderRadius: 6,
+                    borderRadius: 8,
                     marginTop: 2,
                     zIndex: 20,
                     maxHeight: 220,
                     overflowY: 'auto',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
                   }}>
                     {filtered.map((n) => (
                       <div
                         key={n}
                         onMouseDown={() => { setVal(n); setQ(''); setShow(false); }}
-                        style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: '#f0e6d3', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                        style={{ padding: '10px 16px', fontFamily: FONT_HEADER, fontSize: 14, color: '#f0e6d3', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                         onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                         onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
                       >
@@ -725,96 +725,88 @@ export function Analytics({ data, setView }: AnalyticsProps) {
         </div>
 
         {h2hP1 && h2hP2 && h2hP1 === h2hP2 && (
-          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556', padding: '20px 0' }}>
-            Select two different players.
-          </div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556', padding: '20px 0' }}>Select two different players.</div>
         )}
-
         {h2hData && h2hData.totalRaces === 0 && (
-          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556', padding: '20px 0' }}>
-            No shared races found for these two players.
-          </div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556', padding: '20px 0' }}>No shared races found for these two players.</div>
         )}
-
-        {h2hData && h2hData.totalRaces > 0 && (
-          <>
-            {/* Summary stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, marginBottom: 20, alignItems: 'center' }}>
-              <div style={{ background: 'rgba(233,69,96,0.08)', border: '1px solid rgba(233,69,96,0.2)', borderRadius: 10, padding: '14px 18px' }}>
-                <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#e94560', marginBottom: 8 }}>{h2hData.p1}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <StatRow label="Race wins" value={`${h2hData.p1RaceWins} / ${h2hData.totalRaces}`} color="#e94560" />
-                  <StatRow label="Avg pts / race" value={(h2hData.p1AvgPts ?? 0).toFixed(1)} color="#e94560" />
-                  <StatRow label="Total pts" value={String(h2hData.p1TotalPts)} color="#e94560" />
-                </div>
-              </div>
-              <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#445', textAlign: 'center', padding: '0 8px' }}>VS</div>
-              <div style={{ background: 'rgba(80,250,123,0.06)', border: '1px solid rgba(80,250,123,0.2)', borderRadius: 10, padding: '14px 18px' }}>
-                <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#50fa7b', marginBottom: 8 }}>{h2hData.p2}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <StatRow label="Race wins" value={`${h2hData.p2RaceWins} / ${h2hData.totalRaces}`} color="#50fa7b" />
-                  <StatRow label="Avg pts / race" value={(h2hData.p2AvgPts ?? 0).toFixed(1)} color="#50fa7b" />
-                  <StatRow label="Total pts" value={String(h2hData.p2TotalPts)} color="#50fa7b" />
-                </div>
-              </div>
-            </div>
-
-            {/* Per-ACT breakdown */}
-            <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#889', letterSpacing: 1, marginBottom: 8 }}>
-              SHARED ACTs ({h2hData.actRows.length})
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <div style={{ minWidth: 360 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px', gap: 0, background: 'rgba(255,255,255,0.03)', borderRadius: '6px 6px 0 0', padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>ACT</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560', textAlign: 'center' }}>{h2hData.p1.split(' ')[0].toUpperCase()} PTS</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b', textAlign: 'center' }}>{h2hData.p2.split(' ')[0].toUpperCase()} PTS</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', textAlign: 'right' }}>RACES W-L</span>
-                </div>
-                {h2hData.actRows.map(({ act, p1TotalPts, p2TotalPts, p1RaceWins, p2RaceWins }, i) => (
-                  <div
-                    key={act.id || act._id}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 90px 90px 70px',
-                      gap: 0,
-                      padding: '7px 10px',
-                      background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
-                      borderBottom: '1px solid rgba(255,255,255,0.03)',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#c8bfa8' }}>{act.name}</span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginLeft: 6 }}>{act.date}</span>
-                    </div>
-                    <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: p1TotalPts > p2TotalPts ? '#e94560' : '#667', textAlign: 'center' }}>{p1TotalPts}</span>
-                    <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: p2TotalPts > p1TotalPts ? '#50fa7b' : '#667', textAlign: 'center' }}>{p2TotalPts}</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: p1RaceWins > p2RaceWins ? '#e94560' : p2RaceWins > p1RaceWins ? '#50fa7b' : '#445', textAlign: 'right' }}>
-                      {p1RaceWins}–{p2RaceWins}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
         {(!h2hP1 || !h2hP2) && (
-          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#445', padding: '20px 0' }}>
-            Select two players above to see their head-to-head record.
-          </div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#445', padding: '10px 0' }}>Select two players above to see their record.</div>
         )}
+
+        {h2hData && h2hData.totalRaces > 0 && (() => {
+          const p1Leading = h2hData.p1RaceWins > h2hData.p2RaceWins;
+          const p2Leading = h2hData.p2RaceWins > h2hData.p1RaceWins;
+          const p1Pct = Math.round((h2hData.p1RaceWins / h2hData.totalRaces) * 100);
+          const p2Pct = Math.round((h2hData.p2RaceWins / h2hData.totalRaces) * 100);
+          const totalPct = 100;
+          return (
+            <>
+              {/* Three stat boxes */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 28 }}>
+                {/* Races against */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '18px 20px' }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#667', letterSpacing: 1, marginBottom: 10 }}>RACES AGAINST</div>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 36, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.totalRaces}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', marginTop: 6 }}>{totalPct}%</div>
+                </div>
+                {/* P1 wins */}
+                <div style={{
+                  background: p1Leading ? 'rgba(80,250,123,0.07)' : 'rgba(255,255,255,0.02)',
+                  border: p1Leading ? '1px solid rgba(80,250,123,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 10, padding: '18px 20px',
+                }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#667', letterSpacing: 1, marginBottom: 10 }}>{h2hData.p1.toUpperCase()} WINS</div>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 36, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.p1RaceWins}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', marginTop: 6 }}>{p1Pct}%</div>
+                </div>
+                {/* P2 wins */}
+                <div style={{
+                  background: p2Leading ? 'rgba(80,250,123,0.07)' : 'rgba(255,255,255,0.02)',
+                  border: p2Leading ? '1px solid rgba(80,250,123,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 10, padding: '18px 20px',
+                }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#667', letterSpacing: 1, marginBottom: 10 }}>{h2hData.p2.toUpperCase()} WINS</div>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 36, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.p2RaceWins}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', marginTop: 6 }}>{p2Pct}%</div>
+                </div>
+              </div>
+
+              {/* Per-ACT breakdown */}
+              <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#889', letterSpacing: 1, marginBottom: 8 }}>
+                SHARED ACTs ({h2hData.actRows.length})
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <div style={{ minWidth: 360 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px 6px 0 0', padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>ACT</span>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#aaa', textAlign: 'center' }}>{h2hData.p1.split(' ')[0].toUpperCase()} PTS</span>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#aaa', textAlign: 'center' }}>{h2hData.p2.split(' ')[0].toUpperCase()} PTS</span>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', textAlign: 'right' }}>W-L</span>
+                  </div>
+                  {h2hData.actRows.map(({ act, p1TotalPts, p2TotalPts, p1RaceWins, p2RaceWins }, i) => (
+                    <div
+                      key={act.id || act._id}
+                      style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px', padding: '8px 10px', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'center' }}
+                    >
+                      <div>
+                        <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#c8bfa8' }}>{act.name}</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginLeft: 6 }}>{act.date}</span>
+                      </div>
+                      <span style={{ fontFamily: FONT_HEADER, fontSize: 15, color: p1TotalPts > p2TotalPts ? '#f0e6d3' : '#556', textAlign: 'center' }}>{p1TotalPts}</span>
+                      <span style={{ fontFamily: FONT_HEADER, fontSize: 15, color: p2TotalPts > p1TotalPts ? '#f0e6d3' : '#556', textAlign: 'center' }}>{p2TotalPts}</span>
+                      <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: p1RaceWins > p2RaceWins ? '#50fa7b' : p2RaceWins > p1RaceWins ? '#e94560' : '#445', textAlign: 'right' }}>
+                        {p1RaceWins}–{p2RaceWins}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
     </div>
   );
 }
 
-function StatRow({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>{label}</span>
-      <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color }}>{value}</span>
-    </div>
-  );
-}
