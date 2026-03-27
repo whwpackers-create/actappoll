@@ -879,14 +879,14 @@ export default function App() {
         // Update all ACTs: replace fromName → resolvedToName in teams, subs, races
         for (const act of data.acts) {
           let changed = false;
-          const newTeams = act.teams.map((t) => {
-            const newMembers = t.members.map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
+          const newTeams = (act.teams ?? []).map((t) => {
+            const newMembers = (t.members ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
             const newSubs = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
             return { ...t, members: newMembers, subs: newSubs };
           });
           const newRaces = (act.races ?? []).map((r) => ({
             ...r,
-            results: r.results.map((x) => x.player === fromName ? { ...x, player: resolvedToName } : x),
+            results: (r.results ?? []).map((x) => x.player === fromName ? { ...x, player: resolvedToName } : x),
           }));
           if (changed) {
             const aid = act.id ?? act._id ?? '';
@@ -929,12 +929,12 @@ export default function App() {
               }),
             }));
           }
-          const newTeams = sat.teams.map((t) => {
-            const nm = t.members.map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
+          const newTeams = (sat.teams ?? []).map((t) => {
+            const nm = (t.members ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
             const ns = (t.subs ?? []).map((m) => { if (m === fromName) { changed = true; return resolvedToName; } return m; });
             return { ...t, members: nm, subs: ns };
           });
-          const newRaces = (sat.races ?? []).map((r) => ({ ...r, results: r.results.map((x) => x.player === fromName ? { ...x, player: resolvedToName } : x) }));
+          const newRaces = (sat.races ?? []).map((r) => ({ ...r, results: (r.results ?? []).map((x) => x.player === fromName ? { ...x, player: resolvedToName } : x) }));
           if (changed) {
             const sid = sat.id ?? sat._id ?? '';
             const d = { ...sat, ...upd, teams: newTeams, races: newRaces, id: sid };
