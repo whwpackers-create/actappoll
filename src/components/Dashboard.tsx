@@ -6,7 +6,7 @@ import type { PlayerStats } from '../types';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 
 function getPlayerFinishes(name: string, acts: Act[]) {
-  const counts = [0, 0, 0, 0, 0]; // idx 0=1st, 1=2nd, 2=3rd, 3=4th, 4=5th+
+  const counts = [0, 0, 0, 0]; // 1st, 2nd, 3rd, 4th
   for (const act of acts) {
     let activeName = name;
     for (const team of act.teams ?? []) {
@@ -17,7 +17,7 @@ function getPlayerFinishes(name: string, acts: Act[]) {
       const sorted = [...(race.results ?? [])].sort((a, b) => b.points - a.points);
       const pos = sorted.findIndex((r) => r.player === activeName);
       if (pos === -1) continue;
-      counts[Math.min(pos, 4)]++;
+      counts[Math.min(pos, 3)]++;
     }
   }
   return counts;
@@ -235,7 +235,7 @@ export function Dashboard({
           gridTemplateColumns: 'repeat(4,1fr)',
           gap: 0,
           marginBottom: 20,
-          border: '2px solid #6a6040',
+          border: '2px solid #c8a030',
           borderRadius: 6,
           overflow: 'hidden',
         }}
@@ -268,8 +268,8 @@ export function Dashboard({
                 style={{
                   fontFamily: FONT_HEADER,
                   fontSize: 26,
-                  color: '#fff',
-                  textShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                  color: '#fbbf24',
+                  textShadow: '0 2px 8px rgba(200,160,48,0.35)',
                 }}
               >
                 {s.val}
@@ -300,9 +300,9 @@ export function Dashboard({
       >
         <div
           style={{
-            background: 'rgba(12,14,22,0.75)',
+            background: 'rgba(8,12,22,0.85)',
             backdropFilter: 'blur(4px)',
-            border: '2px solid #6a6040',
+            border: '2px solid #c8a030',
             borderRadius: 8,
             padding: 16,
             position: 'relative',
@@ -326,9 +326,9 @@ export function Dashboard({
                   style={{
                     fontFamily: FONT_HEADER,
                     fontSize: 18,
-                    color: '#fff',
+                    color: '#fbbf24',
                     letterSpacing: 2,
-                    textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+                    textShadow: '0 1px 6px rgba(200,160,48,0.4)',
                   }}
                 >
                   PLAYER LEADERBOARD
@@ -433,8 +433,10 @@ export function Dashboard({
                           : 'rgba(18,22,30,0.35)',
                       border:
                         rank === 1
-                          ? '1.5px solid rgba(180,160,60,0.4)'
-                          : '1px solid rgba(106,96,64,0.15)',
+                          ? '1.5px solid rgba(200,160,48,0.6)'
+                          : rank <= 3
+                          ? '1px solid rgba(96,130,180,0.25)'
+                          : '1px solid rgba(60,80,120,0.15)',
                       borderRadius: 8,
                       transition: 'background 0.15s',
                     }}
@@ -446,7 +448,7 @@ export function Dashboard({
                       {medal ? (
                         <div style={{ fontSize: 28 }}>{medal}</div>
                       ) : (
-                        <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#4a5a6a' }}>
+                        <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#3a6090' }}>
                           #{rank}
                         </div>
                       )}
@@ -480,18 +482,18 @@ export function Dashboard({
                       style={{ display: 'grid', gridTemplateColumns: 'repeat(5,auto)', gap: 20, textAlign: 'right' }}
                     >
                       {[
-                        { l: 'POINTS', v: p.pts, c: '#5a8' },
-                        { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#a7c' },
-                        { l: 'WINS', v: p.wins, c: '#ca8' },
+                        { l: 'POINTS', v: p.pts, c: '#fbbf24' },
+                        { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#60a5fa' },
+                        { l: 'WINS', v: p.wins, c: '#fbbf24' },
                         {
                           l: p.actCount < PLACEMENT_ACTS ? 'PLACEMENT' : 'ELO',
                           v: p.actCount < PLACEMENT_ACTS ? `${p.actCount}/${PLACEMENT_ACTS}` : Math.round(p.elo),
-                          c: p.actCount < PLACEMENT_ACTS ? '#f5a623' : '#e94560',
+                          c: p.actCount < PLACEMENT_ACTS ? '#fbbf24' : '#60a5fa',
                         },
                         {
                           l: '30D CHANGE',
                           v: (ch30 > 0 ? '+' : '') + ch30,
-                          c: ch30 > 0 ? '#5a8' : ch30 < 0 ? '#e94560' : '#445',
+                          c: ch30 > 0 ? '#4ade80' : ch30 < 0 ? '#f87171' : '#445',
                         },
                       ].map((c, ci) => (
                         <div key={ci}>
@@ -599,13 +601,13 @@ export function Dashboard({
           style={{
             height: 2,
             background:
-              'linear-gradient(180deg,#666a74 0%,#8a8e9a 50%,#666a74 100%)',
+              'linear-gradient(90deg,#1a3060 0%,#c8a030 30%,#fbbf24 50%,#c8a030 70%,#1a3060 100%)',
           }}
         />
         <div
           style={{
             background:
-              'linear-gradient(180deg,#c8ccd8 0%,#a0a4b0 50%,#888c98 100%)',
+              'linear-gradient(90deg,#0a1830 0%,#2a5090 30%,#4080c0 50%,#2a5090 70%,#0a1830 100%)',
             height: 8,
             marginTop: 1,
             borderRadius: 2,
@@ -630,8 +632,8 @@ export function Dashboard({
     {selPlayer && selPlayerStats && (() => {
       const { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank } = selPlayerStats!;
       const ch30 = ps.change30d ?? 0;
-      const finishLabels = ['1st', '2nd', '3rd', '4th', '5th+'];
-      const finishColors = ['#fbbf24', '#94a3b8', '#cd7f32', '#4aade0', '#445'];
+      const finishLabels = ['1st', '2nd', '3rd', '4th'];
+      const finishColors = ['#fbbf24', '#94a3b8', '#cd7f32', '#4aade0'];
       const avgPts = ps.actCount ? (ps.pts / ps.actCount).toFixed(1) : '0';
       const avgPtsRace = ps.raceCount ? (ps.pts / ps.raceCount).toFixed(1) : '0';
       const winRate = ps.actCount ? (ps.wins / ps.actCount * 100).toFixed(1) : '0';
@@ -640,14 +642,14 @@ export function Dashboard({
       const satWins = countSatWins(data.sats ?? [], ps.name);
 
       const coreStats = [
-        { l: 'ACTs', v: ps.actCount, c: '#c8bfa8' },
-        { l: 'Races', v: ps.raceCount ?? 0, c: '#c8bfa8' },
-        { l: 'Total Pts', v: ps.pts, c: '#50fa7b' },
+        { l: 'ACTs', v: ps.actCount, c: '#94b8d8' },
+        { l: 'Races', v: ps.raceCount ?? 0, c: '#94b8d8' },
+        { l: 'Total Pts', v: ps.pts, c: '#fbbf24' },
         { l: 'ACT Wins', v: ps.wins, c: '#fbbf24' },
-        { l: 'Avg Pts/ACT', v: avgPts, c: '#c8bfa8' },
-        { l: 'Avg Pts/Race', v: avgPtsRace, c: '#c8bfa8' },
-        { l: 'Win Rate', v: winRate + '%', c: '#c8bfa8' },
-        { l: 'Jersey Swap', v: jsRate + '%', c: '#c084fc' },
+        { l: 'Avg Pts/ACT', v: avgPts, c: '#94b8d8' },
+        { l: 'Avg Pts/Race', v: avgPtsRace, c: '#94b8d8' },
+        { l: 'Win Rate', v: winRate + '%', c: '#60a5fa' },
+        { l: 'Jersey Swap', v: jsRate + '%', c: '#60a5fa' },
       ];
 
       return (
@@ -657,7 +659,7 @@ export function Dashboard({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#10131c', border: '1.5px solid #2a3040', borderRadius: 14, padding: '28px 30px', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}
+            style={{ background: '#0d1020', border: '2px solid #c8a030', borderRadius: 14, padding: '28px 30px', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', position: 'relative', boxShadow: '0 0 40px rgba(200,160,48,0.12)' }}
           >
             {/* Close */}
             <button onClick={() => setSelPlayer(null)} style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none', color: '#556', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>✕</button>
@@ -670,22 +672,22 @@ export function Dashboard({
                 {satWins > 0 && <span style={{ fontSize: 11, color: '#f5a623', background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4, padding: '2px 8px' }}>🏆 {satWins} SAT win{satWins > 1 ? 's' : ''}</span>}
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e94560' }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: isPlacing ? '#fbbf24' : '#60a5fa' }}>
                   {isPlacing ? `Placement: ${ps.actCount}/${PLACEMENT_ACTS}` : `ELO ${Math.round(ps.elo)}`}
                 </span>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#445' }}>Peak {peakElo}</span>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: ch30 > 0 ? '#50fa7b' : ch30 < 0 ? '#e94560' : '#445' }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#6080a0' }}>Peak {peakElo}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: ch30 > 0 ? '#4ade80' : ch30 < 0 ? '#f87171' : '#445' }}>
                   30d {ch30 > 0 ? '+' : ''}{ch30}
                 </span>
               </div>
             </div>
 
             {/* Core stats grid */}
-            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', letterSpacing: 1, marginBottom: 10 }}>OVERVIEW</div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 10 }}>OVERVIEW</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 24 }}>
               {coreStats.map(({ l, v, c }) => (
-                <div key={l} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginBottom: 4 }}>{l}</div>
+                <div key={l} style={{ background: 'rgba(30,50,80,0.25)', border: '1px solid rgba(100,140,200,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#506070', marginBottom: 4 }}>{l}</div>
                   <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: c }}>{v}</div>
                 </div>
               ))}
@@ -694,7 +696,7 @@ export function Dashboard({
             {/* Race finish distribution */}
             {totalFinishes > 0 && (
               <>
-                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', letterSpacing: 1, marginBottom: 12 }}>RACE FINISHES</div>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 12 }}>RACE FINISHES</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
                   {finishes.map((count: number, i: number) => {
                     const pct = totalFinishes > 0 ? (count / totalFinishes) * 100 : 0;
@@ -716,10 +718,10 @@ export function Dashboard({
             {/* SAT placements */}
             {satPlacements.length > 0 && (
               <>
-                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', letterSpacing: 1, marginBottom: 10 }}>SAT RECORD</div>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 10 }}>SAT RECORD</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {satPlacements.map((sp: { satName: string; placement: string; date: string }, i: number) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 6, padding: '8px 12px' }}>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(30,50,80,0.2)', border: '1px solid rgba(100,140,200,0.12)', borderRadius: 6, padding: '8px 12px' }}>
                       <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#c8bfa8' }}>{sp.satName}</span>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{sp.date}</span>

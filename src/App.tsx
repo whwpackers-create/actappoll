@@ -130,17 +130,10 @@ export default function App() {
     document.body.style.backgroundColor = theme.bgColor;
     document.body.style.backgroundImage =
       (theme.bgImage ? 'url(' + theme.bgImage + '),' : '') +
-      'repeating-linear-gradient(135deg, transparent 0px, transparent 18px, rgba(255,255,255,' +
+      'repeating-linear-gradient(0deg, transparent 0px, transparent 28px, rgba(255,255,255,' +
       theme.stripeOpacity +
-      ') 18px, rgba(255,255,255,' +
-      theme.stripeOpacity +
-      ') ' +
-      (18 + parseInt(theme.stripeWidth || '3')) +
-      'px),' +
-      'repeating-linear-gradient(45deg, transparent 0px, transparent 28px, rgba(255,255,255,' +
-      parseFloat(theme.stripeOpacity) * 0.6 +
       ') 28px, rgba(255,255,255,' +
-      parseFloat(theme.stripeOpacity) * 0.6 +
+      theme.stripeOpacity +
       ') ' +
       (28 + parseInt(theme.stripeWidth || '3')) +
       'px)';
