@@ -5,6 +5,19 @@ import type { AuthState } from '../hooks/useAuth';
 import type { PlayerStats } from '../types';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 
+const TIERS = [
+  { name: 'Bronze',   min: 0,    max: 950,  color: '#cd7f32', icon: '🥉' },
+  { name: 'Silver',   min: 950,  max: 1025, color: '#94a3b8', icon: '🥈' },
+  { name: 'Gold',     min: 1025, max: 1100, color: '#fbbf24', icon: '🥇' },
+  { name: 'Platinum', min: 1100, max: 1200, color: '#60a5fa', icon: '💎' },
+  { name: 'Diamond',  min: 1200, max: 1350, color: '#c084fc', icon: '💠' },
+  { name: 'Master',   min: 1350, max: Infinity, color: '#f87171', icon: '👑' },
+];
+
+function getTier(elo: number) {
+  return TIERS.find((t) => elo >= t.min && elo < t.max) ?? TIERS[0];
+}
+
 function getPlayerFinishes(name: string, acts: Act[]) {
   const counts = [0, 0, 0, 0]; // 1st, 2nd, 3rd, 4th
   for (const act of acts) {
@@ -213,7 +226,8 @@ export function Dashboard({
         const rank = sorted.findIndex((s) => s.name === selPlayer) + 1;
         const pStat = seasonStats.find((s) => s.name === selPlayer);
         if (!pStat || pStat.actCount === 0 || rank === 0) return null;
-        return { seasonName: season.name, rank, total: sorted.length, elo: Math.round(pStat.elo), pts: pStat.pts, actCount: pStat.actCount };
+        const tier = getTier(Math.round(pStat.elo));
+        return { seasonName: season.name, rank, total: sorted.length, elo: Math.round(pStat.elo), pts: pStat.pts, actCount: pStat.actCount, tier };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
     return { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank, seasonRanks };
@@ -654,6 +668,7 @@ export function Dashboard({
       const jsRate = ps.actCount ? ((ps.jerseySwaps ?? 0) / ps.actCount * 100).toFixed(1) : '0';
       const isPlacing = ps.actCount < PLACEMENT_ACTS;
       const satWins = countSatWins(data.sats ?? [], ps.name);
+      const currentTier = getTier(Math.round(ps.elo));
 
       const coreStats = [
         { l: 'ACTs', v: ps.actCount, c: '#94b8d8' },
@@ -680,9 +695,14 @@ export function Dashboard({
 
             {/* Header */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
                 <span style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f0e6d3' }}>{ps.name}</span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556' }}>#{lbRank}</span>
+                {!isPlacing && (
+                  <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: currentTier.color, background: `${currentTier.color}18`, border: `1px solid ${currentTier.color}50`, borderRadius: 6, padding: '3px 10px' }}>
+                    {currentTier.icon} {currentTier.name}
+                  </span>
+                )}
                 {satWins > 0 && <span style={{ fontSize: 11, color: '#f5a623', background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4, padding: '2px 8px' }}>🏆 {satWins} SAT win{satWins > 1 ? 's' : ''}</span>}
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -713,13 +733,18 @@ export function Dashboard({
                 <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 10 }}>SEASON RANKINGS</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 24 }}>
                   {seasonRanks.map((sr, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 70px 50px', gap: 8, alignItems: 'center', background: 'rgba(30,50,80,0.2)', border: '1px solid rgba(100,140,200,0.12)', borderRadius: 6, padding: '8px 12px' }}>
-                      <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#c8d4e8' }}>{sr.seasonName}</span>
-                      <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: sr.rank === 1 ? '#fde68a' : sr.rank === 2 ? '#94a3b8' : sr.rank === 3 ? '#cd7f32' : '#93c5fd', textAlign: 'center' }}>
-                        #{sr.rank}<span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>/{sr.total}</span>
-                      </span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#93c5fd', textAlign: 'center' }}>ELO {sr.elo}</span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', textAlign: 'right' }}>{sr.actCount} ACTs</span>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(30,50,80,0.2)', border: '1px solid rgba(100,140,200,0.12)', borderRadius: 6, padding: '10px 14px', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#c8d4e8', flex: 1 }}>{sr.seasonName}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.tier.color, background: `${sr.tier.color}18`, border: `1px solid ${sr.tier.color}50`, borderRadius: 5, padding: '2px 8px' }}>
+                          {sr.tier.icon} {sr.tier.name}
+                        </span>
+                        <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.rank === 1 ? '#fde68a' : sr.rank === 2 ? '#94a3b8' : sr.rank === 3 ? '#cd7f32' : '#93c5fd' }}>
+                          #{sr.rank}<span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>/{sr.total}</span>
+                        </span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#93c5fd' }}>ELO {sr.elo}</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{sr.actCount} ACTs</span>
+                      </div>
                     </div>
                   ))}
                 </div>
