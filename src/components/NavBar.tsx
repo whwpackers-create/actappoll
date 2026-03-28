@@ -43,6 +43,7 @@ export function NavBar({
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: 6,
+            position: 'relative',
           }}
         >
           <div
@@ -117,6 +118,19 @@ export function NavBar({
             >
               {src === 'firebase' ? '● SYNC' : '● LOCAL'}
             </button>
+          </div>
+          {/* Centered title */}
+          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+            <span style={{
+              fontFamily: FONT_HEADER,
+              fontSize: 28,
+              fontWeight: 900,
+              letterSpacing: 4,
+              color: '#1a1e28',
+              textShadow: '0 1px 0 rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.2)',
+            }}>
+              ACT AP POLL
+            </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {auth.unlocked && (

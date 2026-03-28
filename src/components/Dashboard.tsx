@@ -322,7 +322,7 @@ export function Dashboard({
         className="dash-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 200px',
+          gridTemplateColumns: '1fr 340px',
           gap: 16,
         }}
       >
