@@ -287,13 +287,7 @@ export function History({
                   alignItems: 'flex-start',
                 }}
               >
-                <div
-                  style={{ flex: 1, cursor: 'pointer' }}
-                  onClick={() => {
-                    setSelAct(aid ?? null);
-                    setView('actdetail');
-                  }}
-                >
+                <div style={{ flex: 1 }}>
                   {/* Header row */}
                   <div
                     style={{
@@ -301,6 +295,11 @@ export function History({
                       alignItems: 'center',
                       gap: 8,
                       marginBottom: 8,
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      setSelAct(aid ?? null);
+                      setView('actdetail');
                     }}
                   >
                     <span

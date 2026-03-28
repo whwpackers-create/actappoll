@@ -57,6 +57,10 @@ export function ActDetail({
   const [editing, setEditing] = useState(false);
   const [eName, setEName] = useState(act.name);
   const [eDate, setEDate] = useState(act.date);
+  // Separate month/day/year strings so the user can freely type without padStart fighting them
+  const [eMonth, setEMonth] = useState(act.date.split('-')[1] ?? '');
+  const [eDay, setEDay] = useState(act.date.split('-')[2] ?? '');
+  const [eYearDigit, setEYearDigit] = useState((act.date.split('-')[0] ?? '').slice(-1));
   const [eGrid, setEGrid] = useState<Act['grid'] | null>(null);
   const [ePen, setEPen] = useState<Act['penalties'] | null>(null);
   const [eTeamNames, setETeamNames] = useState(act.teams.map((t) => t.name));
@@ -70,6 +74,10 @@ export function ActDetail({
       setEditing(true);
       setEName(act.name);
       setEDate(act.date);
+      const dp = act.date.split('-');
+      setEMonth(dp[1] ?? '');
+      setEDay(dp[2] ?? '');
+      setEYearDigit((dp[0] ?? '').slice(-1));
       setEGrid(savedGrid ? JSON.parse(JSON.stringify(savedGrid)) : null);
       setEPen(savedPen ? JSON.parse(JSON.stringify(savedPen)) : null);
       setETeamNames(act.teams.map((t) => t.name));
@@ -259,14 +267,9 @@ export function ActDetail({
     const eNumTeams = actType === '6man' ? 3 : 4;
     const is16man = actType === '16man';
 
-    // Date parse helpers from eDate (YYYY-MM-DD)
-    const dateParts = eDate.split('-');
-    const eDateMonth = dateParts[1] ?? '';
-    const eDateDay = dateParts[2] ?? '';
-    const eDateYearDigit = (dateParts[0] ?? '202X').slice(-1);
-
-    const setEDateFromParts = (mm: string, dd: string, yy: string) => {
-      setEDate(`202${yy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`);
+    // Commit the free-typed month/day/year into eDate (used on blur / auto-advance)
+    const commitDate = (mm: string, dd: string, yy: string) => {
+      if (mm && dd && yy) setEDate(`202${yy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`);
     };
 
     // Score cell colors
@@ -433,11 +436,12 @@ export function ActDetail({
                   id="edit-mm"
                   style={{ ...inp, width: 45, textAlign: 'center', padding: '10px 4px' }}
                   maxLength={2}
-                  value={eDateMonth}
+                  value={eMonth}
                   onChange={(e) => {
                     const v = e.target.value.replace(/\D/g, '');
                     if (v.length <= 2) {
-                      setEDateFromParts(v, eDateDay, eDateYearDigit);
+                      setEMonth(v);
+                      commitDate(v, eDay, eYearDigit);
                       if (v.length === 2) document.getElementById('edit-dd')?.focus();
                     }
                   }}
@@ -448,11 +452,12 @@ export function ActDetail({
                   id="edit-dd"
                   style={{ ...inp, width: 45, textAlign: 'center', padding: '10px 4px' }}
                   maxLength={2}
-                  value={eDateDay}
+                  value={eDay}
                   onChange={(e) => {
                     const v = e.target.value.replace(/\D/g, '');
                     if (v.length <= 2) {
-                      setEDateFromParts(eDateMonth, v, eDateYearDigit);
+                      setEDay(v);
+                      commitDate(eMonth, v, eYearDigit);
                       if (v.length === 2) document.getElementById('edit-yy')?.focus();
                     }
                   }}
@@ -464,10 +469,10 @@ export function ActDetail({
                   id="edit-yy"
                   style={{ ...inp, width: 30, textAlign: 'center', padding: '10px 2px' }}
                   maxLength={1}
-                  value={eDateYearDigit}
+                  value={eYearDigit}
                   onChange={(e) => {
                     const v = e.target.value.replace(/\D/g, '');
-                    if (v.length <= 1) setEDateFromParts(eDateMonth, eDateDay, v);
+                    if (v.length <= 1) { setEYearDigit(v); commitDate(eMonth, eDay, v); }
                   }}
                   placeholder="_"
                 />
