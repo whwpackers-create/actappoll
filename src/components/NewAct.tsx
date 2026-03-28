@@ -175,6 +175,25 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
     (t) => t.name.trim() && t.members.every((m) => m.trim())
   );
   const allF = grid.every((r) => r.every((t) => t.every((v) => v !== null)));
+
+  // Duplicate score detection: within each race slot (ri, ei), all teams' scores must be unique
+  const isCellDup = (ri: number, ti: number, ei: number): boolean => {
+    const val = grid[ri]?.[ti]?.[ei];
+    if (val === null || val === undefined) return false;
+    let count = 0;
+    for (let t = 0; t < numTeams; t++) {
+      if (grid[ri]?.[t]?.[ei] === val) count++;
+    }
+    return count > 1;
+  };
+  const roundHasDup = (ri: number): boolean => {
+    for (let ei = 0; ei < tSz * 2; ei++) {
+      const vals = Array.from({ length: numTeams }, (_, t) => grid[ri]?.[t]?.[ei]);
+      const filled = vals.filter((v) => v !== null && v !== undefined) as number[];
+      if (filled.length !== new Set(filled).size) return true;
+    }
+    return false;
+  };
   const setCell = (ri: number, ti: number, ei: number, val: number | null) => {
     const g = grid.map((r) => r.map((t) => [...t]));
     g[ri][ti][ei] = val;
@@ -771,6 +790,9 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                         R{ri + 1}
                       </span>
                       <span style={{ fontSize: 14 }}>{['🏁', '⭐', '🔥', '👑'][ri]}</span>
+                      {roundHasDup(ri) && (
+                        <span title="Duplicate scores in this round" style={{ fontSize: 13, lineHeight: 1 }}>⚠️</span>
+                      )}
                       <span style={{ fontFamily: FONT_MONO, fontSize: 7, color: '#555' }}>
                         {orderLabel}
                       </span>
@@ -965,15 +987,18 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                                                     ? '#8be9fd'
                                                     : '#555',
                                           borderColor:
-                                            val === null
-                                              ? 'rgba(255,255,255,0.06)'
-                                              : val === 3
-                                                ? '#e9456066'
-                                                : val === 2
-                                                  ? '#f5a62366'
-                                                  : val === 1
-                                                    ? '#8be9fd44'
-                                                    : '#33333366',
+                                            isCellDup(ri, ti, ei)
+                                              ? '#f97316'
+                                              : val === null
+                                                ? 'rgba(255,255,255,0.06)'
+                                                : val === 3
+                                                  ? '#e9456066'
+                                                  : val === 2
+                                                    ? '#f5a62366'
+                                                    : val === 1
+                                                      ? '#8be9fd44'
+                                                      : '#33333366',
+                                          boxShadow: isCellDup(ri, ti, ei) ? '0 0 0 2px rgba(249,115,22,0.35)' : undefined,
                                         }}
                                       />
                                       <button
