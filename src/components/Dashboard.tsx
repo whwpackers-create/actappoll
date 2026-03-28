@@ -402,15 +402,20 @@ export function Dashboard({
                 gap: 6,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 14 }}>🏅</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 9H3.5a2.5 2.5 0 0 0 0 5H6"/>
+                  <path d="M18 9h2.5a2.5 2.5 0 0 1 0 5H18"/>
+                  <path d="M6 4h12v10a6 6 0 0 1-12 0V4z"/>
+                  <path d="M9 21h6"/><path d="M12 18v3"/>
+                </svg>
                 <span
                   style={{
                     fontFamily: FONT_HEADER,
-                    fontSize: 18,
-                    color: '#fbbf24',
-                    letterSpacing: 2,
-                    textShadow: '0 1px 6px rgba(200,160,48,0.4)',
+                    fontSize: 22,
+                    color: '#ffffff',
+                    letterSpacing: 3,
+                    textShadow: '0 2px 10px rgba(255,255,255,0.4), 0 0 30px rgba(255,255,255,0.15)',
                   }}
                 >
                   PLAYER LEADERBOARD
@@ -485,8 +490,10 @@ export function Dashboard({
             >
               {filtered.map((p, i) => {
                 const rank = i + 1;
-                const medal =
-                  rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
+                const rankColor =
+                  rank === 1 ? '#fbbf24' : rank === 2 ? '#94a3b8' : rank === 3 ? '#cd7f32' : '#3a6090';
+                const rankBg =
+                  rank === 1 ? 'rgba(251,191,36,0.12)' : rank === 2 ? 'rgba(148,163,184,0.1)' : rank === 3 ? 'rgba(205,127,50,0.1)' : 'transparent';
                 const avgPts = p.actCount ? (p.pts / p.actCount).toFixed(2) : '0';
                 const winRate = p.actCount
                   ? (p.wins / p.actCount * 100).toFixed(1)
@@ -527,13 +534,22 @@ export function Dashboard({
                   >
                     {/* Rank */}
                     <div style={{ textAlign: 'center' }}>
-                      {medal ? (
-                        <div style={{ fontSize: 28 }}>{medal}</div>
-                      ) : (
-                        <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#3a6090' }}>
-                          #{rank}
-                        </div>
-                      )}
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 38,
+                        height: 38,
+                        borderRadius: '50%',
+                        background: rankBg,
+                        border: `1.5px solid ${rankColor}60`,
+                        fontFamily: FONT_HEADER,
+                        fontSize: rank <= 9 ? 16 : 13,
+                        color: rankColor,
+                        textShadow: rank <= 3 ? `0 0 8px ${rankColor}80` : 'none',
+                      }}>
+                        #{rank}
+                      </div>
                     </div>
                     {/* Name + sub-stats */}
                     <div>
