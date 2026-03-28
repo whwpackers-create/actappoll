@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import React, { useState, Fragment } from 'react';
 import { teamScores, computeAllElos, computeActBracketBreakdown, BASE_ELO } from '../utils/elo';
 import { fsSet, gid } from '../services/firestore';
 import { card, cHead, cTitle, cSub, inp, TC } from '../styles/shared';
@@ -251,6 +251,656 @@ export function ActDetail({
     background: 'rgba(255,255,255,0.04)',
     color: '#f0e6d3',
   };
+
+  // ── Edit mode: full NewAct-style form ──────────────────────────────────────
+  if (editing) {
+    const actType = act.type ?? '8man';
+    const eTSz = actType === '12man' ? 3 : actType === '16man' ? 4 : 2;
+    const eNumTeams = actType === '6man' ? 3 : 4;
+    const is16man = actType === '16man';
+
+    // Date parse helpers from eDate (YYYY-MM-DD)
+    const dateParts = eDate.split('-');
+    const eDateMonth = dateParts[1] ?? '';
+    const eDateDay = dateParts[2] ?? '';
+    const eDateYearDigit = (dateParts[0] ?? '202X').slice(-1);
+
+    const setEDateFromParts = (mm: string, dd: string, yy: string) => {
+      setEDate(`202${yy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`);
+    };
+
+    // Score cell colors
+    const eValColor = (v: number | null) =>
+      v === 3 ? '#e94560' : v === 2 ? '#f5a623' : v === 1 ? '#8be9fd' : '#555';
+    const eValBg = (v: number | null) =>
+      v === 3 ? '#e9456033' : v === 2 ? '#f5a62333' : v === 1 ? '#8be9fd22' : 'rgba(255,255,255,0.03)';
+    const eValBorder = (v: number | null) =>
+      v === 3 ? '#e9456066' : v === 2 ? '#f5a62366' : v === 1 ? '#8be9fd44' : 'rgba(255,255,255,0.06)';
+
+    // Round total for edit grid
+    const eRoundTot = (ri: number, ti: number): number => {
+      if (!eGrid || !eGrid[ri]?.[ti]) return 0;
+      const arr = eGrid[ri][ti] as (number | null)[];
+      let s = arr.reduce((acc: number, v) => acc + (v ?? 0), 0);
+      if (ePen?.[ri]) {
+        const v = (ePen[ri] as Record<number, number[] | number>)[ti];
+        if (Array.isArray(v)) s += (v as number[]).reduce((acc: number, x: number) => acc + x * -2, 0);
+        else if (typeof v === 'number') s += (v as number) * -2;
+      }
+      return s;
+    };
+    const eGrandTot = (ti: number): number => {
+      let s = 0;
+      for (let ri = 0; ri < 4; ri++) s += eRoundTot(ri, ti);
+      return s;
+    };
+
+    // Penalty value helper
+    const getEPenVal = (ri: number, ti: number, ei: number): number => {
+      if (!ePen?.[ri]) return 0;
+      const v = (ePen[ri] as Record<number, number[] | number>)[ti];
+      if (Array.isArray(v)) return (v as number[])[ei] ?? 0;
+      return 0;
+    };
+
+    const scInpEdit: React.CSSProperties = {
+      width: 36,
+      height: 36,
+      borderRadius: 5,
+      fontFamily: FONT_HEADER,
+      fontSize: 18,
+      textAlign: 'center',
+      outline: 'none',
+      border: '1px solid',
+      boxSizing: 'border-box',
+      padding: 0,
+      caretColor: '#e94560',
+    };
+
+    const togBtnE: React.CSSProperties = {
+      flex: 1,
+      background: 'rgba(255,255,255,0.04)',
+      border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: 8,
+      padding: '10px',
+      color: '#666',
+      fontFamily: FONT_HEADER,
+      fontSize: 13,
+      cursor: 'pointer',
+    };
+
+    // Groups for 16man: ei 0-3 = TV1, 4-7 = TV2
+    const getEiGroups = (ri: number, ti: number): number[][] => {
+      if (is16man) return [[0,1,2,3],[4,5,6,7]];
+      if (!eGrid || !eGrid[ri]?.[ti]) return [Array.from({ length: eTSz * 2 }, (_, i) => i)];
+      return [(eGrid[ri][ti] as unknown[]).map((_, i) => i)];
+    };
+
+    // Player label from savedPM
+    const getEPLabel = (ri: number, ti: number, ei: number): string => {
+      const mi = savedPM?.[ri]?.[ti]?.[ei] ?? (
+        actType === '8man' || actType === '6man'
+          ? ei % eTSz
+          : actType === '16man'
+            ? (ei < 4 ? (ei % 2 === 0 ? 0 : 2) : (ei % 2 === 0 ? 1 : 3))
+            : 0
+      );
+      const name = (eMembers[ti]?.[mi] ?? act.teams[ti]?.members[mi] ?? '');
+      const origName = act.teams[ti]?.members[mi] ?? '';
+      return (name || origName).split(' ')[0]?.slice(0, 5) || `P${mi + 1}`;
+    };
+
+    return (
+      <div style={{ width: '100%' }}>
+        <button
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#e94560',
+            fontFamily: FONT_HEADER,
+            fontSize: 14,
+            cursor: 'pointer',
+            marginBottom: 16,
+          }}
+          onClick={() => setEditing(false)}
+        >
+          ← Cancel Edit
+        </button>
+
+        <div style={card}>
+          <div style={{ ...cHead, marginBottom: 20 }}>
+            <span style={cTitle}>✏️ Edit ACT</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                style={{
+                  background: '#e94560',
+                  border: 'none',
+                  color: '#fff',
+                  fontFamily: FONT_HEADER,
+                  padding: '10px 22px',
+                  fontSize: 13,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  letterSpacing: 1,
+                }}
+                onClick={saveEdit}
+              >
+                Save All
+              </button>
+              <button
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#a09880',
+                  fontFamily: FONT_HEADER,
+                  padding: '10px 20px',
+                  fontSize: 13,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+
+          {/* Name + Date fields */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 12,
+              marginBottom: 20,
+            }}
+          >
+            <div>
+              <label style={{ display: 'block', fontFamily: FONT_HEADER, fontSize: 12, color: '#a09880', letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase' as const }}>
+                Name
+              </label>
+              <input
+                style={inp}
+                value={eName}
+                onChange={(e) => setEName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontFamily: FONT_HEADER, fontSize: 12, color: '#a09880', letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase' as const }}>
+                Date
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input
+                  id="edit-mm"
+                  style={{ ...inp, width: 45, textAlign: 'center', padding: '10px 4px' }}
+                  maxLength={2}
+                  value={eDateMonth}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '');
+                    if (v.length <= 2) {
+                      setEDateFromParts(v, eDateDay, eDateYearDigit);
+                      if (v.length === 2) document.getElementById('edit-dd')?.focus();
+                    }
+                  }}
+                  placeholder="MM"
+                />
+                <span style={{ color: '#666', fontSize: 16 }}>/</span>
+                <input
+                  id="edit-dd"
+                  style={{ ...inp, width: 45, textAlign: 'center', padding: '10px 4px' }}
+                  maxLength={2}
+                  value={eDateDay}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '');
+                    if (v.length <= 2) {
+                      setEDateFromParts(eDateMonth, v, eDateYearDigit);
+                      if (v.length === 2) document.getElementById('edit-yy')?.focus();
+                    }
+                  }}
+                  placeholder="DD"
+                />
+                <span style={{ color: '#666', fontSize: 16 }}>/</span>
+                <span style={{ color: '#666', fontFamily: FONT_MONO, fontSize: 15 }}>202</span>
+                <input
+                  id="edit-yy"
+                  style={{ ...inp, width: 30, textAlign: 'center', padding: '10px 2px' }}
+                  maxLength={1}
+                  value={eDateYearDigit}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '');
+                    if (v.length <= 1) setEDateFromParts(eDateMonth, eDateDay, v);
+                  }}
+                  placeholder="_"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Teams section */}
+          <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', letterSpacing: 1, marginBottom: 12 }}>
+            👥 Teams
+          </div>
+          <datalist id="plist">
+            {data.players.map((p) => (
+              <option key={p.name} value={p.name} />
+            ))}
+          </datalist>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${eNumTeams}, 1fr)`,
+              gap: 10,
+              marginBottom: 20,
+            }}
+          >
+            {act.teams.slice(0, eNumTeams).map((origTeam, ti) => (
+              <div
+                key={ti}
+                style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  border: `2px solid ${TC[ti]}`,
+                  borderRadius: 10,
+                  padding: 10,
+                }}
+              >
+                {/* Team name input */}
+                <input
+                  style={{
+                    ...inp,
+                    fontFamily: FONT_HEADER,
+                    fontSize: 15,
+                    borderBottom: `2px solid ${TC[ti]}`,
+                    borderRadius: 0,
+                    background: 'none',
+                    padding: '4px 0',
+                    marginBottom: 6,
+                  }}
+                  value={eTeamNames[ti] ?? origTeam.name}
+                  onChange={(e) => {
+                    const c = [...eTeamNames];
+                    c[ti] = e.target.value;
+                    setETeamNames(c);
+                  }}
+                />
+                {/* Player name inputs */}
+                {(eMembers[ti] ?? origTeam.members).map((m, mi) => {
+                  const origName = origTeam.members[mi] ?? '';
+                  const changed = m && origName && m !== origName;
+                  return (
+                    <div key={mi}>
+                      <input
+                        style={{ ...inp, fontSize: 13, marginTop: 4, padding: '6px 8px' }}
+                        value={m}
+                        list="plist"
+                        onChange={(e) => {
+                          const c = eMembers.map((x) => [...x]);
+                          c[ti][mi] = e.target.value;
+                          setEMembers(c);
+                        }}
+                        placeholder={`Player ${mi + 1}`}
+                      />
+                      {changed && (
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc', marginTop: 2, paddingLeft: 4 }}>
+                          (was: {origName})
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* Sub inputs */}
+                {(eSubs[ti] ?? ['', '']).map((s, si) => (
+                  <input
+                    key={'s' + si}
+                    style={{
+                      ...inp,
+                      fontSize: 11,
+                      marginTop: 4,
+                      padding: '4px 8px',
+                      borderColor: 'rgba(192,132,252,0.25)',
+                    }}
+                    value={s}
+                    list="plist"
+                    onChange={(e) => {
+                      const c = eSubs.map((x) => [...x]);
+                      c[ti][si] = e.target.value;
+                      setESubs(c);
+                    }}
+                    placeholder={`Sub ${si + 1}`}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Score grid — NewAct step 1 style */}
+          {eGrid && (
+            <>
+              <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', letterSpacing: 1, marginBottom: 12 }}>
+                📋 Scorecard
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `70px repeat(${eNumTeams}, 1fr) 70px`,
+                    gap: 0,
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    minWidth: 600,
+                  }}
+                >
+                  {/* Header: Round */}
+                  <div
+                    style={{
+                      padding: 10,
+                      fontFamily: FONT_HEADER,
+                      fontSize: 12,
+                      color: '#666',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'rgba(255,255,255,0.02)',
+                      borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    }}
+                  >
+                    Round
+                  </div>
+                  {/* Header: team columns */}
+                  {act.teams.slice(0, eNumTeams).map((origTeam, ti) => (
+                    <div
+                      key={ti}
+                      style={{
+                        padding: '10px 8px',
+                        textAlign: 'center',
+                        background: 'rgba(255,255,255,0.02)',
+                        borderBottom: `3px solid ${TC[ti]}`,
+                      }}
+                    >
+                      <div style={{ fontFamily: FONT_HEADER, fontSize: 14, color: '#f0e6d3' }}>
+                        {eTeamNames[ti] ?? origTeam.name}
+                      </div>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#666', marginTop: 2 }}>
+                        {(eMembers[ti] ?? origTeam.members).join(' & ')}
+                      </div>
+                    </div>
+                  ))}
+                  {/* Header: TOT */}
+                  <div
+                    style={{
+                      padding: 10,
+                      fontFamily: FONT_HEADER,
+                      fontSize: 12,
+                      color: '#666',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'rgba(255,255,255,0.02)',
+                      borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    }}
+                  >
+                    TOT
+                  </div>
+
+                  {/* Score rows R1–R4 */}
+                  {[0, 1, 2, 3].map((ri) => (
+                    <Fragment key={ri}>
+                      {/* Round label */}
+                      <div
+                        style={{
+                          padding: '12px 8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 2,
+                          borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        }}
+                      >
+                        <span style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#a09880' }}>
+                          R{ri + 1}
+                        </span>
+                        <span style={{ fontSize: 14 }}>{['🏁', '⭐', '🔥', '👑'][ri]}</span>
+                      </div>
+
+                      {/* Score cells for each team */}
+                      {act.teams.slice(0, eNumTeams).map((_, ti) => {
+                        const gridRow = eGrid[ri]?.[ti] as (number | null)[] | undefined;
+                        const penSum = (() => {
+                          if (!ePen?.[ri]) return 0;
+                          const v = (ePen[ri] as Record<number, number[] | number>)[ti];
+                          if (Array.isArray(v)) return (v as number[]).reduce((a, x) => a + x, 0);
+                          return 0;
+                        })();
+
+                        return (
+                          <div
+                            key={ti}
+                            style={{
+                              padding: '8px 6px',
+                              borderBottom: '1px solid rgba(255,255,255,0.04)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: 4,
+                              borderLeft: `2px solid ${TC[ti]}22`,
+                            }}
+                          >
+                            {getEiGroups(ri, ti).map((eiGroup, groupIdx) => (
+                              <div key={groupIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: '100%' }}>
+                                {is16man && (
+                                  <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: groupIdx === 0 ? '#8be9fd' : '#f5a623', textAlign: 'center', marginBottom: 1 }}>
+                                    {groupIdx === 0 ? 'TV1' : 'TV2'}
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                  {eiGroup.map((ei) => {
+                                    const val = gridRow ? (gridRow[ei] ?? null) : null;
+                                    const penVal = getEPenVal(ri, ti, ei);
+                                    const pLabel = getEPLabel(ri, ti, ei);
+                                    return (
+                                      <div key={ei} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                                        {/* Player label */}
+                                        <div style={{
+                                          fontFamily: FONT_MONO,
+                                          fontSize: 9,
+                                          color: '#666',
+                                          background: 'rgba(255,255,255,0.03)',
+                                          borderRadius: 3,
+                                          padding: '1px 3px',
+                                          minWidth: 28,
+                                          textAlign: 'center',
+                                        }}>
+                                          {pLabel}
+                                        </div>
+                                        {/* Score input */}
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          maxLength={1}
+                                          value={val === null ? '' : String(val)}
+                                          onFocus={(e) => e.target.select()}
+                                          onChange={(e) => {
+                                            const r = e.target.value;
+                                            if (r === '') { setECell(ri, ti, ei, null); return; }
+                                            const n = parseInt(r, 10);
+                                            if (!isNaN(n) && n >= 0 && n <= 3) setECell(ri, ti, ei, n);
+                                          }}
+                                          style={{
+                                            ...scInpEdit,
+                                            background: eValBg(val),
+                                            color: eValColor(val),
+                                            borderColor: eValBorder(val),
+                                          }}
+                                        />
+                                        {/* Penalty button */}
+                                        <button
+                                          onClick={() => setEPenCell(ri, ti, ei, penVal + 1)}
+                                          onDoubleClick={() => setEPenCell(ri, ti, ei, 0)}
+                                          style={{
+                                            fontSize: 9,
+                                            fontFamily: FONT_MONO,
+                                            background: penVal > 0 ? 'rgba(255,60,60,0.2)' : 'none',
+                                            border: 'none',
+                                            color: penVal > 0 ? '#ff6b6b' : '#333',
+                                            cursor: 'pointer',
+                                            padding: '0 3px',
+                                          }}
+                                        >
+                                          {penVal > 0 ? `-${penVal * 2}` : '⚠'}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                            {/* Round total */}
+                            <div style={{
+                              fontFamily: FONT_MONO,
+                              fontSize: 11,
+                              color: '#888',
+                              borderTop: '1px solid rgba(255,255,255,0.04)',
+                              paddingTop: 3,
+                              width: '100%',
+                              textAlign: 'center',
+                            }}>
+                              {eRoundTot(ri, ti)}
+                              {penSum > 0 && <span style={{ color: '#ff6b6b' }}> (-{penSum * 2})</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* TOT column */}
+                      <div
+                        style={{
+                          padding: '8px 4px',
+                          borderBottom: '1px solid rgba(255,255,255,0.04)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          gap: 2,
+                        }}
+                      >
+                        {act.teams.slice(0, eNumTeams).map((_, ti) => (
+                          <div
+                            key={ti}
+                            style={{
+                              fontFamily: FONT_MONO,
+                              fontSize: 11,
+                              color: TC[ti],
+                              textAlign: 'center',
+                            }}
+                          >
+                            {eRoundTot(ri, ti)}
+                          </div>
+                        ))}
+                      </div>
+                    </Fragment>
+                  ))}
+
+                  {/* FINAL row */}
+                  <div
+                    style={{
+                      padding: '12px 8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'rgba(233,69,96,0.08)',
+                    }}
+                  >
+                    <span style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#e94560', letterSpacing: 2 }}>
+                      FINAL
+                    </span>
+                  </div>
+                  {act.teams.slice(0, eNumTeams).map((_, ti) => (
+                    <div
+                      key={ti}
+                      style={{
+                        padding: '8px 6px',
+                        background: 'rgba(233,69,96,0.05)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <span style={{ fontFamily: FONT_HEADER, fontSize: 26, color: TC[ti] }}>
+                        {eGrandTot(ti)}
+                      </span>
+                    </div>
+                  ))}
+                  <div
+                    style={{
+                      padding: '8px 4px',
+                      background: 'rgba(233,69,96,0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {act.teams.slice(0, eNumTeams)
+                      .map((t, ti) => ({ name: eTeamNames[ti] ?? t.name, score: eGrandTot(ti), ti }))
+                      .sort((a, b) => b.score - a.score)
+                      .map((x, i) => (
+                        <div
+                          key={x.ti}
+                          style={{
+                            fontFamily: FONT_MONO,
+                            fontSize: 10,
+                            color: i === 0 ? '#e94560' : i === 1 ? '#f5a623' : '#555',
+                          }}
+                        >
+                          {i + 1}. {x.name} ({x.score})
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#555', marginTop: 10, textAlign: 'center' }}>
+                Edit scores (0-3). Click ⚠ for -2 penalty. Dbl-click to reset.
+              </div>
+            </>
+          )}
+
+          {/* Save / Cancel buttons at bottom */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
+            <button
+              style={{
+                background: '#e94560',
+                border: 'none',
+                color: '#fff',
+                fontFamily: FONT_HEADER,
+                padding: '12px 28px',
+                fontSize: 14,
+                borderRadius: 8,
+                cursor: 'pointer',
+                letterSpacing: 1,
+              }}
+              onClick={saveEdit}
+            >
+              Save All
+            </button>
+            <button
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#a09880',
+                fontFamily: FONT_HEADER,
+                padding: '12px 24px',
+                fontSize: 14,
+                borderRadius: 8,
+                cursor: 'pointer',
+              }}
+              onClick={() => setEditing(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // ── End edit mode ──────────────────────────────────────────────────────────
 
   return (
     <div style={{ width: '100%' }}>

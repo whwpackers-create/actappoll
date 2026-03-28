@@ -186,16 +186,25 @@ export function History({
           const w = ts[0];
           const aid = act.id || act._id;
 
-          const pp: Record<string, number> = {};
-          act.teams.flatMap((t) => t.members).forEach((n) => {
-            pp[n] = 0;
-          });
-          act.races.forEach((r) =>
-            r.results.forEach((x) => {
-              if (x.player in pp) pp[x.player] += x.points;
-            })
-          );
+          // Parse saved grid/playerMap/penalties
+          let savedGrid = act.grid as (number | null)[][][] | null | undefined;
+          if (!savedGrid && act.gridJson) {
+            try { savedGrid = JSON.parse(act.gridJson); } catch { /* ignore */ }
+          }
+          let savedPen = act.penalties as (number[] | number)[][] | null | undefined;
+          if (!savedPen && act.penaltiesJson) {
+            try { savedPen = JSON.parse(act.penaltiesJson); } catch { /* ignore */ }
+          }
+          let savedPM = act.playerMap as number[][][] | null | undefined;
+          if (!savedPM && act.playerMapJson) {
+            try { savedPM = JSON.parse(act.playerMapJson); } catch { /* ignore */ }
+          }
 
+          const actType = act.type ?? '8man';
+          const tSz = actType === '12man' ? 3 : actType === '16man' ? 4 : 2;
+          const numTeams = actType === '6man' ? 3 : 4;
+
+          // ELO computation
           const chronoActs = [...data.acts].sort(
             (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
           );
@@ -210,6 +219,57 @@ export function History({
             chronoActs.slice(0, ci + 1),
             undefined
           );
+
+          // Per-player total points from races
+          const pp: Record<string, number> = {};
+          act.teams.flatMap((t) => t.members).forEach((n) => { pp[n] = 0; });
+          act.races.forEach((r) =>
+            r.results.forEach((x) => {
+              if (x.player in pp) pp[x.player] += x.points;
+            })
+          );
+
+          // Round total helper
+          const getRoundTot = (ri: number, ti: number): number => {
+            if (!savedGrid || !savedGrid[ri]?.[ti]) return 0;
+            const arr = savedGrid[ri][ti] as (number | null)[];
+            let s = arr.reduce((acc: number, v) => acc + (v ?? 0), 0);
+            if (savedPen?.[ri]) {
+              const v = (savedPen[ri] as Record<number, number[] | number>)[ti];
+              if (Array.isArray(v)) s += (v as number[]).reduce((acc: number, x: number) => acc + x * -2, 0);
+              else if (typeof v === 'number') s += (v as number) * -2;
+            }
+            return s;
+          };
+
+          // Grand total for team
+          const getGrandTot = (ti: number): number => {
+            if (!savedGrid) return ts.find(x => x.team.name === act.teams[ti]?.name)?.score ?? 0;
+            let s = 0;
+            for (let ri = 0; ri < 4; ri++) s += getRoundTot(ri, ti);
+            return s;
+          };
+
+          // Color coding for score values
+          const valColor = (v: number | null) =>
+            v === 3 ? '#e94560' : v === 2 ? '#f5a623' : v === 1 ? '#8be9fd' : '#444';
+          const valBg = (v: number | null) =>
+            v === 3 ? '#e9456033' : v === 2 ? '#f5a62333' : v === 1 ? '#8be9fd22' : 'rgba(255,255,255,0.02)';
+
+          const scBox = {
+            width: 28,
+            height: 28,
+            borderRadius: 4,
+            display: 'flex' as const,
+            alignItems: 'center' as const,
+            justifyContent: 'center' as const,
+            fontFamily: FONT_HEADER,
+            fontSize: 14,
+          };
+
+          // Detect 16man tv1/tv2 indices from saved playerMap
+          // For display: group races 0-3 as TV1 and 4-7 as TV2 for 16man
+          const is16man = actType === '16man';
 
           return (
             <div
@@ -234,6 +294,7 @@ export function History({
                     setView('actdetail');
                   }}
                 >
+                  {/* Header row */}
                   <div
                     style={{
                       display: 'flex',
@@ -271,7 +332,7 @@ export function History({
                         borderRadius: 4,
                       }}
                     >
-                      {act.type === '12man' ? '12-Man' : '8-Man'}
+                      {actType === '12man' ? '12-Man' : actType === '16man' ? '16-Man' : actType === '6man' ? '6-Man' : '8-Man'}
                     </span>
                     {act.satId && (
                       <span
@@ -290,6 +351,7 @@ export function History({
                     )}
                   </div>
 
+                  {/* Winner banner */}
                   {w && (
                     <div
                       style={{
@@ -327,121 +389,497 @@ export function History({
                     </div>
                   )}
 
-                  {(() => {
-                    const numRounds = act.races.length || 4;
-                    const rankOrder = ts.map(x => x.team.name);
-                    return (
-                      <div style={{ overflowX: 'auto', marginBottom: 10 }}>
-                        <div style={{ minWidth: 360 }}>
-                          {/* Header */}
+                  {/* Scorecard grid — NewAct step 1 style */}
+                  {savedGrid ? (
+                    <div style={{ overflowX: 'auto', marginBottom: 10 }}>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: `70px repeat(${numTeams}, 1fr) 70px`,
+                          gap: 0,
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 10,
+                          overflow: 'hidden',
+                          minWidth: 550,
+                        }}
+                      >
+                        {/* Header: Round label */}
+                        <div
+                          style={{
+                            padding: 10,
+                            fontFamily: FONT_HEADER,
+                            fontSize: 12,
+                            color: '#666',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255,255,255,0.02)',
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          Round
+                        </div>
+                        {/* Header: team columns */}
+                        {act.teams.slice(0, numTeams).map((t, ti) => (
                           <div
+                            key={ti}
                             style={{
-                              display: 'grid',
-                              gridTemplateColumns: `1fr repeat(${numRounds}, 36px) 44px 56px`,
-                              gap: 0,
-                              background: 'rgba(255,255,255,0.03)',
-                              borderRadius: '6px 6px 0 0',
-                              borderBottom: '1px solid rgba(255,255,255,0.06)',
-                              padding: '4px 8px',
+                              padding: '10px 8px',
+                              textAlign: 'center',
+                              background: 'rgba(255,255,255,0.02)',
+                              borderBottom: `3px solid ${TC[ti]}`,
                             }}
                           >
-                            <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445' }}>PLAYER</span>
-                            {Array.from({ length: numRounds }, (_, i) => (
-                              <span key={i} style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', textAlign: 'center' }}>R{i + 1}</span>
-                            ))}
-                            <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#e94560', textAlign: 'center' }}>TOT</span>
-                            <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', textAlign: 'right' }}>ELO</span>
+                            <div style={{ fontFamily: FONT_HEADER, fontSize: 14, color: '#f0e6d3' }}>
+                              {t.name}
+                            </div>
+                            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#666', marginTop: 2 }}>
+                              {is16man ? (
+                                (() => {
+                                  // Detect tv1/tv2 from savedPM or default (indices 0,2 = tv1; 1,3 = tv2)
+                                  const tv1 = savedPM ? [
+                                    ...new Set(
+                                      [0,1,2,3].map(h => savedPM![0]?.[ti]?.[h] ?? (h < 2 ? 0 : 2))
+                                    )
+                                  ].slice(0, 2) : [0, 2];
+                                  const tv2 = [0,1,2,3].filter(i => !tv1.includes(i));
+                                  return (
+                                    <>
+                                      <span style={{ color: '#8be9fd' }}>
+                                        TV1: {tv1.map(i => (t.members[i] ?? '').split(' ')[0] || `P${i+1}`).join(' & ')}
+                                      </span>
+                                      <br />
+                                      <span style={{ color: '#f5a623' }}>
+                                        TV2: {tv2.map(i => (t.members[i] ?? '').split(' ')[0] || `P${i+1}`).join(' & ')}
+                                      </span>
+                                    </>
+                                  );
+                                })()
+                              ) : (
+                                t.members.join(' & ')
+                              )}
+                            </div>
                           </div>
-                          {/* Rows grouped by team */}
-                          {act.teams.map((team, ti) => {
-                            const teamRank = rankOrder.indexOf(team.name);
-                            const teamScore = ts.find(x => x.team.name === team.name)?.score ?? 0;
-                            return (
-                              <Fragment key={ti}>
-                                {/* Team header row */}
+                        ))}
+                        {/* Header: TOT label */}
+                        <div
+                          style={{
+                            padding: 10,
+                            fontFamily: FONT_HEADER,
+                            fontSize: 12,
+                            color: '#666',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255,255,255,0.02)',
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          TOT
+                        </div>
+
+                        {/* Row for each cup (R1–R4) */}
+                        {[0, 1, 2, 3].map((ri) => (
+                          <Fragment key={ri}>
+                            {/* Round label cell */}
+                            <div
+                              style={{
+                                padding: '12px 8px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 2,
+                                borderBottom: '1px solid rgba(255,255,255,0.04)',
+                              }}
+                            >
+                              <span style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#a09880' }}>
+                                R{ri + 1}
+                              </span>
+                              <span style={{ fontSize: 14 }}>{['🏁', '⭐', '🔥', '👑'][ri]}</span>
+                            </div>
+
+                            {/* Score cells for each team */}
+                            {act.teams.slice(0, numTeams).map((t, ti) => {
+                              const gridRow = savedGrid![ri]?.[ti] as (number | null)[] | undefined;
+                              if (!gridRow) {
+                                return (
+                                  <div key={ti} style={{ padding: 4, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#333' }}>—</span>
+                                  </div>
+                                );
+                              }
+
+                              // Get penalty sum for display
+                              const penArr = savedPen?.[ri] && Array.isArray((savedPen[ri] as (number[]|number)[])[ti])
+                                ? ((savedPen[ri] as (number[]|number)[])[ti] as number[])
+                                : null;
+                              const penSum = penArr ? penArr.reduce((s, v) => s + v, 0) : 0;
+                              const roundTot = getRoundTot(ri, ti);
+
+                              // Groups: for 16man show TV1 (ei 0-3) then TV2 (ei 4-7), otherwise single group
+                              const eiGroups: number[][] = is16man
+                                ? [[0,1,2,3],[4,5,6,7]]
+                                : [gridRow.map((_, i) => i)];
+
+                              return (
                                 <div
+                                  key={ti}
                                   style={{
+                                    padding: '8px 6px',
+                                    borderBottom: '1px solid rgba(255,255,255,0.04)',
                                     display: 'flex',
-                                    justifyContent: 'space-between',
+                                    flexDirection: 'column',
                                     alignItems: 'center',
-                                    padding: '3px 8px',
-                                    background: `${TC[ti]}14`,
-                                    borderLeft: `3px solid ${TC[ti]}`,
-                                    marginTop: ti > 0 ? 2 : 0,
+                                    gap: 4,
+                                    borderLeft: `2px solid ${TC[ti]}22`,
                                   }}
                                 >
-                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: TC[ti], letterSpacing: 1 }}>
-                                    {teamRank === 0 ? '👑 ' : teamRank === 1 ? '🥈 ' : ''}{team.name}
-                                  </span>
-                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: TC[ti] }}>{teamScore} pts</span>
-                                </div>
-                                {/* Member rows */}
-                                {team.members.map((member, mi) => {
-                                  const displayName = team.subs?.[mi] || member;
-                                  const isSub = !!(team.subs?.[mi]);
-                                  const roundPts = act.races.map(r => {
-                                    const res = r.results.find(x => x.player === displayName || x.player === member);
-                                    return res?.points ?? null;
-                                  });
-                                  const total = roundPts.reduce((s: number, v) => s + (v ?? 0), 0);
-                                  const eloB = Math.round(eB[member] || BASE_ELO);
-                                  const eloA = Math.round(eA[member] || BASE_ELO);
-                                  const eloDiff = eloA - eloB;
-                                  return (
-                                    <div
-                                      key={member}
-                                      style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: `1fr repeat(${numRounds}, 36px) 44px 56px`,
-                                        gap: 0,
-                                        padding: '4px 8px',
-                                        borderBottom: '1px solid rgba(255,255,255,0.02)',
-                                        background: mi % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
-                                        alignItems: 'center',
-                                      }}
-                                    >
-                                      <div>
-                                        <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#d0d4dc' }}>
-                                          {displayName.split(' ')[0]}
-                                        </span>
-                                        {isSub && (
-                                          <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc', marginLeft: 4 }}>sub</span>
-                                        )}
+                                  {eiGroups.map((eiGroup, groupIdx) => (
+                                    <div key={groupIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: '100%' }}>
+                                      {is16man && (
+                                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: groupIdx === 0 ? '#8be9fd' : '#f5a623', textAlign: 'center', marginBottom: 1 }}>
+                                          {groupIdx === 0 ? 'TV1' : 'TV2'}
+                                        </div>
+                                      )}
+                                      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                        {eiGroup.map((ei) => {
+                                          const val = gridRow[ei] ?? null;
+                                          // Determine player label from playerMap
+                                          const mi = savedPM?.[ri]?.[ti]?.[ei] ?? (
+                                            actType === '8man' || actType === '6man'
+                                              ? ei % tSz
+                                              : actType === '16man'
+                                                ? (ei < 4 ? (ei % 2 === 0 ? 0 : 2) : (ei % 2 === 0 ? 1 : 3))
+                                                : 0
+                                          );
+                                          const pLabel = (t.members[mi] ?? '').split(' ')[0]?.slice(0, 5) || `P${mi + 1}`;
+                                          return (
+                                            <div
+                                              key={ei}
+                                              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+                                            >
+                                              <div style={{
+                                                fontFamily: FONT_MONO,
+                                                fontSize: 9,
+                                                color: '#666',
+                                                background: 'rgba(255,255,255,0.03)',
+                                                borderRadius: 3,
+                                                padding: '1px 3px',
+                                                minWidth: 26,
+                                                textAlign: 'center',
+                                              }}>
+                                                {pLabel}
+                                              </div>
+                                              <div style={{
+                                                ...scBox,
+                                                background: valBg(val),
+                                                color: valColor(val),
+                                              }}>
+                                                {val ?? ''}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
                                       </div>
-                                      {roundPts.map((pts, ri) => (
-                                        <span
-                                          key={ri}
-                                          style={{
-                                            fontFamily: FONT_MONO,
-                                            fontSize: 11,
-                                            color: pts !== null ? '#c8bfa8' : '#333',
-                                            textAlign: 'center',
-                                          }}
-                                        >
-                                          {pts !== null ? pts : '—'}
-                                        </span>
-                                      ))}
-                                      <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#e94560', textAlign: 'center' }}>{total}</span>
-                                      <span
-                                        style={{
-                                          fontFamily: FONT_MONO,
-                                          fontSize: 10,
-                                          color: eloDiff > 0 ? '#50fa7b' : eloDiff < 0 ? '#e94560' : '#444',
-                                          textAlign: 'right',
-                                        }}
-                                      >
-                                        {eloDiff > 0 ? '+' : ''}{eloDiff}
-                                      </span>
                                     </div>
-                                  );
-                                })}
-                              </Fragment>
-                            );
-                          })}
+                                  ))}
+                                  {/* Round total + penalty */}
+                                  <div style={{
+                                    fontFamily: FONT_MONO,
+                                    fontSize: 11,
+                                    color: '#888',
+                                    borderTop: '1px solid rgba(255,255,255,0.04)',
+                                    paddingTop: 3,
+                                    width: '100%',
+                                    textAlign: 'center',
+                                  }}>
+                                    {roundTot}
+                                    {penSum > 0 && (
+                                      <span style={{ color: '#ff6b6b' }}> (-{penSum * 2})</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* TOT column for this round */}
+                            <div
+                              style={{
+                                padding: '8px 4px',
+                                borderBottom: '1px solid rgba(255,255,255,0.04)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'center',
+                                gap: 2,
+                              }}
+                            >
+                              {act.teams.slice(0, numTeams).map((_, ti) => (
+                                <div
+                                  key={ti}
+                                  style={{
+                                    fontFamily: FONT_MONO,
+                                    fontSize: 11,
+                                    color: TC[ti],
+                                    textAlign: 'center',
+                                  }}
+                                >
+                                  {getRoundTot(ri, ti)}
+                                </div>
+                              ))}
+                            </div>
+                          </Fragment>
+                        ))}
+
+                        {/* FINAL row */}
+                        <div
+                          style={{
+                            padding: '12px 8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(233,69,96,0.08)',
+                          }}
+                        >
+                          <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: '#e94560', letterSpacing: 2 }}>
+                            FINAL
+                          </span>
+                        </div>
+                        {act.teams.slice(0, numTeams).map((_, ti) => (
+                          <div
+                            key={ti}
+                            style={{
+                              padding: '8px 6px',
+                              background: 'rgba(233,69,96,0.05)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <span style={{ fontFamily: FONT_HEADER, fontSize: 26, color: TC[ti] }}>
+                              {getGrandTot(ti)}
+                            </span>
+                          </div>
+                        ))}
+                        <div
+                          style={{
+                            padding: '8px 4px',
+                            background: 'rgba(233,69,96,0.05)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {act.teams.slice(0, numTeams)
+                            .map((t, ti) => ({ name: t.name, score: getGrandTot(ti), ti }))
+                            .sort((a, b) => b.score - a.score)
+                            .map((x, i) => (
+                              <div
+                                key={x.ti}
+                                style={{
+                                  fontFamily: FONT_MONO,
+                                  fontSize: 9,
+                                  color: i === 0 ? '#e94560' : i === 1 ? '#f5a623' : '#555',
+                                }}
+                              >
+                                {i + 1}. {x.name} ({x.score})
+                              </div>
+                            ))}
                         </div>
                       </div>
-                    );
-                  })()}
+                    </div>
+                  ) : (
+                    /* Fallback: no saved grid — show race results from act.races */
+                    <div style={{ overflowX: 'auto', marginBottom: 10 }}>
+                      <div style={{ minWidth: 360 }}>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: `1fr repeat(${act.races.length || 4}, 36px) 44px`,
+                            gap: 0,
+                            background: 'rgba(255,255,255,0.03)',
+                            borderRadius: '6px 6px 0 0',
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                            padding: '4px 8px',
+                          }}
+                        >
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445' }}>PLAYER</span>
+                          {act.races.map((_, i) => (
+                            <span key={i} style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', textAlign: 'center' }}>R{i + 1}</span>
+                          ))}
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#e94560', textAlign: 'center' }}>TOT</span>
+                        </div>
+                        {act.teams.map((team, ti) => {
+                          const teamScore = ts.find(x => x.team.name === team.name)?.score ?? 0;
+                          return (
+                            <Fragment key={ti}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  padding: '3px 8px',
+                                  background: `${TC[ti]}14`,
+                                  borderLeft: `3px solid ${TC[ti]}`,
+                                  marginTop: ti > 0 ? 2 : 0,
+                                }}
+                              >
+                                <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: TC[ti], letterSpacing: 1 }}>
+                                  {team.name}
+                                </span>
+                                <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: TC[ti] }}>{teamScore} pts</span>
+                              </div>
+                              {team.members.map((member, mi) => {
+                                const displayName = team.subs?.[mi] || member;
+                                const roundPts = act.races.map(r => {
+                                  const res = r.results.find(x => x.player === displayName || x.player === member);
+                                  return res?.points ?? null;
+                                });
+                                const total = roundPts.reduce((s: number, v) => s + (v ?? 0), 0);
+                                return (
+                                  <div
+                                    key={member}
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: `1fr repeat(${act.races.length || 4}, 36px) 44px`,
+                                      gap: 0,
+                                      padding: '4px 8px',
+                                      borderBottom: '1px solid rgba(255,255,255,0.02)',
+                                      background: mi % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#d0d4dc' }}>
+                                      {displayName.split(' ')[0]}
+                                    </span>
+                                    {roundPts.map((pts, ri) => (
+                                      <span
+                                        key={ri}
+                                        style={{
+                                          fontFamily: FONT_MONO,
+                                          fontSize: 11,
+                                          color: pts !== null ? '#c8bfa8' : '#333',
+                                          textAlign: 'center',
+                                        }}
+                                      >
+                                        {pts !== null ? pts : '—'}
+                                      </span>
+                                    ))}
+                                    <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#e94560', textAlign: 'center' }}>{total}</span>
+                                  </div>
+                                );
+                              })}
+                            </Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Player ELO changes table */}
+                  <div style={{ marginTop: 8, marginBottom: 4 }}>
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1, marginBottom: 4 }}>
+                      PLAYER ELO CHANGES
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 48px 110px 60px',
+                        gap: 0,
+                        border: '1px solid rgba(255,255,255,0.05)',
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* ELO table header */}
+                      {['NAME', 'PTS', 'ELO', '+/-'].map((h) => (
+                        <div
+                          key={h}
+                          style={{
+                            padding: '3px 6px',
+                            fontFamily: FONT_MONO,
+                            fontSize: 8,
+                            color: '#445',
+                            background: 'rgba(255,255,255,0.03)',
+                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            textAlign: h === 'NAME' ? 'left' : 'center',
+                          }}
+                        >
+                          {h}
+                        </div>
+                      ))}
+                      {/* ELO table rows */}
+                      {act.teams.flatMap((team, ti) =>
+                        team.members.map((member, mi) => {
+                          const pts = pp[member] ?? 0;
+                          const b = Math.round(eB[member] ?? BASE_ELO);
+                          const a = Math.round(eA[member] ?? BASE_ELO);
+                          const diff = a - b;
+                          const rowIdx = ti * team.members.length + mi;
+                          return (
+                            <Fragment key={member + ti}>
+                              <div
+                                style={{
+                                  padding: '3px 6px',
+                                  fontFamily: FONT_HEADER,
+                                  fontSize: 11,
+                                  color: TC[ti],
+                                  background: rowIdx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                                  borderBottom: '1px solid rgba(255,255,255,0.03)',
+                                  borderLeft: `2px solid ${TC[ti]}44`,
+                                }}
+                              >
+                                {member.split(' ')[0]}
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', marginLeft: 4 }}>
+                                  {team.name}
+                                </span>
+                              </div>
+                              <div
+                                style={{
+                                  padding: '3px 6px',
+                                  fontFamily: FONT_HEADER,
+                                  fontSize: 12,
+                                  color: '#c8bfa8',
+                                  textAlign: 'center',
+                                  background: rowIdx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                                  borderBottom: '1px solid rgba(255,255,255,0.03)',
+                                }}
+                              >
+                                {pts}
+                              </div>
+                              <div
+                                style={{
+                                  padding: '3px 6px',
+                                  fontFamily: FONT_MONO,
+                                  fontSize: 10,
+                                  color: '#888',
+                                  textAlign: 'center',
+                                  background: rowIdx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                                  borderBottom: '1px solid rgba(255,255,255,0.03)',
+                                }}
+                              >
+                                {b} → <span style={{ color: '#c084fc' }}>{a}</span>
+                              </div>
+                              <div
+                                style={{
+                                  padding: '3px 6px',
+                                  fontFamily: FONT_MONO,
+                                  fontSize: 11,
+                                  color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#444',
+                                  textAlign: 'center',
+                                  background: rowIdx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                                  borderBottom: '1px solid rgba(255,255,255,0.03)',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {diff > 0 ? '+' : ''}{diff}
+                              </div>
+                            </Fragment>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <button
                   onClick={(e) => {
