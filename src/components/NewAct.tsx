@@ -28,8 +28,14 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
       parseInt(actMonth) + '/' + parseInt(actDay) + '/202' + actYearDigit
     );
   }, [actMonth, actDay, actYearDigit]);
-  const [actType, setActType] = useState<'8man' | '12man'>('8man');
-  const tSz = actType === '12man' ? 3 : 2;
+  const [actType, setActType] = useState<'8man' | '12man' | '6man' | '16man'>('8man');
+  const tSz = actType === '12man' ? 3 : actType === '16man' ? 4 : 2;
+  const numTeams = actType === '6man' ? 3 : 4;
+  // For 16man: which player indices are on TV1 (the other pair is TV2)
+  // tv1Pair: '02' = players 0&2 on TV1 (P1&P3), '01' = P1&P2, '03' = P1&P4
+  const [tv1Pair, setTv1Pair] = useState<'02' | '01' | '03'>('02');
+  const tv1Idx = tv1Pair === '02' ? [0, 2] : tv1Pair === '01' ? [0, 1] : [0, 3];
+  const tv2Idx = tv1Pair === '02' ? [1, 3] : tv1Pair === '01' ? [2, 3] : [1, 2];
   const [teams, setTeams] = useState(
     Array.from({ length: 4 }, (_, i) => ({
       name: `Team ${i + 1}`,
@@ -52,11 +58,23 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
   const [actJSTiebreaker, setActJSTiebreaker] = useState<string | null>(null);
   const [dragSrc, setDragSrc] = useState<{ ri: number; ti: number; ei: number } | null>(null);
 
-  const getDefaultMap = (ro: string, type: string, tsz: number) => {
+  const getDefaultMap = (ro: string, type: string, tsz: number, numTms = 4, t1 = [0, 2], t2 = [1, 3]) => {
+    if (type === '16man') {
+      return Array.from({ length: 4 }, () =>
+        Array.from({ length: numTms }, () => {
+          const result: number[] = [];
+          for (let h = 0; h < 8; h++) {
+            if (h < 4) result.push(ro === 'A' ? t1[h % 2] : t1[1 - h % 2]);
+            else result.push(ro === 'A' ? t2[(h - 4) % 2] : t2[1 - (h - 4) % 2]);
+          }
+          return result;
+        })
+      );
+    }
     return Array.from({ length: 4 }, () =>
-      Array.from({ length: 4 }, () =>
+      Array.from({ length: numTms }, () =>
         Array.from({ length: tsz * 2 }, (_, ei) => {
-          if (type === '8man') return ro === 'A' ? ei % tsz : tsz - 1 - (ei % tsz);
+          if (type === '8man' || type === '6man') return ro === 'A' ? ei % tsz : tsz - 1 - (ei % tsz);
           // 12-man: A,B,C,A,B,C — each player once per half, not consecutive pairs
           const map: Record<string, number> = { A: 0, B: 1, C: 2 };
           const seq: number[] = [];
@@ -67,15 +85,22 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
       )
     );
   };
-  const curMap = playerMap ?? getDefaultMap(raceOrder, actType, tSz);
+  const curMap = playerMap ?? getDefaultMap(raceOrder, actType, tSz, numTeams, tv1Idx, tv2Idx);
 
   const togglePlayer = (ri: number, ti: number, ei: number) => {
-    const m = (playerMap ?? getDefaultMap(raceOrder, actType, tSz)).map((r) =>
+    const m = (playerMap ?? getDefaultMap(raceOrder, actType, tSz, numTeams, tv1Idx, tv2Idx)).map((r) =>
       r.map((t) => [...t])
     );
     const cur = m[ri][ti][ei];
-    const next =
-      actType === '8man' ? (cur === 0 ? 1 : 0) : ((cur + 1) % 3);
+    let next: number;
+    if (actType === '16man') {
+      const pair = ei < 4 ? tv1Idx : tv2Idx;
+      next = pair.find(idx => idx !== cur) ?? cur;
+    } else if (actType === '8man' || actType === '6man') {
+      next = cur === 0 ? 1 : 0;
+    } else {
+      next = (cur + 1) % 3;
+    }
     const otherIdx = m[ri][ti].findIndex((v, i) => i !== ei && v === next);
     if (otherIdx === -1) {
       m[ri][ti][ei] = next;
@@ -91,7 +116,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
       setDragSrc(null);
       return;
     }
-    const m = (playerMap ?? getDefaultMap(raceOrder, actType, tSz)).map((r) =>
+    const m = (playerMap ?? getDefaultMap(raceOrder, actType, tSz, numTeams, tv1Idx, tv2Idx)).map((r) =>
       r.map((t) => [...t])
     );
     const tmp = m[ri][ti][ei];
@@ -102,19 +127,25 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
   };
 
   const swapRound = (ri: number, ti: number) => {
-    const m = (playerMap ?? getDefaultMap(raceOrder, actType, tSz)).map((r) =>
+    const m = (playerMap ?? getDefaultMap(raceOrder, actType, tSz, numTeams, tv1Idx, tv2Idx)).map((r) =>
       r.map((t) => [...t])
     );
     for (let ei = 0; ei < m[ri][ti].length; ei++) {
-      if (actType === '8man') m[ri][ti][ei] = m[ri][ti][ei] === 0 ? 1 : 0;
-      else m[ri][ti][ei] = (m[ri][ti][ei] + 1) % 3;
+      if (actType === '16man') {
+        const pair = ei < 4 ? tv1Idx : tv2Idx;
+        m[ri][ti][ei] = pair.find(idx => idx !== m[ri][ti][ei]) ?? m[ri][ti][ei];
+      } else if (actType === '8man' || actType === '6man') {
+        m[ri][ti][ei] = m[ri][ti][ei] === 0 ? 1 : 0;
+      } else {
+        m[ri][ti][ei] = (m[ri][ti][ei] + 1) % 3;
+      }
     }
     setPlayerMap(m);
   };
 
   useEffect(() => {
     setTeams((p) =>
-      Array.from({ length: 4 }, (_, i) => ({
+      Array.from({ length: numTeams }, (_, i) => ({
         name: p[i]?.name ?? `Team ${i + 1}`,
         members: Array(tSz)
           .fill('')
@@ -123,18 +154,20 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
     );
     setGrid(
       Array.from({ length: 4 }, () =>
-        Array.from({ length: 4 }, () => Array(tSz * 2).fill(null) as (number | null)[])
+        Array.from({ length: numTeams }, () => Array(tSz * 2).fill(null) as (number | null)[])
       )
     );
     setPenalties(
       Array.from({ length: 4 }, () =>
-        Array.from({ length: 4 }, () => Array(tSz * 2).fill(0) as number[])
+        Array.from({ length: numTeams }, () => Array(tSz * 2).fill(0) as number[])
       )
     );
-    if (actType === '12man') setRaceOrder('BCA');
+    if (actType === '16man') setRaceOrder('A');
+    else if (actType === '12man') setRaceOrder('BCA');
     else setRaceOrder('A');
+    setTv1Pair('02');
     setPlayerMap(null);
-  }, [actType, tSz]);
+  }, [actType, tSz, numTeams]);
 
   const allP = teams.flatMap((t) => t.members.filter(Boolean));
   const ok0 = actName.trim() && actDate;
@@ -171,7 +204,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
     for (let ri = 0; ri < 4; ri++) {
       for (let h = 0; h < tSz * 2; h++) {
         const res = [];
-        for (let ti = 0; ti < 4; ti++) {
+        for (let ti = 0; ti < numTeams; ti++) {
           const mi = m[ri][ti][h];
           res.push({
             player: teams[ti].members[mi] ?? 'P' + mi,
@@ -203,19 +236,19 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
     showToast('Saving ACT...');
     setStep(0);
     setTeams(
-      Array.from({ length: 4 }, (_, i) => ({
+      Array.from({ length: numTeams }, (_, i) => ({
         name: 'Team ' + (i + 1),
         members: Array(tSz).fill('') as string[],
       }))
     );
     setGrid(
       Array.from({ length: 4 }, () =>
-        Array.from({ length: 4 }, () => Array(tSz * 2).fill(null) as (number | null)[])
+        Array.from({ length: numTeams }, () => Array(tSz * 2).fill(null) as (number | null)[])
       )
     );
     setPenalties(
       Array.from({ length: 4 }, () =>
-        Array.from({ length: 4 }, () => Array(tSz * 2).fill(0) as number[])
+        Array.from({ length: numTeams }, () => Array(tSz * 2).fill(0) as number[])
       )
     );
     setPlayerMap(null);
@@ -394,7 +427,13 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
             </div>
             <div>
               <label style={lbl}>Format</label>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <button
+                  style={{ ...togBtn, ...(actType === '6man' ? togAct : {}) }}
+                  onClick={() => setActType('6man')}
+                >
+                  6-Man
+                </button>
                 <button
                   style={{ ...togBtn, ...(actType === '8man' ? togAct : {}) }}
                   onClick={() => setActType('8man')}
@@ -407,6 +446,12 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                 >
                   12-Man
                 </button>
+                <button
+                  style={{ ...togBtn, ...(actType === '16man' ? togAct : {}) }}
+                  onClick={() => setActType('16man')}
+                >
+                  16-Man
+                </button>
               </div>
             </div>
           </div>
@@ -414,7 +459,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4,1fr)',
+              gridTemplateColumns: `repeat(${numTeams},1fr)`,
               gap: 10,
               marginBottom: 20,
             }}
@@ -460,14 +505,19 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                     placeholder={
                       actType === '12man'
                         ? `Player ${mi + 1} (${['A', 'B', 'C'][mi]})`
-                        : `Player ${mi + 1} (${mi === 0 ? '1-4' : '5-8'})`
+                        : actType === '16man'
+                          ? `Player ${mi + 1} (${tv1Idx.includes(mi) ? 'TV1' : 'TV2'})`
+                          : `Player ${mi + 1} (${mi === 0 ? '1-4' : '5-8'})`
                     }
                     list="plist"
                     onBlur={() => {
                       if (actType !== '12man') {
                         const ms = teams.map((x) => ({ ...x, members: [...x.members] }));
                         const tt = ms[ti];
-                        if (tt.members[0] && tt.members[1]) {
+                        if (actType === '16man') {
+                          const names = tt.members.map(n => n.split(' ')[0]).filter(Boolean);
+                          if (names.length === 4) tt.name = names.join(' & ');
+                        } else if (tt.members[0] && tt.members[1]) {
                           tt.name =
                             tt.members[0].split(' ')[0] + ' & ' + tt.members[1].split(' ')[0];
                         }
@@ -481,7 +531,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
           </div>
 
           <div style={cTitle}>🔀 Race Order</div>
-          {actType === '8man' ? (
+          {(actType === '8man' || actType === '6man') ? (
             <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
               <button
                 onClick={() => setRaceOrder('A')}
@@ -505,6 +555,71 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
               >
                 Group B (5-8) First
               </button>
+            </div>
+          ) : actType === '16man' ? (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                <button
+                  onClick={() => setRaceOrder('A')}
+                  style={{
+                    ...togBtn,
+                    ...(raceOrder === 'A'
+                      ? { background: 'rgba(80,250,123,0.15)', borderColor: '#50fa7b', color: '#50fa7b' }
+                      : {}),
+                  }}
+                >
+                  TV1 Pair A First
+                </button>
+                <button
+                  onClick={() => setRaceOrder('B')}
+                  style={{
+                    ...togBtn,
+                    ...(raceOrder === 'B'
+                      ? { background: 'rgba(139,233,253,0.15)', borderColor: '#8be9fd', color: '#8be9fd' }
+                      : {}),
+                  }}
+                >
+                  TV1 Pair B First
+                </button>
+              </div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#666', marginBottom: 6 }}>
+                TV1 Pairing (top row):
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={() => { setTv1Pair('02'); setPlayerMap(null); }}
+                  style={{
+                    ...togBtn,
+                    flex: 'none',
+                    padding: '8px 14px',
+                    ...(tv1Pair === '02' ? { background: 'rgba(192,132,252,0.18)', borderColor: '#c084fc', color: '#c084fc' } : {}),
+                  }}
+                >
+                  P1 &amp; P3
+                </button>
+                <button
+                  onClick={() => { setTv1Pair('01'); setPlayerMap(null); }}
+                  style={{
+                    ...togBtn,
+                    flex: 'none',
+                    padding: '8px 14px',
+                    ...(tv1Pair === '01' ? { background: 'rgba(192,132,252,0.18)', borderColor: '#c084fc', color: '#c084fc' } : {}),
+                  }}
+                >
+                  P1 &amp; P2
+                </button>
+                <button
+                  onClick={() => { setTv1Pair('03'); setPlayerMap(null); }}
+                  style={{
+                    ...togBtn,
+                    flex: 'none',
+                    padding: '8px 14px',
+                    ...(tv1Pair === '03' ? { background: 'rgba(192,132,252,0.18)', borderColor: '#c084fc', color: '#c084fc' } : {}),
+                  }}
+                >
+                  P1 &amp; P4
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{ marginBottom: 20 }}>
@@ -566,7 +681,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '70px repeat(4,1fr) 70px',
+                gridTemplateColumns: `70px repeat(${numTeams},1fr) 70px`,
                 gap: 0,
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: 10,
@@ -603,7 +718,13 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                     {t.name}
                   </div>
                   <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#666' }}>
-                    {t.members.join(' & ')}
+                    {actType === '16man'
+                      ? <>
+                          <span style={{ color: '#8be9fd' }}>TV1: {tv1Idx.map(i => (t.members[i] ?? '').split(' ')[0] || `P${i+1}`).join(' & ')}</span>
+                          <br />
+                          <span style={{ color: '#f5a623' }}>TV2: {tv2Idx.map(i => (t.members[i] ?? '').split(' ')[0] || `P${i+1}`).join(' & ')}</span>
+                        </>
+                      : t.members.join(' & ')}
                   </div>
                 </div>
               ))}
@@ -626,11 +747,13 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
               {[0, 1, 2, 3].map((ri) => {
                 const groupLabels: Record<string, string> = { A: '1-4', B: '5-8', C: '9-12' };
                 const orderLabel =
-                  actType === '8man'
+                  actType === '8man' || actType === '6man'
                     ? raceOrder === 'B'
                       ? '5-8 → 1-4'
                       : '1-4 → 5-8'
-                    : [...raceOrder.split(''), ...raceOrder.split('')].map((l) => groupLabels[l] ?? l).join('→');
+                    : actType === '16man'
+                      ? raceOrder === 'B' ? 'PairB → PairA' : 'PairA → PairB'
+                      : [...raceOrder.split(''), ...raceOrder.split('')].map((l) => groupLabels[l] ?? l).join('→');
                 return (
                   <Fragment key={ri}>
                     <div
@@ -683,202 +806,205 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                             ⇅
                           </button>
                         </div>
-                        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
-                          {grid[ri][ti].map((val, ei) => {
-                            const cid = `sc-${ri}-${ti}-${ei}`;
-                            let nt = ti,
-                              ne = ei + 1;
-                            if (ne >= tSz * 2) {
-                              ne = 0;
-                              nt++;
-                            }
-                            if (nt >= 4) {
-                              nt = 0;
-                              const nr = ri + 1;
-                              if (nr >= 4) {
-                                // no next
-                              }
-                            }
-                            const nxt = () => {
-                              let ntt = ti,
-                                nee = ei + 1;
-                              if (nee >= tSz * 2) {
-                                nee = 0;
-                                ntt++;
-                              }
-                              if (ntt >= 4) {
-                                ntt = 0;
-                                const nrr = ri + 1;
-                                if (nrr >= 4) return null;
-                                return `sc-${nrr}-0-0`;
-                              }
-                              return `sc-${ri}-${ntt}-${nee}`;
-                            };
-                            const mi = curMap[ri][ti][ei];
-                            const defaultMi =
-                              actType === '8man'
-                                ? raceOrder === 'A'
-                                  ? ei % tSz
-                                  : tSz - 1 - (ei % tSz)
-                                : 0;
-                            const isSwapped = mi !== defaultMi;
-                            const pLabel =
-                              (t.members[mi] ?? '').split(' ')[0]?.slice(0, 4) ?? 'P' + (mi + 1);
-                            const penVal = penalties[ri][ti][ei] ?? 0;
-                            return (
-                              <div
-                                key={ei}
-                                style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'center',
-                                  gap: 1,
-                                }}
-                              >
-                                <div
-                                  draggable
-                                  onDragStart={() => setDragSrc({ ri, ti, ei })}
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={() => handleDrop(ri, ti, ei)}
-                                  onClick={() => togglePlayer(ri, ti, ei)}
-                                  style={{
-                                    fontFamily: FONT_MONO,
-                                    fontSize: 10,
-                                    color: isSwapped ? '#c084fc' : '#666',
-                                    cursor: 'grab',
-                                    userSelect: 'none',
-                                    background: isSwapped
-                                      ? 'rgba(192,132,252,0.15)'
-                                      : 'rgba(255,255,255,0.03)',
-                                    borderRadius: 3,
-                                    padding: '2px 4px',
-                                    minWidth: 28,
-                                    textAlign: 'center',
-                                    border: isSwapped
-                                      ? '1px solid rgba(192,132,252,0.3)'
-                                      : '1px solid transparent',
-                                    lineHeight: '12px',
-                                    touchAction: 'none',
-                                  }}
-                                >
-                                  {pLabel}
-                                  {isSwapped && ' ↺'}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', width: '100%' }}>
+                          {(actType === '16man' ? [[0,1,2,3],[4,5,6,7]] : [grid[ri][ti].map((_, i) => i)]).map((eiGroup, groupIdx) => (
+                            <div key={groupIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: '100%' }}>
+                              {actType === '16man' && (
+                                <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: groupIdx === 0 ? '#8be9fd' : '#f5a623', textAlign: 'center', marginBottom: 1 }}>
+                                  {groupIdx === 0 ? 'TV1' : 'TV2'}
                                 </div>
-                                <input
-                                  id={cid}
-                                  type="text"
-                                  inputMode="numeric"
-                                  maxLength={1}
-                                  value={val === null ? '' : val}
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) => {
-                                    const r = e.target.value;
-                                    if (r === '') {
-                                      setCell(ri, ti, ei, null);
-                                      return;
+                              )}
+                              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                {eiGroup.map((ei) => {
+                                  const val = grid[ri][ti][ei];
+                                  const cid = `sc-${ri}-${ti}-${ei}`;
+                                  const nxt = () => {
+                                    let ntt = ti,
+                                      nee = ei + 1;
+                                    if (nee >= tSz * 2) {
+                                      nee = 0;
+                                      ntt++;
                                     }
-                                    const n = parseInt(r);
-                                    if (isNaN(n) || n < 0 || n > 3) return;
-                                    setCell(ri, ti, ei, n);
-                                    const nx = nxt();
-                                    if (nx)
-                                      setTimeout(() => {
-                                        const el = document.getElementById(nx);
-                                        if (el) {
-                                          el.focus();
-                                          (el as HTMLInputElement).select();
-                                        }
-                                      }, 30);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Tab') return;
-                                    if (e.key === 'Backspace' && val === null) {
-                                      e.preventDefault();
-                                      let pt = ti,
-                                        pe = ei - 1;
-                                      if (pe < 0) {
-                                        pe = tSz * 2 - 1;
-                                        pt--;
-                                      }
-                                      if (pt < 0) {
-                                        const pr = ri - 1;
-                                        if (pr < 0) return;
-                                        const pid = `sc-${pr}-3-${tSz * 2 - 1}`;
-                                        const el = document.getElementById(pid);
-                                        if (el) {
-                                          el.focus();
-                                          (el as HTMLInputElement).select();
-                                        }
-                                        return;
-                                      }
-                                      const pid = `sc-${ri}-${pt}-${pe}`;
-                                      const el = document.getElementById(pid);
-                                      if (el) {
-                                        el.focus();
-                                        (el as HTMLInputElement).select();
-                                      }
+                                    if (ntt >= numTeams) {
+                                      ntt = 0;
+                                      const nrr = ri + 1;
+                                      if (nrr >= 4) return null;
+                                      return `sc-${nrr}-0-0`;
                                     }
-                                  }}
-                                  style={{
-                                    ...scInp,
-                                    background:
-                                      val === null
-                                        ? 'rgba(255,255,255,0.03)'
-                                        : val === 3
-                                          ? '#e9456033'
-                                          : val === 2
-                                            ? '#f5a62333'
-                                            : val === 1
-                                              ? '#8be9fd22'
-                                              : 'rgba(255,255,255,0.02)',
-                                    color:
-                                      val === null
-                                        ? '#333'
-                                        : val === 3
-                                          ? '#e94560'
-                                          : val === 2
-                                            ? '#f5a623'
-                                            : val === 1
-                                              ? '#8be9fd'
-                                              : '#555',
-                                    borderColor:
-                                      val === null
-                                        ? 'rgba(255,255,255,0.06)'
-                                        : val === 3
-                                          ? '#e9456066'
-                                          : val === 2
-                                            ? '#f5a62366'
-                                            : val === 1
-                                              ? '#8be9fd44'
-                                              : '#33333366',
-                                  }}
-                                />
-                                <button
-                                  onClick={() => setPen(ri, ti, ei, penVal === 0 ? 1 : penVal === 1 ? 0.5 : 0)}
-                                  onDoubleClick={() => setPen(ri, ti, ei, 0)}
-                                  title="Click: ⚠ → -2 → -1 → clear. Dbl-click: clear"
-                                  style={{
-                                    background:
-                                      penVal > 0 ? 'rgba(255,60,60,0.25)' : 'rgba(255,255,255,0.02)',
-                                    border:
-                                      penVal > 0
-                                        ? '1px solid rgba(255,60,60,0.5)'
-                                        : '1px solid rgba(255,255,255,0.04)',
-                                    borderRadius: 3,
-                                    padding: '0px 4px',
-                                    fontSize: 7,
-                                    fontFamily: FONT_MONO,
-                                    color: penVal > 0 ? '#ff6b6b' : '#333',
-                                    cursor: 'pointer',
-                                    lineHeight: '14px',
-                                    minWidth: 24,
-                                  }}
-                                >
-                                  {penVal > 0 ? `-${Math.round(penVal * 2)}` : '⚠'}
-                                </button>
+                                    return `sc-${ri}-${ntt}-${nee}`;
+                                  };
+                                  const mi = curMap[ri][ti][ei];
+                                  const defaultMi =
+                                    actType === '8man' || actType === '6man'
+                                      ? raceOrder === 'A'
+                                        ? ei % tSz
+                                        : tSz - 1 - (ei % tSz)
+                                      : actType === '16man'
+                                        ? ei < 4
+                                          ? (raceOrder === 'A' ? tv1Idx[ei % 2] : tv1Idx[1 - ei % 2])
+                                          : (raceOrder === 'A' ? tv2Idx[(ei - 4) % 2] : tv2Idx[1 - (ei - 4) % 2])
+                                        : 0;
+                                  const isSwapped = mi !== defaultMi;
+                                  const pLabel =
+                                    (t.members[mi] ?? '').split(' ')[0]?.slice(0, 4) ?? 'P' + (mi + 1);
+                                  const penVal = penalties[ri][ti][ei] ?? 0;
+                                  return (
+                                    <div
+                                      key={ei}
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: 1,
+                                      }}
+                                    >
+                                      <div
+                                        draggable
+                                        onDragStart={() => setDragSrc({ ri, ti, ei })}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDrop={() => handleDrop(ri, ti, ei)}
+                                        onClick={() => togglePlayer(ri, ti, ei)}
+                                        style={{
+                                          fontFamily: FONT_MONO,
+                                          fontSize: 10,
+                                          color: isSwapped ? '#c084fc' : '#666',
+                                          cursor: 'grab',
+                                          userSelect: 'none',
+                                          background: isSwapped
+                                            ? 'rgba(192,132,252,0.15)'
+                                            : 'rgba(255,255,255,0.03)',
+                                          borderRadius: 3,
+                                          padding: '2px 4px',
+                                          minWidth: 28,
+                                          textAlign: 'center',
+                                          border: isSwapped
+                                            ? '1px solid rgba(192,132,252,0.3)'
+                                            : '1px solid transparent',
+                                          lineHeight: '12px',
+                                          touchAction: 'none',
+                                        }}
+                                      >
+                                        {pLabel}
+                                        {isSwapped && ' ↺'}
+                                      </div>
+                                      <input
+                                        id={cid}
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={1}
+                                        value={val === null ? '' : val}
+                                        onFocus={(e) => e.target.select()}
+                                        onChange={(e) => {
+                                          const r = e.target.value;
+                                          if (r === '') {
+                                            setCell(ri, ti, ei, null);
+                                            return;
+                                          }
+                                          const n = parseInt(r);
+                                          if (isNaN(n) || n < 0 || n > 3) return;
+                                          setCell(ri, ti, ei, n);
+                                          const nx = nxt();
+                                          if (nx)
+                                            setTimeout(() => {
+                                              const el = document.getElementById(nx);
+                                              if (el) {
+                                                el.focus();
+                                                (el as HTMLInputElement).select();
+                                              }
+                                            }, 30);
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Tab') return;
+                                          if (e.key === 'Backspace' && val === null) {
+                                            e.preventDefault();
+                                            let pt = ti,
+                                              pe = ei - 1;
+                                            if (pe < 0) {
+                                              pe = tSz * 2 - 1;
+                                              pt--;
+                                            }
+                                            if (pt < 0) {
+                                              const pr = ri - 1;
+                                              if (pr < 0) return;
+                                              const pid = `sc-${pr}-${numTeams - 1}-${tSz * 2 - 1}`;
+                                              const el = document.getElementById(pid);
+                                              if (el) {
+                                                el.focus();
+                                                (el as HTMLInputElement).select();
+                                              }
+                                              return;
+                                            }
+                                            const pid = `sc-${ri}-${pt}-${pe}`;
+                                            const el = document.getElementById(pid);
+                                            if (el) {
+                                              el.focus();
+                                              (el as HTMLInputElement).select();
+                                            }
+                                          }
+                                        }}
+                                        style={{
+                                          ...scInp,
+                                          background:
+                                            val === null
+                                              ? 'rgba(255,255,255,0.03)'
+                                              : val === 3
+                                                ? '#e9456033'
+                                                : val === 2
+                                                  ? '#f5a62333'
+                                                  : val === 1
+                                                    ? '#8be9fd22'
+                                                    : 'rgba(255,255,255,0.02)',
+                                          color:
+                                            val === null
+                                              ? '#333'
+                                              : val === 3
+                                                ? '#e94560'
+                                                : val === 2
+                                                  ? '#f5a623'
+                                                  : val === 1
+                                                    ? '#8be9fd'
+                                                    : '#555',
+                                          borderColor:
+                                            val === null
+                                              ? 'rgba(255,255,255,0.06)'
+                                              : val === 3
+                                                ? '#e9456066'
+                                                : val === 2
+                                                  ? '#f5a62366'
+                                                  : val === 1
+                                                    ? '#8be9fd44'
+                                                    : '#33333366',
+                                        }}
+                                      />
+                                      <button
+                                        onClick={() => setPen(ri, ti, ei, penVal === 0 ? 1 : penVal === 1 ? 0.5 : 0)}
+                                        onDoubleClick={() => setPen(ri, ti, ei, 0)}
+                                        title="Click: ⚠ → -2 → -1 → clear. Dbl-click: clear"
+                                        style={{
+                                          background:
+                                            penVal > 0 ? 'rgba(255,60,60,0.25)' : 'rgba(255,255,255,0.02)',
+                                          border:
+                                            penVal > 0
+                                              ? '1px solid rgba(255,60,60,0.5)'
+                                              : '1px solid rgba(255,255,255,0.04)',
+                                          borderRadius: 3,
+                                          padding: '0px 4px',
+                                          fontSize: 7,
+                                          fontFamily: FONT_MONO,
+                                          color: penVal > 0 ? '#ff6b6b' : '#333',
+                                          cursor: 'pointer',
+                                          lineHeight: '14px',
+                                          minWidth: 24,
+                                        }}
+                                      >
+                                        {penVal > 0 ? `-${Math.round(penVal * 2)}` : '⚠'}
+                                      </button>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
+                            </div>
+                          ))}
                         </div>
                         {(() => {
                           const rPenPts = penalties[ri][ti].reduce((s, v) => s + v * -2, 0);

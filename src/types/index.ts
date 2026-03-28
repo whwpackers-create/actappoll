@@ -27,7 +27,7 @@ export interface Act {
   _id?: string;
   name: string;
   date: string;
-  type?: '12man' | '8man';
+  type?: '12man' | '8man' | '6man' | '16man';
   teams: Team[];
   races: Race[];
   satId?: string;
