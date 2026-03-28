@@ -126,8 +126,8 @@ export function NavBar({
               fontSize: 28,
               fontWeight: 900,
               letterSpacing: 4,
-              color: '#1a1e28',
-              textShadow: '0 1px 0 rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.2)',
+              color: '#6a7080',
+              textShadow: '0 1px 0 rgba(255,255,255,0.3)',
             }}>
               ACT AP POLL
             </span>

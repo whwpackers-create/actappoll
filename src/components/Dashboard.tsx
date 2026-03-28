@@ -269,35 +269,89 @@ export function Dashboard({
         }}
       >
         {[
-          { icon: '👥', val: totalActive, label: 'Active Players' },
           {
-            icon: '🎓',
-            val: data.players.filter((p) => p.active === false).length,
-            label: 'Inactive Players',
+            icon: (
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="7" r="4"/>
+                <path d="M5.5 21a8.38 8.38 0 0 1 13 0"/>
+                <circle cx="7" cy="10" r="2.5"/>
+                <path d="M2 20a5.6 5.6 0 0 1 5-3"/>
+                <circle cx="17" cy="10" r="2.5"/>
+                <path d="M22 20a5.6 5.6 0 0 0-5-3"/>
+              </svg>
+            ),
+            val: totalActive,
+            label: 'ACTIVE PLAYERS',
+            color: '#60a5fa',
           },
-          { icon: '🏁', val: data.acts.length, label: 'Total ACTs' },
-          { icon: '🏆', val: '4/16', label: 'Spring 2026 SAT' },
+          {
+            icon: (
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="4"/>
+                <path d="M6 20v-1a6 6 0 0 1 12 0v1"/>
+                <path d="M9 12l1.5 1.5L15 9"/>
+              </svg>
+            ),
+            val: data.players.filter((p) => p.active === false).length,
+            label: 'RETIRED PLAYERS',
+            color: '#94a3b8',
+          },
+          {
+            icon: (
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="4" height="4" fill="#fbbf24" stroke="none"/>
+                <rect x="7" y="3" width="4" height="4" fill="none" stroke="none" style={{fill:'rgba(251,191,36,0.2)'}}/>
+                <rect x="11" y="3" width="4" height="4" fill="#fbbf24" stroke="none"/>
+                <rect x="15" y="3" width="4" height="4" fill="none"/>
+                <rect x="3" y="7" width="4" height="4" fill="none"/>
+                <rect x="7" y="7" width="4" height="4" fill="#fbbf24" stroke="none"/>
+                <rect x="11" y="7" width="4" height="4" fill="none"/>
+                <rect x="15" y="7" width="4" height="4" fill="#fbbf24" stroke="none"/>
+                <line x1="19" y1="3" x2="19" y2="11"/>
+                <line x1="19" y1="14" x2="19" y2="21"/>
+                <line x1="3" y1="21" x2="19" y2="21"/>
+              </svg>
+            ),
+            val: data.acts.length,
+            label: 'TOTAL ACTs',
+            color: '#fbbf24',
+          },
+          {
+            icon: (
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f9a8d4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9H3.5a2.5 2.5 0 0 0 0 5H6"/>
+                <path d="M18 9h2.5a2.5 2.5 0 0 1 0 5H18"/>
+                <path d="M6 4h12v10a6 6 0 0 1-12 0V4z"/>
+                <path d="M9 21h6"/>
+                <path d="M12 18v3"/>
+              </svg>
+            ),
+            val: '4/16',
+            label: 'SPRING 2026 SAT',
+            color: '#f9a8d4',
+          },
         ].map((s, i) => (
           <div
             key={i}
             style={{
               background: 'rgba(15,18,25,0.7)',
               backdropFilter: 'blur(4px)',
-              borderRight: i < 3 ? '1px solid rgba(106,96,64,0.3)' : 'none',
-              padding: '14px 16px',
+              borderRight: i < 3 ? `1px solid rgba(42,53,80,0.6)` : 'none',
+              padding: '22px 20px',
               textAlign: 'center',
               position: 'relative',
               overflow: 'hidden',
             }}
           >
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              <div style={{ fontSize: 18, marginBottom: 2 }}>{s.icon}</div>
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{ opacity: 0.85 }}>{s.icon}</div>
               <div
                 style={{
                   fontFamily: FONT_HEADER,
-                  fontSize: 26,
-                  color: '#ffffff',
-                  textShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                  fontSize: 38,
+                  color: s.color,
+                  textShadow: `0 2px 10px ${s.color}40`,
+                  lineHeight: 1,
                 }}
               >
                 {s.val}
@@ -305,9 +359,9 @@ export function Dashboard({
               <div
                 style={{
                   fontFamily: FONT_MONO,
-                  fontSize: 8,
-                  color: '#667',
-                  letterSpacing: 1.5,
+                  fontSize: 10,
+                  color: '#556',
+                  letterSpacing: 2,
                   marginTop: 2,
                 }}
               >
