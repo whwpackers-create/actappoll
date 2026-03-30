@@ -193,7 +193,9 @@ export function computeAllElos(
       // Phase 2: competitive-lobby top-seed protection
       // If the average ELO of all participants is above the competitive threshold,
       // the highest-ELO player (top seed) who scores well enough won't lose ELO —
-      // their saved loss is redistributed as extra gains to all other participants.
+      // their saved loss is redistributed only to players in the same bracket (same
+      // position slot), since skill gaps between brackets mean the other bracket
+      // shouldn't be affected.
       if (ap.length > 1) {
         const avgLobbyElo = ap.reduce((s, n) => s + (elos[n] ?? BASE_ELO), 0) / ap.length;
         if (avgLobbyElo >= COMP_ACT_AVG_ELO) {
@@ -202,9 +204,15 @@ export function computeAllElos(
           if ((pp[topSeed] ?? 0) > COMP_TOP_SEED_PTS_MIN && rawCh[topSeed] < 0) {
             const savedLoss = -rawCh[topSeed]; // positive amount
             rawCh[topSeed] = 0;
-            const others = ap.filter((n) => n !== topSeed);
-            const extra = savedLoss / others.length;
-            others.forEach((n) => { rawCh[n] += extra; });
+            // Only boost players in the same bracket (same position slot 0 or 1)
+            const topPos = posMap[topSeed]; // undefined for solo players
+            const bracketPeers = topPos !== undefined
+              ? ap.filter((n) => n !== topSeed && posMap[n] === topPos)
+              : ap.filter((n) => n !== topSeed); // solo fallback: all others
+            if (bracketPeers.length > 0) {
+              const extra = savedLoss / bracketPeers.length;
+              bracketPeers.forEach((n) => { rawCh[n] += extra; });
+            }
           }
         }
       }
@@ -390,6 +398,7 @@ export function computeSeasonElos(
     });
 
     // Phase 2: competitive-lobby top-seed protection (same rule as MMR ELO)
+    // Redistributes only within the same bracket (same position slot).
     if (ap.length > 1) {
       const avgLobbyElo = ap.reduce((s, n) => s + (atE[n] ?? BASE_ELO), 0) / ap.length;
       if (avgLobbyElo >= COMP_ACT_AVG_ELO) {
@@ -398,9 +407,14 @@ export function computeSeasonElos(
         if ((pp[topSeed] ?? 0) > COMP_TOP_SEED_PTS_MIN && sRawCh[topSeed] < 0) {
           const savedLoss = -sRawCh[topSeed];
           sRawCh[topSeed] = 0;
-          const others = ap.filter((n) => n !== topSeed);
-          const extra = savedLoss / others.length;
-          others.forEach((n) => { sRawCh[n] += extra; });
+          const topPos = posMap[topSeed];
+          const bracketPeers = topPos !== undefined
+            ? ap.filter((n) => n !== topSeed && posMap[n] === topPos)
+            : ap.filter((n) => n !== topSeed);
+          if (bracketPeers.length > 0) {
+            const extra = savedLoss / bracketPeers.length;
+            bracketPeers.forEach((n) => { sRawCh[n] += extra; });
+          }
         }
       }
     }
