@@ -239,12 +239,14 @@ export function ActDetail({
   const { elos: eB } = computeAllElos(
     data.players,
     chronoActs.slice(0, ci),
-    data.sats
+    data.sats,
+    data.seasons
   );
   const { elos: eA } = computeAllElos(
     data.players,
     chronoActs.slice(0, ci + 1),
-    data.sats
+    data.sats,
+    data.seasons
   );
 
   const bracketBreakdown = computeActBracketBreakdown(act, eB);

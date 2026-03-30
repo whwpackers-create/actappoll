@@ -9,7 +9,7 @@ interface AnalyticsProps {
 }
 
 export function Analytics({ data, setView }: AnalyticsProps) {
-  const stats = computeStats(data.players, data.acts, data.sats ?? []);
+  const stats = computeStats(data.players, data.acts, data.sats ?? [], data.seasons);
   const topPlayers = [...stats]
     .sort((a, b) => b.elo - a.elo)
     .slice(0, 3)

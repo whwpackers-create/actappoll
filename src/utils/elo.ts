@@ -3,12 +3,14 @@ import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../
 export const BASE_ELO = 1000;
 export const MAX_PTS = 24;
 export const K_BASE = 40;
-export const LOSS_DAMP = 0.55;
-export const LOW_ELO_PROTECT = 300; // ELO range below BASE where protection applies
-export const MAX_EXTRA_DAMP = 0.55; // max extra loss reduction at the floor (55%)
+export const LOW_ELO_GAIN_MAX = 0.4;  // max gain boost at BASE_ELO - LOW_ELO_GAIN_RANGE
+export const LOW_ELO_GAIN_RANGE = 200; // ELO range below BASE where gain boost applies (800–1000)
 export const CARRY = 0.3; // kept for reference but no longer used in season starting ELO
 export const SAT_MULTI = 1.25;
-export const PLACEMENT_ACTS = 7;    // ACTs needed to exit placement; 2× K-factor during placement
+export const PLACEMENT_ACTS = 7;       // kept for reference; no longer used in overall ELO
+export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
+export const SEASON_DECAY_PER = 0.1;   // 10% decay per season back in overall ELO
+export const SEASON_DECAY_MIN = 0.5;   // minimum weight (oldest seasons, 5+ back)
 export const SEASON_BASE_ELO = 800;        // everyone starts here each season (below leaderboard 1000)
 export const SEASON_K_MULTI = 2.0;         // base amplifier on all season changes — creates spread over short seasons
 export const SEASON_COMP_MMR_WEIGHT = 0.4; // how much opponent MMR vs season ELO affects competition level (0=season only, 1=MMR only)
@@ -19,12 +21,12 @@ export const MMR_LOSS_MAX = 1.75;   // max loss multiplier (low MMR, overranked 
 export const MMR_LOSS_MIN = 0.5;    // min loss multiplier (high MMR, underranked in season)
 export const SEASON_DAMP_AFTER = 12;  // ACTs in a season after which changes are dampened
 export const SEASON_DAMP_FACTOR = 0.6; // multiplier applied to ch after SEASON_DAMP_AFTER ACTs
-// Competitive-lobby top-seed protection:
-// If avg participant ELO ≥ COMP_ACT_AVG_ELO, the player with the highest pre-ACT ELO
-// who scores > COMP_TOP_SEED_PTS_MIN will not lose ELO — instead everyone else gains
-// the amount they would have lost (redistributed evenly).
-export const COMP_ACT_AVG_ELO = 1000;       // avg ELO threshold to flag lobby as competitive
-export const COMP_TOP_SEED_PTS_MIN = 14;     // top seed must score above this to be protected
+// Bracket rank protection:
+// If the average global rank of all players in a bracket (slot 0 or slot 1) is ≤ COMP_ACT_AVG_RANK,
+// any player in that bracket who scores ≥ COMP_TOP_SEED_PTS_MIN won't lose ELO —
+// their saved loss is redistributed to their bracket peers.
+export const COMP_ACT_AVG_RANK = 10;        // avg global rank threshold for a "high-skill" bracket
+export const COMP_TOP_SEED_PTS_MIN = 14;    // must score at least this to get protection
 
 export const SEASON_RANKS = [
   { key: 'diamond',  name: 'Diamond',  min: 1100, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
@@ -58,31 +60,55 @@ function eloChange(pE: number, oE: number, pts: number): number {
     K_BASE +
     (diff > 0 ? Math.min(diff / 20, 20) : Math.min(Math.abs(diff) / 30, 10));
   let ch = k * (norm - exp);
-  if (ch < 0) {
-    ch *= LOSS_DAMP;
-    // Extra protection for low-ELO players: scales from 0% at BASE_ELO down to MAX_EXTRA_DAMP at (BASE_ELO - LOW_ELO_PROTECT)
-    if (pE < BASE_ELO) {
-      const extraDamp = Math.min((BASE_ELO - pE) / LOW_ELO_PROTECT, 1) * MAX_EXTRA_DAMP;
-      ch *= (1 - extraDamp);
-    }
-    ch = Math.max(ch, -25);
+  // No loss dampening — losses are full strength for everyone.
+  // For gains only: boost low-ELO players (under BASE_ELO) up to +40% extra at the floor.
+  if (ch > 0 && pE < BASE_ELO) {
+    const gainBoost = Math.min((BASE_ELO - pE) / LOW_ELO_GAIN_RANGE, 1) * LOW_ELO_GAIN_MAX;
+    ch *= (1 + gainBoost);
   }
+  ch = Math.max(ch, -30);
   return Math.min(Math.round(ch * 10) / 10, 45);
 }
 
 export function computeAllElos(
   players: Player[],
   acts: Act[],
-  sats: Sat[] | null | undefined
+  sats: Sat[] | null | undefined,
+  seasons?: Season[]
 ): { elos: Record<string, number>; hist: Record<string, EloHistoryEntry[]> } {
+  // Build a sorted list of seasons (oldest first) for decay weighting.
+  // The most recent season = weight 1.0, each season further back loses SEASON_DECAY_PER,
+  // floored at SEASON_DECAY_MIN. ACTs outside any season use weight 1.0 (same as current).
+  const sortedSeasons = seasons
+    ? [...seasons].sort((a, b) => a.startDate.localeCompare(b.startDate))
+    : [];
+  const totalSeasons = sortedSeasons.length;
+
+  const getDecayWeight = (actDate: string): number => {
+    if (sortedSeasons.length === 0) return 1.0;
+    // Find which season index this act belongs to (0 = oldest)
+    const si = sortedSeasons.findIndex(
+      (s) => actDate >= s.startDate && actDate <= s.endDate
+    );
+    if (si === -1) return 1.0; // outside any season → full weight
+    const seasonsBack = totalSeasons - 1 - si; // 0 = most recent
+    return Math.max(SEASON_DECAY_MIN, 1.0 - seasonsBack * SEASON_DECAY_PER);
+  };
+
+  // Also need global rank order for top-seed protection.
+  // We compute ranks on the fly from current elos at the time of each ACT.
+  const getGlobalRank = (name: string, currentElos: Record<string, number>): number => {
+    const allElos = Object.values(currentElos);
+    const myElo = currentElos[name] ?? BASE_ELO;
+    return allElos.filter((e) => e > myElo).length + 1;
+  };
+
   const elos: Record<string, number> = {};
   const hist: Record<string, EloHistoryEntry[]> = {};
-  const actCounts: Record<string, number> = {}; // tracks ACTs played so far per player (for placement)
 
   players.forEach((p) => {
     elos[p.name] = BASE_ELO;
     hist[p.name] = [];
-    actCounts[p.name] = 0;
   });
 
   [...acts]
@@ -190,38 +216,32 @@ export function computeAllElos(
         rawCh[name] = ch;
       });
 
-      // Phase 2: competitive-lobby top-seed protection
-      // If the average ELO of all participants is above the competitive threshold,
-      // the highest-ELO player (top seed) who scores well enough won't lose ELO —
-      // their saved loss is redistributed only to players in the same bracket (same
-      // position slot), since skill gaps between brackets mean the other bracket
-      // shouldn't be affected.
-      if (ap.length > 1) {
-        const avgLobbyElo = ap.reduce((s, n) => s + (elos[n] ?? BASE_ELO), 0) / ap.length;
-        if (avgLobbyElo >= COMP_ACT_AVG_ELO) {
-          const topSeed = ap.reduce((best, n) =>
-            (elos[n] ?? BASE_ELO) > (elos[best] ?? BASE_ELO) ? n : best, ap[0]);
-          if ((pp[topSeed] ?? 0) > COMP_TOP_SEED_PTS_MIN && rawCh[topSeed] < 0) {
-            const savedLoss = -rawCh[topSeed]; // positive amount
-            rawCh[topSeed] = 0;
-            // Only boost players in the same bracket (same position slot 0 or 1)
-            const topPos = posMap[topSeed]; // undefined for solo players
-            const bracketPeers = topPos !== undefined
-              ? ap.filter((n) => n !== topSeed && posMap[n] === topPos)
-              : ap.filter((n) => n !== topSeed); // solo fallback: all others
-            if (bracketPeers.length > 0) {
-              const extra = savedLoss / bracketPeers.length;
-              bracketPeers.forEach((n) => { rawCh[n] += extra; });
+      // Phase 2: bracket-rank protection
+      // For each bracket (slot 0 and slot 1), compute the average global rank of its players.
+      // If the avg rank ≤ 10 (top-tier bracket), any player in that bracket who scored 14+
+      // has their loss zeroed and the saved amount redistributed to their bracket peers.
+      const decayW = getDecayWeight(act.date);
+      for (const slot of [0, 1] as const) {
+        const bracketPlayers = ap.filter((n) => posMap[n] === slot);
+        if (bracketPlayers.length === 0) continue;
+        const avgRank = bracketPlayers.reduce((s, n) => s + getGlobalRank(n, elos), 0) / bracketPlayers.length;
+        if (avgRank > COMP_ACT_AVG_RANK) continue;
+        bracketPlayers.forEach((name) => {
+          if ((pp[name] ?? 0) >= COMP_TOP_SEED_PTS_MIN && rawCh[name] < 0) {
+            const savedLoss = -rawCh[name];
+            rawCh[name] = 0;
+            const peers = bracketPlayers.filter((n) => n !== name);
+            if (peers.length > 0) {
+              const extra = savedLoss / peers.length;
+              peers.forEach((n) => { rawCh[n] += extra; });
             }
           }
-        }
+        });
       }
 
-      // Phase 3: apply placement multiplier and commit changes
+      // Phase 3: apply season decay weight and commit changes (no placement period in overall ELO)
       ap.forEach((name) => {
-        let ch = rawCh[name];
-        // 2× K-factor during placement (first PLACEMENT_ACTS ACTs)
-        if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= 2;
+        const ch = rawCh[name] * decayW;
         elos[name] = (elos[name] ?? BASE_ELO) + ch;
         if (!hist[name]) hist[name] = [];
         hist[name].push({
@@ -233,7 +253,6 @@ export function computeAllElos(
           points: pp[name] ?? 0,
           isSat: !!act.satId,
         });
-        actCounts[name] = (actCounts[name] ?? 0) + 1;
       });
     });
 
@@ -397,33 +416,38 @@ export function computeSeasonElos(
       sRawCh[name] = ch;
     });
 
-    // Phase 2: competitive-lobby top-seed protection (same rule as MMR ELO)
-    // Redistributes only within the same bracket (same position slot).
-    if (ap.length > 1) {
-      const avgLobbyElo = ap.reduce((s, n) => s + (atE[n] ?? BASE_ELO), 0) / ap.length;
-      if (avgLobbyElo >= COMP_ACT_AVG_ELO) {
-        const topSeed = ap.reduce((best, n) =>
-          (atE[n] ?? BASE_ELO) > (atE[best] ?? BASE_ELO) ? n : best, ap[0]);
-        if ((pp[topSeed] ?? 0) > COMP_TOP_SEED_PTS_MIN && sRawCh[topSeed] < 0) {
-          const savedLoss = -sRawCh[topSeed];
-          sRawCh[topSeed] = 0;
-          const topPos = posMap[topSeed];
-          const bracketPeers = topPos !== undefined
-            ? ap.filter((n) => n !== topSeed && posMap[n] === topPos)
-            : ap.filter((n) => n !== topSeed);
-          if (bracketPeers.length > 0) {
-            const extra = savedLoss / bracketPeers.length;
-            bracketPeers.forEach((n) => { sRawCh[n] += extra; });
+    // Phase 2: bracket-rank protection (same rule as overall ELO)
+    // For each bracket (slot 0/1), if avg global rank ≤ COMP_ACT_AVG_RANK,
+    // any player scoring 14+ has their loss zeroed and redistributed to bracket peers.
+    for (const slot of [0, 1] as const) {
+      const bracketPlayers = ap.filter((n) => posMap[n] === slot);
+      if (bracketPlayers.length === 0) continue;
+      const avgRank = bracketPlayers.reduce((s, n) => {
+        const myElo = atE[n] ?? BASE_ELO;
+        const rank = Object.values(atE).filter((e) => e > myElo).length + 1;
+        return s + rank;
+      }, 0) / bracketPlayers.length;
+      if (avgRank > COMP_ACT_AVG_RANK) continue;
+      bracketPlayers.forEach((name) => {
+        if ((pp[name] ?? 0) >= COMP_TOP_SEED_PTS_MIN && sRawCh[name] < 0) {
+          const savedLoss = -sRawCh[name];
+          sRawCh[name] = 0;
+          const peers = bracketPlayers.filter((n) => n !== name);
+          if (peers.length > 0) {
+            const extra = savedLoss / peers.length;
+            peers.forEach((n) => { sRawCh[n] += extra; });
           }
         }
-      }
+      });
     }
 
-    // Phase 3: apply dampen + commit
+    // Phase 3: apply placement boost, dampen late-season, and commit
     ap.forEach((name) => {
       let ch = sRawCh[name];
+      // 2× K-factor for first SEASON_PLACEMENT_ACTS ACTs in this season
+      if ((sActCounts[name] ?? 0) < SEASON_PLACEMENT_ACTS) ch *= 2;
       // Dampen changes after SEASON_DAMP_AFTER ACTs — rating stabilises late in the season
-      if ((sActCounts[name] ?? 0) >= SEASON_DAMP_AFTER) ch *= SEASON_DAMP_FACTOR;
+      else if ((sActCounts[name] ?? 0) >= SEASON_DAMP_AFTER) ch *= SEASON_DAMP_FACTOR;
       sE[name] += ch;
       sActCounts[name] = (sActCounts[name] ?? 0) + 1;
       if (!sH[name]) sH[name] = [];
@@ -444,9 +468,10 @@ export function computeSeasonElos(
 export function computeStats(
   players: Player[],
   acts: Act[],
-  sats: Sat[] | null | undefined
+  sats: Sat[] | null | undefined,
+  seasons?: Season[]
 ): PlayerStats[] {
-  const { elos, hist } = computeAllElos(players, acts, sats ?? []);
+  const { elos, hist } = computeAllElos(players, acts, sats ?? [], seasons);
 
   return players.map((p) => {
     let tR = 0;

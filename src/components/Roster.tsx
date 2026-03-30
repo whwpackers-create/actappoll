@@ -41,7 +41,7 @@ export function Roster({
   const [newName, setNewName] = useState('');
   const [mergeConfirm, setMergeConfirm] = useState<{ from: string; to: string } | null>(null);
 
-  const stats = computeStats(data.players, data.acts, data.sats ?? []);
+  const stats = computeStats(data.players, data.acts, data.sats ?? [], data.seasons);
   const sorted = [...stats].sort((a, b) => a.name.localeCompare(b.name));
 
   const getStatus = (name: string) => {

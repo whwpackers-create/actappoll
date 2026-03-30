@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { computeStats, PLACEMENT_ACTS } from '../utils/elo';
+import { computeStats } from '../utils/elo';
 import type { AppData, Act, Sat } from '../types';
 import type { AuthState } from '../hooks/useAuth';
 import type { PlayerStats } from '../types';
@@ -179,7 +179,7 @@ export function Dashboard({
   onTheme,
   menuImgs,
 }: DashboardProps) {
-  const stats = computeStats(data.players, data.acts, data.sats ?? []);
+  const stats = computeStats(data.players, data.acts, data.sats ?? [], data.seasons);
   const activePlayers = data.players
     .filter((p) => p.active !== false)
     .map((p) => p.name);
@@ -220,7 +220,7 @@ export function Dashboard({
       .map((season) => {
         const seasonActs = data.acts.filter((a) => a.date >= season.startDate && a.date <= season.endDate);
         if (seasonActs.length === 0) return null;
-        const seasonStats = computeStats(data.players, seasonActs, data.sats ?? []);
+        const seasonStats = computeStats(data.players, seasonActs, data.sats ?? [], data.seasons);
         const participated = seasonStats.filter((s) => s.actCount > 0);
         const sorted = [...participated].sort((a, b) => b.elo - a.elo);
         const rank = sorted.findIndex((s) => s.name === selPlayer) + 1;
@@ -581,9 +581,9 @@ export function Dashboard({
                     >
                       {[
                         {
-                          l: p.actCount < PLACEMENT_ACTS ? 'PLACEMENT' : 'ELO',
-                          v: p.actCount < PLACEMENT_ACTS ? `${p.actCount}/${PLACEMENT_ACTS}` : Math.round(p.elo),
-                          c: p.actCount < PLACEMENT_ACTS ? '#fde68a' : '#93c5fd',
+                          l: 'ELO',
+                          v: Math.round(p.elo),
+                          c: '#93c5fd',
                         },
                         {
                           l: '30D CHANGE',
@@ -736,7 +736,6 @@ export function Dashboard({
       const avgPtsRace = ps.raceCount ? (ps.pts / ps.raceCount).toFixed(1) : '0';
       const winRate = ps.actCount ? (ps.wins / ps.actCount * 100).toFixed(1) : '0';
       const jsRate = ps.actCount ? ((ps.jerseySwaps ?? 0) / ps.actCount * 100).toFixed(1) : '0';
-      const isPlacing = ps.actCount < PLACEMENT_ACTS;
       const satWins = countSatWins(data.sats ?? [], ps.name);
       const currentTier = getTier(Math.round(ps.elo));
 
@@ -768,16 +767,14 @@ export function Dashboard({
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
                 <span style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f0e6d3' }}>{ps.name}</span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556' }}>#{lbRank}</span>
-                {!isPlacing && (
-                  <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: currentTier.color, background: `${currentTier.color}18`, border: `1px solid ${currentTier.color}50`, borderRadius: 6, padding: '3px 10px' }}>
-                    {currentTier.icon} {currentTier.name}
-                  </span>
-                )}
+                <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: currentTier.color, background: `${currentTier.color}18`, border: `1px solid ${currentTier.color}50`, borderRadius: 6, padding: '3px 10px' }}>
+                  {currentTier.icon} {currentTier.name}
+                </span>
                 {satWins > 0 && <span style={{ fontSize: 11, color: '#f5a623', background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4, padding: '2px 8px' }}>🏆 {satWins} SAT win{satWins > 1 ? 's' : ''}</span>}
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: isPlacing ? '#fbbf24' : '#60a5fa' }}>
-                  {isPlacing ? `Placement: ${ps.actCount}/${PLACEMENT_ACTS}` : `ELO ${Math.round(ps.elo)}`}
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#60a5fa' }}>
+                  ELO {Math.round(ps.elo)}
                 </span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#6080a0' }}>Peak {peakElo}</span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: ch30 > 0 ? '#4ade80' : ch30 < 0 ? '#f87171' : '#445' }}>

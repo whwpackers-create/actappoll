@@ -212,12 +212,14 @@ export function History({
           const { elos: eB } = computeAllElos(
             data.players,
             chronoActs.slice(0, ci),
-            undefined
+            undefined,
+            data.seasons
           );
           const { elos: eA } = computeAllElos(
             data.players,
             chronoActs.slice(0, ci + 1),
-            undefined
+            undefined,
+            data.seasons
           );
 
           // Per-player total points from races
