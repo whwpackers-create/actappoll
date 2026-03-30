@@ -41,6 +41,7 @@ export interface Act {
   playerMap?: number[][][];
   playerMapJson?: string;
   raceOrder?: string;
+  tv1Pair?: string;
 }
 
 export interface Season {

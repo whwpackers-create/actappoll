@@ -6,6 +6,20 @@ import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import type { Act, AppData, AppOps } from '../types';
 import type { AuthState } from '../hooks/useAuth';
 
+// Build a default 16-man playerMap: TV1 entries 0-3 alternate t1[0]/t1[1], TV2 entries 4-7 alternate t2[0]/t2[1]
+function defaultMap16(t1: number[], t2: number[], ro: string, numTeams: number): number[][][] {
+  return Array.from({ length: 4 }, () =>
+    Array.from({ length: numTeams }, () => {
+      const result: number[] = [];
+      for (let h = 0; h < 8; h++) {
+        if (h < 4) result.push(ro === 'A' ? t1[h % 2] : t1[1 - h % 2]);
+        else result.push(ro === 'A' ? t2[(h - 4) % 2] : t2[1 - (h - 4) % 2]);
+      }
+      return result;
+    })
+  );
+}
+
 export interface ActDetailProps {
   act: Act | undefined;
   data: AppData;
@@ -68,6 +82,10 @@ export function ActDetail({
   const [eSubs, setESubs] = useState(
     act.teams.map((t) => [...(t.subs ?? ['', ''])])
   );
+  const [ePlayerMap, setEPlayerMap] = useState<number[][][] | null>(null);
+  const [eTv1Pair, setETv1Pair] = useState<'02' | '01' | '03'>(
+    (act.tv1Pair as '02' | '01' | '03') ?? '02'
+  );
 
   const startEdit = () => {
     auth.req(() => {
@@ -83,6 +101,8 @@ export function ActDetail({
       setETeamNames(act.teams.map((t) => t.name));
       setEMembers(act.teams.map((t) => [...t.members]));
       setESubs(act.teams.map((t) => [...(t.subs ?? ['', ''])]));
+      setEPlayerMap(savedPM ? JSON.parse(JSON.stringify(savedPM)) : null);
+      setETv1Pair((act.tv1Pair as '02' | '01' | '03') ?? '02');
     });
   };
 
@@ -104,37 +124,44 @@ export function ActDetail({
   };
 
   const buildEditRaces = () => {
-    const g =
-      eGrid ??
-      (act.gridJson ? JSON.parse(act.gridJson) : null);
+    const g = eGrid ?? (act.gridJson ? JSON.parse(act.gridJson) : null);
     if (!g) return act.races;
     const races: Act['races'] = [];
     let n = 1;
     const ro = act.raceOrder ?? 'A';
-    const pm = savedPM;
+    const actType = act.type ?? '8man';
+    const eTSz = actType === '12man' ? 3 : actType === '16man' ? 4 : 2;
+    const eNumTeams = actType === '6man' ? 3 : 4;
+
+    // Resolve the effective playerMap, falling back to a computed default
+    let pm: number[][][] | null = ePlayerMap ?? savedPM ?? null;
+    if (!pm && actType === '16man') {
+      const pair = eTv1Pair;
+      const t1 = pair === '02' ? [0, 2] : pair === '01' ? [0, 1] : [0, 3];
+      const t2 = pair === '02' ? [1, 3] : pair === '01' ? [2, 3] : [1, 2];
+      pm = defaultMap16(t1, t2, ro, eNumTeams);
+    }
+
     for (let ri = 0; ri < 4; ri++) {
-      for (let h = 0; h < tSz * 2; h++) {
+      for (let h = 0; h < eTSz * 2; h++) {
         const res: { player: string; points: number }[] = [];
-        for (let ti = 0; ti < 4; ti++) {
+        for (let ti = 0; ti < eNumTeams; ti++) {
           let mi: number;
-          if (pm && pm[ri]?.[ti]) {
+          if (pm?.[ri]?.[ti]) {
             mi = pm[ri][ti][h];
-          } else if (act.type === '8man') {
-            mi = ro === 'A' ? h % tSz : tSz - 1 - (h % tSz);
-          } else {
-            const map: Record<string, number> = { A: 0, B: 1, C: 2 };
-            const seq = [];
-            for (let i = 0; i < ro.length; i++) seq.push(map[ro[i]] ?? 0);
-            const raceSeq: number[] = [];
-            seq.forEach((x) => {
-              raceSeq.push(x);
-              raceSeq.push(x);
-            });
+          } else if (actType === '8man' || actType === '6man') {
+            mi = ro === 'A' ? h % eTSz : eTSz - 1 - (h % eTSz);
+          } else if (actType === '12man') {
+            const mapR: Record<string, number> = { A: 0, B: 1, C: 2 };
+            const seq: number[] = [];
+            for (let i = 0; i < ro.length; i++) seq.push(mapR[ro[i]] ?? 0);
+            const raceSeq = [...seq, ...seq];
             mi = raceSeq[h] ?? 0;
+          } else {
+            mi = 0;
           }
-          const pName =
-            (eSubs[ti] && eSubs[ti][mi]) ? eSubs[ti][mi] : eMembers[ti][mi] ?? 'P';
-          res.push({ player: pName, points: g[ri][ti][h] ?? 0 });
+          const pName = (eSubs[ti]?.[mi]) ? eSubs[ti][mi] : eMembers[ti]?.[mi] ?? 'P';
+          res.push({ player: pName, points: (g[ri]?.[ti]?.[h] as number) ?? 0 });
         }
         res.sort((a, b) => b.points - a.points);
         races.push({ raceNum: n, results: res });
@@ -165,14 +192,28 @@ export function ActDetail({
         members: eMembers[i] ?? t.members,
         subs: eSubs[i] ?? t.subs ?? ['', ''],
       }));
+      const actType = act.type ?? '8man';
+      const eNumTeams = actType === '6man' ? 3 : 4;
+      const eTSz = actType === '12man' ? 3 : actType === '16man' ? 4 : 2;
+      // Resolve final playerMap to save
+      let finalPM = ePlayerMap ?? savedPM ?? null;
+      if (!finalPM && actType === '16man') {
+        const pair = eTv1Pair;
+        const t1 = pair === '02' ? [0, 2] : pair === '01' ? [0, 1] : [0, 3];
+        const t2 = pair === '02' ? [1, 3] : pair === '01' ? [2, 3] : [1, 2];
+        finalPM = defaultMap16(t1, t2, act.raceOrder ?? 'A', eNumTeams);
+      }
+      void eTSz; // used in buildEditRaces via closure
       const updates: Partial<Act> = {
         name: eName,
         date: eDate,
         teams: newTeams,
         races: buildEditRaces(),
+        tv1Pair: eTv1Pair,
       };
       if (eGrid) updates.gridJson = JSON.stringify(eGrid);
       if (ePen) updates.penaltiesJson = JSON.stringify(ePen);
+      if (finalPM) updates.playerMapJson = JSON.stringify(finalPM);
       await ops.updateAct(aid, updates);
       showToast('ACT updated!');
       setEditing(false);
@@ -320,16 +361,28 @@ export function ActDetail({
       caretColor: '#e94560',
     };
 
-    const togBtnE: React.CSSProperties = {
-      flex: 1,
-      background: 'rgba(255,255,255,0.04)',
-      border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: 8,
-      padding: '10px',
-      color: '#666',
-      fontFamily: FONT_HEADER,
-      fontSize: 13,
-      cursor: 'pointer',
+    // TV1 pair indices for 16man
+    const eTv1Idx = eTv1Pair === '02' ? [0, 2] : eTv1Pair === '01' ? [0, 1] : [0, 3];
+    const eTv2Idx = eTv1Pair === '02' ? [1, 3] : eTv1Pair === '01' ? [2, 3] : [1, 2];
+
+    // Effective playerMap for display (ePlayerMap > savedPM > default)
+    const curEMap: number[][][] = ePlayerMap ?? savedPM ??
+      (is16man ? defaultMap16(eTv1Idx, eTv2Idx, act.raceOrder ?? 'A', eNumTeams) : []);
+
+    // Toggle a single slot in the edit playerMap
+    const toggleESlot = (ri: number, ti: number, ei: number) => {
+      const m = (ePlayerMap ?? savedPM ??
+        (is16man ? defaultMap16(eTv1Idx, eTv2Idx, act.raceOrder ?? 'A', eNumTeams) : [])
+      ).map((r) => r.map((t) => [...t]));
+      const cur = m[ri][ti][ei];
+      const pair = ei < 4 ? eTv1Idx : eTv2Idx;
+      const next = pair.find((idx) => idx !== cur) ?? cur;
+      // Swap with whichever slot currently holds 'next' in the same half
+      const halfStart = ei < 4 ? 0 : 4;
+      const swapIdx = m[ri][ti].findIndex((v, i) => i >= halfStart && i < halfStart + 4 && i !== ei && v === next);
+      m[ri][ti][ei] = next;
+      if (swapIdx !== -1) m[ri][ti][swapIdx] = cur;
+      setEPlayerMap(m);
     };
 
     // Groups for 16man: ei 0-3 = TV1, 4-7 = TV2
@@ -339,18 +392,20 @@ export function ActDetail({
       return [(eGrid[ri][ti] as unknown[]).map((_, i) => i)];
     };
 
-    // Player label from savedPM
+    // Player label from effective playerMap
     const getEPLabel = (ri: number, ti: number, ei: number): string => {
-      const mi = savedPM?.[ri]?.[ti]?.[ei] ?? (
-        actType === '8man' || actType === '6man'
-          ? ei % eTSz
-          : actType === '16man'
-            ? (ei < 4 ? (ei % 2 === 0 ? 0 : 2) : (ei % 2 === 0 ? 1 : 3))
-            : 0
-      );
-      const name = (eMembers[ti]?.[mi] ?? act.teams[ti]?.members[mi] ?? '');
-      const origName = act.teams[ti]?.members[mi] ?? '';
-      return (name || origName).split(' ')[0]?.slice(0, 5) || `P${mi + 1}`;
+      let mi: number;
+      if (curEMap?.[ri]?.[ti]) {
+        mi = curEMap[ri][ti][ei];
+      } else if (actType === '8man' || actType === '6man') {
+        mi = ei % eTSz;
+      } else if (actType === '16man') {
+        mi = ei < 4 ? (ei % 2 === 0 ? 0 : 2) : (ei % 2 === 0 ? 1 : 3);
+      } else {
+        mi = 0;
+      }
+      const name = eMembers[ti]?.[mi] ?? act.teams[ti]?.members[mi] ?? '';
+      return name.split(' ')[0]?.slice(0, 5) || `P${mi + 1}`;
     };
 
     return (
@@ -579,8 +634,34 @@ export function ActDetail({
           {/* Score grid — NewAct step 1 style */}
           {eGrid && (
             <>
-              <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', letterSpacing: 1, marginBottom: 12 }}>
-                📋 Scorecard
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', letterSpacing: 1 }}>
+                  📋 Scorecard
+                </div>
+                {is16man && (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#888' }}>TV pairing:</span>
+                    {(['02', '01', '03'] as const).map((pair) => {
+                      const labels: Record<string, string> = { '02': 'P1+P3 / P2+P4', '01': 'P1+P2 / P3+P4', '03': 'P1+P4 / P2+P3' };
+                      return (
+                        <button
+                          key={pair}
+                          onClick={() => { setETv1Pair(pair); setEPlayerMap(null); }}
+                          style={{
+                            fontFamily: FONT_MONO, fontSize: 10,
+                            background: eTv1Pair === pair ? 'rgba(139,233,253,0.15)' : 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${eTv1Pair === pair ? '#8be9fd' : 'rgba(255,255,255,0.08)'}`,
+                            color: eTv1Pair === pair ? '#8be9fd' : '#666',
+                            borderRadius: 5, padding: '4px 8px', cursor: 'pointer',
+                          }}
+                        >
+                          {labels[pair]}
+                        </button>
+                      );
+                    })}
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#555' }}>(tap name to swap)</span>
+                  </div>
+                )}
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <div
@@ -704,17 +785,22 @@ export function ActDetail({
                                     const pLabel = getEPLabel(ri, ti, ei);
                                     return (
                                       <div key={ei} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                                        {/* Player label */}
-                                        <div style={{
-                                          fontFamily: FONT_MONO,
-                                          fontSize: 9,
-                                          color: '#666',
-                                          background: 'rgba(255,255,255,0.03)',
-                                          borderRadius: 3,
-                                          padding: '1px 3px',
-                                          minWidth: 28,
-                                          textAlign: 'center',
-                                        }}>
+                                        {/* Player label — clickable in 16man to swap who races that slot */}
+                                        <div
+                                          onClick={is16man ? () => toggleESlot(ri, ti, ei) : undefined}
+                                          style={{
+                                            fontFamily: FONT_MONO,
+                                            fontSize: 9,
+                                            color: is16man ? '#8be9fd' : '#666',
+                                            background: is16man ? 'rgba(139,233,253,0.08)' : 'rgba(255,255,255,0.03)',
+                                            borderRadius: 3,
+                                            padding: '1px 3px',
+                                            minWidth: 28,
+                                            textAlign: 'center',
+                                            cursor: is16man ? 'pointer' : 'default',
+                                            userSelect: 'none',
+                                          }}
+                                        >
                                           {pLabel}
                                         </div>
                                         {/* Score input */}
