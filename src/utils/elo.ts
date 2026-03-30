@@ -19,6 +19,12 @@ export const MMR_LOSS_MAX = 1.75;   // max loss multiplier (low MMR, overranked 
 export const MMR_LOSS_MIN = 0.5;    // min loss multiplier (high MMR, underranked in season)
 export const SEASON_DAMP_AFTER = 12;  // ACTs in a season after which changes are dampened
 export const SEASON_DAMP_FACTOR = 0.6; // multiplier applied to ch after SEASON_DAMP_AFTER ACTs
+// Competitive-lobby top-seed protection:
+// If avg participant ELO ≥ COMP_ACT_AVG_ELO, the player with the highest pre-ACT ELO
+// who scores > COMP_TOP_SEED_PTS_MIN will not lose ELO — instead everyone else gains
+// the amount they would have lost (redistributed evenly).
+export const COMP_ACT_AVG_ELO = 1000;       // avg ELO threshold to flag lobby as competitive
+export const COMP_TOP_SEED_PTS_MIN = 14;     // top seed must score above this to be protected
 
 export const SEASON_RANKS = [
   { key: 'diamond',  name: 'Diamond',  min: 1100, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
@@ -150,6 +156,8 @@ export function computeAllElos(
         return c0 >= c1 ? 0 : 1;
       });
 
+      // Phase 1: compute raw ELO changes (pre-placement multiplier)
+      const rawCh: Record<string, number> = {};
       ap.forEach((name) => {
         if (!(name in elos)) elos[name] = BASE_ELO;
         let ch: number;
@@ -179,9 +187,34 @@ export function computeAllElos(
               : BASE_ELO;
           ch = eloChange(elos[name], oAvg, pp[name] ?? 0) * multi;
         }
+        rawCh[name] = ch;
+      });
+
+      // Phase 2: competitive-lobby top-seed protection
+      // If the average ELO of all participants is above the competitive threshold,
+      // the highest-ELO player (top seed) who scores well enough won't lose ELO —
+      // their saved loss is redistributed as extra gains to all other participants.
+      if (ap.length > 1) {
+        const avgLobbyElo = ap.reduce((s, n) => s + (elos[n] ?? BASE_ELO), 0) / ap.length;
+        if (avgLobbyElo >= COMP_ACT_AVG_ELO) {
+          const topSeed = ap.reduce((best, n) =>
+            (elos[n] ?? BASE_ELO) > (elos[best] ?? BASE_ELO) ? n : best, ap[0]);
+          if ((pp[topSeed] ?? 0) > COMP_TOP_SEED_PTS_MIN && rawCh[topSeed] < 0) {
+            const savedLoss = -rawCh[topSeed]; // positive amount
+            rawCh[topSeed] = 0;
+            const others = ap.filter((n) => n !== topSeed);
+            const extra = savedLoss / others.length;
+            others.forEach((n) => { rawCh[n] += extra; });
+          }
+        }
+      }
+
+      // Phase 3: apply placement multiplier and commit changes
+      ap.forEach((name) => {
+        let ch = rawCh[name];
         // 2× K-factor during placement (first PLACEMENT_ACTS ACTs)
         if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= 2;
-        elos[name] += ch;
+        elos[name] = (elos[name] ?? BASE_ELO) + ch;
         if (!hist[name]) hist[name] = [];
         hist[name].push({
           actId: act.id ?? act._id ?? '',
@@ -308,6 +341,8 @@ export function computeSeasonElos(
       (atE[o] ?? BASE_ELO) * SEASON_COMP_MMR_WEIGHT +
       (sE[o] ?? SEASON_BASE_ELO) * (1 - SEASON_COMP_MMR_WEIGHT);
 
+    // Phase 1: compute raw season changes
+    const sRawCh: Record<string, number> = {};
     ap.forEach((name) => {
       if (!(name in sE)) sE[name] = SEASON_BASE_ELO;
       let ch: number;
@@ -344,17 +379,35 @@ export function computeSeasonElos(
           : BASE_ELO;
         ch = eloChange(sE[name], oAvg, pp[name] ?? 0) * multi;
       }
-      // Amplify base change so short seasons (10-15 ACTs) produce meaningful spread
       ch *= SEASON_K_MULTI;
-      // MMR influence: overall ELO acts as a skill anchor that pulls season ELO toward it
-      // High MMR vs low season ELO → gain more, lose less (you're underranked this season)
-      // Low MMR vs high season ELO → gain less, lose more (you're overranked this season)
       const mmr = atE[name] ?? BASE_ELO;
       const mmrDiff = mmr - sE[name];
       const gainFactor = Math.max(MMR_GAIN_MIN, Math.min(MMR_GAIN_MAX, 1 + mmrDiff / MMR_SCALE));
       const lossFactor = Math.max(MMR_LOSS_MIN, Math.min(MMR_LOSS_MAX, 1 - mmrDiff / MMR_SCALE));
       if (ch > 0) ch *= gainFactor;
       else if (ch < 0) ch *= lossFactor;
+      sRawCh[name] = ch;
+    });
+
+    // Phase 2: competitive-lobby top-seed protection (same rule as MMR ELO)
+    if (ap.length > 1) {
+      const avgLobbyElo = ap.reduce((s, n) => s + (atE[n] ?? BASE_ELO), 0) / ap.length;
+      if (avgLobbyElo >= COMP_ACT_AVG_ELO) {
+        const topSeed = ap.reduce((best, n) =>
+          (atE[n] ?? BASE_ELO) > (atE[best] ?? BASE_ELO) ? n : best, ap[0]);
+        if ((pp[topSeed] ?? 0) > COMP_TOP_SEED_PTS_MIN && sRawCh[topSeed] < 0) {
+          const savedLoss = -sRawCh[topSeed];
+          sRawCh[topSeed] = 0;
+          const others = ap.filter((n) => n !== topSeed);
+          const extra = savedLoss / others.length;
+          others.forEach((n) => { sRawCh[n] += extra; });
+        }
+      }
+    }
+
+    // Phase 3: apply dampen + commit
+    ap.forEach((name) => {
+      let ch = sRawCh[name];
       // Dampen changes after SEASON_DAMP_AFTER ACTs — rating stabilises late in the season
       if ((sActCounts[name] ?? 0) >= SEASON_DAMP_AFTER) ch *= SEASON_DAMP_FACTOR;
       sE[name] += ch;
