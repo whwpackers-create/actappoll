@@ -186,6 +186,7 @@ export function Dashboard({
   const [sortBy, setSortBy] = useState('elo');
   const [filterStatus, setFilterStatus] = useState('active');
   const [selPlayer, setSelPlayer] = useState<string | null>(null);
+  const [showEloInfo, setShowEloInfo] = useState(false);
 
   let filtered: PlayerStats[] = [...stats];
   if (filterStatus === 'active')
@@ -434,6 +435,23 @@ export function Dashboard({
                   {filtered.length} PLAYERS
                 </span>
               </div>
+              <button
+                onClick={() => setShowEloInfo(v => !v)}
+                style={{
+                  background: showEloInfo ? 'rgba(200,160,48,0.18)' : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${showEloInfo ? 'rgba(200,160,48,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: 6,
+                  padding: '6px 14px',
+                  fontFamily: FONT_HEADER,
+                  fontSize: 11,
+                  color: showEloInfo ? '#c8a030' : '#8090a8',
+                  cursor: 'pointer',
+                  letterSpacing: 1,
+                  transition: 'all 0.15s',
+                }}
+              >
+                ELO INFO {showEloInfo ? '▲' : '▼'}
+              </button>
             </div>
 
             <div
@@ -611,8 +629,8 @@ export function Dashboard({
           </div>
         </div>
 
-        {/* ELO System Explanation */}
-        <div style={{ marginTop: 24, background: 'rgba(14,18,30,0.85)', border: '1px solid rgba(200,160,48,0.18)', borderRadius: 12, padding: '20px 24px' }}>
+        {/* ELO System Explanation — toggled via ELO INFO button */}
+        {showEloInfo && <div style={{ marginTop: 12, background: 'rgba(14,18,30,0.85)', border: '1px solid rgba(200,160,48,0.18)', borderRadius: 12, padding: '20px 24px' }}>
           <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#c8a030', letterSpacing: 2, marginBottom: 16 }}>HOW ELO WORKS</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
             {[
@@ -642,7 +660,11 @@ export function Dashboard({
               },
               {
                 title: 'SAT Multipliers',
-                body: 'SAT gains are boosted by round: Day 1 = 1.1×, Day 2 = 1.2×, Day 3 = 1.5×, Finals = 1.75×. Only gains are amplified. SAT losses are normal.',
+                body: 'SAT gains are boosted by round: Day 1 = 1.1×, Day 2 = 1.2×, Day 3 = 1.5×, Finals = 2×. Only gains are amplified. SAT losses are normal.',
+              },
+              {
+                title: 'Late Rounds (R3+R4)',
+                body: 'Rounds 3 and 4 use a flat low expected score — making it there is itself rewarded. Gains are boosted 1.3× and losses are dampened to 15% unless you score under 3 pts.',
               },
             ].map((item) => (
               <div key={item.title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px' }}>
@@ -651,7 +673,7 @@ export function Dashboard({
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         <div
           className="dash-menu"

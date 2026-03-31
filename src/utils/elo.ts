@@ -10,8 +10,13 @@ export const SOFT_FLOOR_LOSS_KEEP = 0.08; // fraction of a loss that still appli
 export const CARRY = 0.3; // kept for reference
 // SAT round gain multipliers — applies to gains only (not losses)
 // Round 1 = Day 1, Round 2 = Day 2, Round 3 = Day 3, Round 4+ = Finals
-export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 1.75 };
+export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 2.0 };
 export const SAT_ROUND_MULTI_DEFAULT = 1.1; // fallback if satRound not set
+// Late-round (R3+R4) ELO: flat low expected so most players gain from making it that far
+export const LATE_FLAT_EXP = 0.15;     // breakeven at ~3.6 pts out of 24 in late rounds
+export const LATE_GAIN_MULT = 1.3;     // gains in late rounds are boosted
+export const LATE_LOSS_FLOOR = 3;      // below 3 pts in R3+R4 = "shitting the bed", full loss
+export const LATE_LOSS_DAMP = 0.15;   // above floor, only 15% of late-round losses apply
 export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
 // Lobby quality multiplier on gains — based on avg global rank of bracket opponents
 // Rank 1-7: 2.0×, 8-15: 1.5×, 16-25: 1.2×, 26+: 1.0× (no penalty for weak fields — just no bonus)
@@ -74,9 +79,9 @@ function getLobbyMult(avgOppRank: number): number {
   return 0.8;
 }
 
-function eloChange(pE: number, oE: number, pts: number, avgOppRank?: number): number {
+function eloChange(pE: number, oE: number, pts: number, avgOppRank?: number, flatExpected?: number): number {
   const norm = pts / MAX_PTS;
-  const exp = expectedScore(pE, oE);
+  const exp = flatExpected !== undefined ? flatExpected : expectedScore(pE, oE);
   const diff = oE - pE;
   let k =
     K_BASE +
@@ -158,13 +163,18 @@ export function computeAllElos(
 
       const ap = [...effectivePlayers];
       const pp: Record<string, number> = {};
-      ap.forEach((p) => {
-        pp[p] = 0;
-      });
-      act.races.forEach((r) =>
+      const ppEarly: Record<string, number> = {};  // R1+R2 points
+      const ppLate: Record<string, number> = {};   // R3+R4 points
+      ap.forEach((p) => { pp[p] = 0; ppEarly[p] = 0; ppLate[p] = 0; });
+      const halfRace = Math.ceil(act.races.length / 2);
+      act.races.forEach((r, ri) =>
         r.results.forEach((res) => {
           const pn = remapName(res.player);
-          if (pn in pp) pp[pn] += res.points;
+          if (pn in pp) {
+            pp[pn] += res.points;
+            if (ri < halfRace) ppEarly[pn] += res.points;
+            else ppLate[pn] += res.points;
+          }
         })
       );
 
@@ -243,7 +253,13 @@ export function computeAllElos(
           const avgOppRank = bracketOpps.length > 0
             ? bracketOpps.reduce((s, o) => s + getGlobalRank(o, elos), 0) / bracketOpps.length
             : 20;
-          ch = eloChange(elos[name], oAvg, pp[name] ?? 0, avgOppRank);
+          // Early (R1+R2): normal ELO expected, half-weighted
+          const chE = eloChange(elos[name], oAvg, ppEarly[name] ?? 0, avgOppRank) * 0.5;
+          // Late (R3+R4): flat low expected — most scores gain; heavy loss dampening above floor
+          let chL = eloChange(elos[name], oAvg, ppLate[name] ?? 0, avgOppRank, LATE_FLAT_EXP) * 0.5;
+          if (chL > 0) chL *= LATE_GAIN_MULT;
+          else if (chL < 0 && (ppLate[name] ?? 0) >= LATE_LOSS_FLOOR) chL *= LATE_LOSS_DAMP;
+          ch = chE + chL;
           if (ch > 0) ch *= satGainMult;
         }
         rawCh[name] = ch;
