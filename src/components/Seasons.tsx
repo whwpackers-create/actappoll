@@ -146,11 +146,12 @@ export function Seasons({
   const sBtn = {
     border: '1px solid',
     borderRadius: 8,
-    padding: '10px 18px',
+    padding: '8px 16px',
     fontFamily: FONT_HEADER,
-    fontSize: 14,
+    fontSize: 13,
     letterSpacing: 1.5,
     cursor: 'pointer' as const,
+    minHeight: 36,
   };
 
   const backBtn = (
@@ -223,9 +224,10 @@ export function Seasons({
                     gap: 8,
                     padding: '10px 14px',
                     marginBottom: 4,
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'rgba(200,160,48,0.04)',
                     borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(200,160,48,0.12)',
+                    borderLeft: '4px solid #c8a030',
                   }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -334,14 +336,14 @@ export function Seasons({
                   onClick={() => setSel(sel === sid ? null : sid)}
                   style={{
                     ...sBtn,
-                    background: sel === sid ? '#c084fc' : 'rgba(255,255,255,0.04)',
-                    color: sel === sid ? '#0d0d0d' : ac > 0 ? '#f0e6d3' : '#555',
+                    background: sel === sid ? 'rgba(200,160,48,0.2)' : 'rgba(255,255,255,0.03)',
+                    color: sel === sid ? '#c8a030' : ac > 0 ? '#f0e6d3' : '#556',
                     borderColor:
                       sel === sid
-                        ? '#c084fc'
+                        ? '#c8a030'
                         : ac > 0
-                          ? 'rgba(192,132,252,0.3)'
-                          : 'rgba(255,255,255,0.06)',
+                          ? 'rgba(200,160,48,0.2)'
+                          : 'rgba(200,160,48,0.08)',
                   }}
                 >
                   {s.name}
@@ -625,8 +627,8 @@ export function Seasons({
                           <div
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: 'repeat(5,auto)',
-                              gap: 10,
+                              gridTemplateColumns: 'repeat(auto-fill, minmax(40px, auto))',
+                              gap: 8,
                               textAlign: 'right',
                             }}
                           >
@@ -679,15 +681,16 @@ export function Seasons({
         style={{
           ...card,
           marginTop: 16,
-          opacity: 0.7,
+          opacity: 0.75,
         }}
       >
-        <div style={cTitle}>📊 How Elo Works</div>
+        <div style={{ ...cTitle, fontSize: 16, letterSpacing: 2 }}>HOW ELO WORKS</div>
         <div
           style={{
-            fontSize: 13,
+            fontSize: 12,
             lineHeight: 1.7,
             color: '#a09880',
+            fontFamily: FONT_MONO,
           }}
         >
           Everyone starts each season at{' '}

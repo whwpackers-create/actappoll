@@ -107,16 +107,22 @@ export function Analytics({ data, setView }: AnalyticsProps) {
         onClick={() => setView('dashboard')}
         style={{
           background: 'rgba(180,160,60,0.08)',
-          border: '2px solid #6a6040',
-          borderRadius: 4,
-          padding: '8px 16px',
+          border: '2px solid #9a8a40',
+          borderRadius: 6,
+          padding: '8px 18px',
           fontFamily: FONT_HEADER,
           fontSize: 14,
-          color: '#c0c4cc',
+          color: '#e0d080',
           cursor: 'pointer',
+          marginBottom: 16,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          letterSpacing: 1,
+          minHeight: 36,
         }}
       >
-        &lt; Back
+        {'←'} Back
       </button>
     </div>
   );
@@ -234,33 +240,33 @@ export function Analytics({ data, setView }: AnalyticsProps) {
       {backBtn}
       <div
         style={{
-          background: 'rgba(12,14,22,0.75)',
-          backdropFilter: 'blur(4px)',
-          border: '2px solid #2a3040',
+          background: 'rgba(14,18,30,0.85)',
+          border: '1px solid rgba(200,160,48,0.18)',
           borderRadius: 12,
-          padding: 24,
+          padding: '20px 24px',
         }}
       >
         <div
           style={{
             fontFamily: FONT_HEADER,
             fontSize: 22,
-            color: '#f0e6d3',
+            color: '#ffffff',
             marginBottom: 4,
-            letterSpacing: 2,
+            letterSpacing: 3,
           }}
         >
-          📈 Elo History
+          Elo History
         </div>
         <div
           style={{
             fontFamily: FONT_MONO,
-            fontSize: 11,
-            color: '#556',
+            fontSize: 10,
+            color: '#8090a0',
+            letterSpacing: 2,
             marginBottom: 16,
           }}
         >
-          Compare player Elo ratings over time
+          COMPARE PLAYER ELO RATINGS OVER TIME
         </div>
 
         <div
@@ -279,8 +285,8 @@ export function Analytics({ data, setView }: AnalyticsProps) {
             onFocus={() => setShowDropdown(true)}
             placeholder="Add player..."
             style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(200,160,48,0.2)',
               borderRadius: 6,
               padding: '8px 12px',
               fontFamily: FONT_MONO,
@@ -380,7 +386,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
         )}
 
         {selected.length > 0 && uniqueDates.length >= 2 && (
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', overflowX: 'auto' }}>
             <svg
               viewBox={'0 0 ' + W + ' ' + H}
               style={{
@@ -648,22 +654,21 @@ export function Analytics({ data, setView }: AnalyticsProps) {
       <div
         style={{
           marginTop: 24,
-          background: 'rgba(12,14,22,0.75)',
-          backdropFilter: 'blur(4px)',
-          border: '2px solid #2a3040',
+          background: 'rgba(14,18,30,0.85)',
+          border: '1px solid rgba(200,160,48,0.18)',
           borderRadius: 12,
-          padding: 28,
+          padding: '20px 24px',
         }}
       >
-        <div style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f0e6d3', marginBottom: 4, letterSpacing: 3, fontWeight: 'bold' }}>
+        <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#ffffff', marginBottom: 4, letterSpacing: 3 }}>
           VERSUS
         </div>
-        <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#667', marginBottom: 22 }}>
-          Compare two racers across ACT history and see who finished ahead more often.
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 22 }}>
+          COMPARE TWO RACERS ACROSS ACT HISTORY
         </div>
 
         {/* Player inputs — full width side by side */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
           {[
             { val: h2hP1, setVal: setH2hP1, q: h2hQ1, setQ: setH2hQ1, show: h2hShow1, setShow: setH2hShow1, label: 'Player 1' },
             { val: h2hP2, setVal: setH2hP2, q: h2hQ2, setQ: setH2hQ2, show: h2hShow2, setShow: setH2hShow2, label: 'Player 2' },
@@ -671,7 +676,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
             const filtered = allPlayerNames.filter((n) => n.toLowerCase().includes(q.toLowerCase())).slice(0, 10);
             return (
               <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 5, position: 'relative' }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#667', letterSpacing: 1 }}>{label}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2 }}>{label.toUpperCase()}</span>
                 <input
                   value={val && !show ? val : q}
                   onChange={(e) => { setQ(e.target.value); setShow(true); setVal(''); }}
@@ -679,16 +684,17 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                   onBlur={() => setTimeout(() => setShow(false), 150)}
                   placeholder="Search player..."
                   style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: `1px solid ${val ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`,
-                    borderRadius: 8,
-                    padding: '12px 16px',
-                    fontFamily: FONT_HEADER,
-                    fontSize: 16,
+                    background: 'rgba(255,255,255,0.06)',
+                    border: `1px solid ${val ? 'rgba(200,160,48,0.4)' : 'rgba(200,160,48,0.2)'}`,
+                    borderRadius: 6,
+                    padding: '8px 12px',
+                    fontFamily: FONT_MONO,
+                    fontSize: 14,
                     color: '#f0e6d3',
                     outline: 'none',
                     width: '100%',
                     boxSizing: 'border-box',
+                    minHeight: 36,
                   }}
                 />
                 {show && filtered.length > 0 && (
@@ -743,46 +749,48 @@ export function Analytics({ data, setView }: AnalyticsProps) {
           return (
             <>
               {/* Three stat boxes */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 28 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, marginBottom: 28 }}>
                 {/* Races against */}
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '18px 20px' }}>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#667', letterSpacing: 1, marginBottom: 10 }}>RACES AGAINST</div>
-                  <div style={{ fontFamily: FONT_HEADER, fontSize: 36, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.totalRaces}</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', marginTop: 6 }}>{totalPct}%</div>
+                <div style={{ background: 'rgba(200,160,48,0.05)', border: '1px solid rgba(200,160,48,0.15)', borderRadius: 10, padding: '14px 16px' }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 8 }}>RACES AGAINST</div>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.totalRaces}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556', marginTop: 4 }}>{totalPct}%</div>
                 </div>
                 {/* P1 wins */}
                 <div style={{
-                  background: p1Leading ? 'rgba(80,250,123,0.07)' : 'rgba(255,255,255,0.02)',
-                  border: p1Leading ? '1px solid rgba(80,250,123,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: 10, padding: '18px 20px',
+                  background: p1Leading ? 'rgba(200,160,48,0.1)' : 'rgba(255,255,255,0.02)',
+                  border: p1Leading ? '1px solid rgba(200,160,48,0.35)' : '1px solid rgba(200,160,48,0.1)',
+                  borderLeft: p1Leading ? '4px solid #c8a030' : '1px solid rgba(200,160,48,0.1)',
+                  borderRadius: 10, padding: '14px 16px',
                 }}>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#667', letterSpacing: 1, marginBottom: 10 }}>{h2hData.p1.toUpperCase()} WINS</div>
-                  <div style={{ fontFamily: FONT_HEADER, fontSize: 36, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.p1RaceWins}</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', marginTop: 6 }}>{p1Pct}%</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 8 }}>{h2hData.p1.toUpperCase()} WINS</div>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.p1RaceWins}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556', marginTop: 4 }}>{p1Pct}%</div>
                 </div>
                 {/* P2 wins */}
                 <div style={{
-                  background: p2Leading ? 'rgba(80,250,123,0.07)' : 'rgba(255,255,255,0.02)',
-                  border: p2Leading ? '1px solid rgba(80,250,123,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: 10, padding: '18px 20px',
+                  background: p2Leading ? 'rgba(200,160,48,0.1)' : 'rgba(255,255,255,0.02)',
+                  border: p2Leading ? '1px solid rgba(200,160,48,0.35)' : '1px solid rgba(200,160,48,0.1)',
+                  borderLeft: p2Leading ? '4px solid #c8a030' : '1px solid rgba(200,160,48,0.1)',
+                  borderRadius: 10, padding: '14px 16px',
                 }}>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#667', letterSpacing: 1, marginBottom: 10 }}>{h2hData.p2.toUpperCase()} WINS</div>
-                  <div style={{ fontFamily: FONT_HEADER, fontSize: 36, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.p2RaceWins}</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', marginTop: 6 }}>{p2Pct}%</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 8 }}>{h2hData.p2.toUpperCase()} WINS</div>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f0e6d3', lineHeight: 1 }}>{h2hData.p2RaceWins}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556', marginTop: 4 }}>{p2Pct}%</div>
                 </div>
               </div>
 
               {/* Per-ACT breakdown */}
-              <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#889', letterSpacing: 1, marginBottom: 8 }}>
-                SHARED ACTs ({h2hData.actRows.length})
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 8 }}>
+                SHARED ACTS ({h2hData.actRows.length})
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <div style={{ minWidth: 360 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px 6px 0 0', padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>ACT</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#aaa', textAlign: 'center' }}>{h2hData.p1.split(' ')[0].toUpperCase()} PTS</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#aaa', textAlign: 'center' }}>{h2hData.p2.split(' ')[0].toUpperCase()} PTS</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', textAlign: 'right' }}>W-L</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px', background: 'rgba(200,160,48,0.08)', borderRadius: '6px 6px 0 0', padding: '6px 10px', borderBottom: '1px solid rgba(200,160,48,0.15)' }}>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#8090a0', letterSpacing: 2 }}>ACT</span>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#8090a0', textAlign: 'center', letterSpacing: 1 }}>{h2hData.p1.split(' ')[0].toUpperCase()} PTS</span>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#8090a0', textAlign: 'center', letterSpacing: 1 }}>{h2hData.p2.split(' ')[0].toUpperCase()} PTS</span>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#8090a0', textAlign: 'right', letterSpacing: 1 }}>W-L</span>
                   </div>
                   {h2hData.actRows.map(({ act, p1TotalPts, p2TotalPts, p1RaceWins, p2RaceWins }, i) => (
                     <div

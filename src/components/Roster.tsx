@@ -171,17 +171,18 @@ export function Roster({
 
   const filterBtn = (id: 'all' | 'active' | 'retired') => ({
     background:
-      rosterFilter === id ? 'rgba(233,69,96,0.15)' : 'rgba(255,255,255,0.03)',
+      rosterFilter === id ? 'rgba(200,160,48,0.15)' : 'rgba(255,255,255,0.03)',
     border:
       rosterFilter === id
-        ? '1px solid rgba(233,69,96,0.3)'
-        : '1px solid rgba(255,255,255,0.06)',
+        ? '1px solid rgba(200,160,48,0.4)'
+        : '1px solid rgba(200,160,48,0.1)',
     borderRadius: 6,
     padding: '6px 14px',
     fontFamily: FONT_MONO,
     fontSize: 10,
-    color: rosterFilter === id ? '#f0e6d3' : '#555',
+    color: rosterFilter === id ? '#c8a030' : '#556',
     cursor: 'pointer' as const,
+    minHeight: 36,
   });
 
   const backBtn = (
@@ -290,29 +291,30 @@ export function Roster({
           >
             <div
               style={{
-                background: '#141418',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 16,
-                padding: 28,
-                maxWidth: 380,
-                width: '90%',
+                background: 'rgba(14,18,30,0.97)',
+                border: '1px solid rgba(200,160,48,0.25)',
+                borderRadius: 12,
+                padding: '24px 28px',
+                maxWidth: '90vw',
+                width: 380,
               }}
             >
               <div
                 style={{
                   fontFamily: FONT_HEADER,
                   fontSize: 18,
-                  color: '#f0e6d3',
+                  color: '#ffffff',
                   marginBottom: 4,
+                  letterSpacing: 2,
                 }}
               >
-                🎓 Retire {retireModal}
+                Retire {retireModal}
               </div>
               <div
                 style={{
                   fontFamily: FONT_MONO,
                   fontSize: 11,
-                  color: '#666',
+                  color: '#8090a0',
                   marginBottom: 16,
                 }}
               >
@@ -362,29 +364,30 @@ export function Roster({
           >
             <div
               style={{
-                background: '#141418',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 16,
-                padding: 28,
-                maxWidth: 380,
-                width: '90%',
+                background: 'rgba(14,18,30,0.97)',
+                border: '1px solid rgba(200,160,48,0.25)',
+                borderRadius: 12,
+                padding: '24px 28px',
+                maxWidth: '90vw',
+                width: 380,
               }}
             >
               <div
                 style={{
                   fontFamily: FONT_HEADER,
                   fontSize: 18,
-                  color: '#f0e6d3',
+                  color: '#ffffff',
                   marginBottom: 4,
+                  letterSpacing: 2,
                 }}
               >
-                ✏️ Rename Player
+                Rename Player
               </div>
               <div
                 style={{
                   fontFamily: FONT_MONO,
                   fontSize: 11,
-                  color: '#666',
+                  color: '#8090a0',
                   marginBottom: 16,
                 }}
               >
@@ -419,9 +422,9 @@ export function Roster({
 
         {mergeConfirm && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-            <div style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 28, maxWidth: 380, width: '90%' }}>
-              <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', marginBottom: 8 }}>⚠️ Player Already Exists</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#aaa', marginBottom: 20 }}>
+            <div style={{ background: 'rgba(14,18,30,0.97)', border: '1px solid rgba(200,160,48,0.25)', borderRadius: 12, padding: '24px 28px', maxWidth: '90vw', width: 380 }}>
+              <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#ffffff', marginBottom: 8, letterSpacing: 2 }}>Player Already Exists</div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#8090a0', marginBottom: 20 }}>
                 <strong style={{ color: '#f0e6d3' }}>{mergeConfirm.to}</strong> already exists. Merge <strong style={{ color: '#f0e6d3' }}>{mergeConfirm.from}</strong> into them? All ACTs and stats will be combined.
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -445,11 +448,12 @@ export function Roster({
                 display: 'flex',
                 gap: 4,
                 padding: '8px 0',
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                borderBottom: '1px solid rgba(200,160,48,0.15)',
                 fontFamily: FONT_MONO,
                 fontSize: 10,
-                color: '#555',
+                color: '#8090a0',
                 textTransform: 'uppercase',
+                letterSpacing: 2,
                 minWidth: 950,
               }}
             >
@@ -553,7 +557,7 @@ export function Roster({
                     </button>
                   </span>
                   <span style={tc}>
-                    <span style={{ color: '#c084fc', fontWeight: 700 }}>
+                    <span style={{ color: '#c8a030', fontWeight: 700 }}>
                       {p.elo}
                     </span>
                     <br />

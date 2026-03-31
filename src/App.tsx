@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import './styles/global.css';
 import {
   loadAllData,
   fsGet,

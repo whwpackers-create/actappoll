@@ -1,0 +1,15 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #08090e; color: #f0e6d3; }
+button { cursor: pointer; }
+input, select, textarea { font-family: inherit; }
+
+/* Mobile responsive utilities */
+@media (max-width: 768px) {
+  .lb-row { flex-direction: column !important; gap: 8px !important; }
+  .lb-stats { grid-template-columns: repeat(3, auto) !important; gap: 10px !important; }
+  .dash-grid { grid-template-columns: 1fr !important; }
+  .dash-menu { display: none !important; }
+}
+@media (max-width: 480px) {
+  .lb-stats { grid-template-columns: repeat(2, auto) !important; }
+}

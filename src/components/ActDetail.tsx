@@ -414,17 +414,24 @@ export function ActDetail({
       <div style={{ width: '100%' }}>
         <button
           style={{
-            background: 'none',
-            border: 'none',
-            color: '#e94560',
+            background: 'rgba(180,160,60,0.08)',
+            border: '2px solid #9a8a40',
+            borderRadius: 6,
+            padding: '8px 18px',
             fontFamily: FONT_HEADER,
             fontSize: 14,
+            color: '#e0d080',
             cursor: 'pointer',
             marginBottom: 16,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            letterSpacing: 1,
+            minHeight: 36,
           }}
           onClick={() => setEditing(false)}
         >
-          ← Cancel Edit
+          {'←'} Cancel Edit
         </button>
 
         <div style={card}>
@@ -549,7 +556,7 @@ export function ActDetail({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${eNumTeams}, 1fr)`,
+              gridTemplateColumns: `repeat(auto-fill, minmax(140px, 1fr))`,
               gap: 10,
               marginBottom: 20,
             }}
@@ -999,38 +1006,44 @@ export function ActDetail({
     <div style={{ width: '100%' }}>
       <button
         style={{
-          background: 'none',
-          border: 'none',
-          color: '#e94560',
+          background: 'rgba(180,160,60,0.08)',
+          border: '2px solid #9a8a40',
+          borderRadius: 6,
+          padding: '8px 18px',
           fontFamily: FONT_HEADER,
           fontSize: 14,
+          color: '#e0d080',
           cursor: 'pointer',
           marginBottom: 16,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          letterSpacing: 1,
+          minHeight: 36,
         }}
         onClick={() => setView('history')}
       >
-        ← Back
+        {'←'} Back
       </button>
 
       <div
         style={{
-          background:
-            'linear-gradient(135deg, rgba(233,69,96,0.15) 0%, rgba(245,166,35,0.1) 100%)',
-          border: '2px solid rgba(233,69,96,0.3)',
-          borderRadius: 14,
+          background: 'rgba(14,18,30,0.85)',
+          border: '1px solid rgba(200,160,48,0.18)',
+          borderLeft: '4px solid #c8a030',
+          borderRadius: 12,
           padding: '20px 24px',
           marginBottom: 16,
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: 36, marginBottom: 4 }}>🏆</div>
-        <div style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#e94560', letterSpacing: 3 }}>
+        <div style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#c8a030', letterSpacing: 3 }}>
           {winner.team.name}
         </div>
-        <div style={{ fontFamily: FONT_HEADER, fontSize: 20, color: '#f5a623', marginTop: 4 }}>
+        <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', marginTop: 4, letterSpacing: 2 }}>
           {winner.score} POINTS
         </div>
-        <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#a09880', marginTop: 6 }}>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginTop: 6, letterSpacing: 1 }}>
           {winner.team.members.join(' & ')}
         </div>
       </div>
@@ -1295,14 +1308,14 @@ export function ActDetail({
 
         {savedGrid && (
           <div style={{ marginBottom: 20 }}>
-            <div style={{ ...cSub, marginBottom: 8 }}>Scorecard</div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 8, textTransform: 'uppercase' as const }}>Scorecard</div>
             <div style={{ overflowX: 'auto' }}>
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '55px repeat(4,1fr) 55px',
                   gap: 0,
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(200,160,48,0.12)',
                   borderRadius: 8,
                   overflow: 'hidden',
                   minWidth: 620,
@@ -1312,10 +1325,11 @@ export function ActDetail({
                   style={{
                     padding: 6,
                     fontFamily: FONT_MONO,
-                    fontSize: 11,
-                    color: '#555',
+                    fontSize: 10,
+                    color: '#8090a0',
                     textAlign: 'center',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'rgba(200,160,48,0.06)',
+                    letterSpacing: 1,
                   }}
                 >
                   RND
@@ -1326,7 +1340,7 @@ export function ActDetail({
                     style={{
                       padding: '6px 4px',
                       textAlign: 'center',
-                      background: 'rgba(255,255,255,0.02)',
+                      background: 'rgba(200,160,48,0.06)',
                       borderBottom: `2px solid ${TC[ti]}`,
                     }}
                   >
@@ -1415,10 +1429,11 @@ export function ActDetail({
                   style={{
                     padding: 6,
                     fontFamily: FONT_MONO,
-                    fontSize: 11,
-                    color: '#555',
+                    fontSize: 10,
+                    color: '#8090a0',
                     textAlign: 'center',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'rgba(200,160,48,0.06)',
+                    letterSpacing: 1,
                   }}
                 >
                   TOT
@@ -1655,11 +1670,12 @@ export function ActDetail({
                 <div
                   style={{
                     padding: 6,
-                    background: 'rgba(233,69,96,0.06)',
+                    background: 'rgba(200,160,48,0.1)',
                     fontFamily: FONT_HEADER,
                     fontSize: 10,
-                    color: '#e94560',
+                    color: '#c8a030',
                     textAlign: 'center',
+                    letterSpacing: 2,
                   }}
                 >
                   FINAL
@@ -1671,7 +1687,7 @@ export function ActDetail({
                       key={ti}
                       style={{
                         padding: 6,
-                        background: 'rgba(233,69,96,0.04)',
+                        background: 'rgba(200,160,48,0.06)',
                         textAlign: 'center',
                       }}
                     >
@@ -1690,7 +1706,7 @@ export function ActDetail({
                 <div
                   style={{
                     padding: 6,
-                    background: 'rgba(233,69,96,0.04)',
+                    background: 'rgba(200,160,48,0.06)',
                   }}
                 >
                   {ts.map((x, i) => (
@@ -1725,7 +1741,7 @@ export function ActDetail({
           </div>
         )}
 
-        <div style={{ ...cSub, marginBottom: 12 }}>Team Standings</div>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 12, textTransform: 'uppercase' as const }}>Team Standings</div>
         {ts.map((x, i) => {
           const isWinner = i === 0;
           const isJS = i < 2;
@@ -1741,12 +1757,12 @@ export function ActDetail({
                 alignItems: 'center',
                 marginBottom: 6,
                 borderLeft: `4px solid ${
-                  isWinner ? '#e94560' : i === 1 ? '#f5a623' : '#333'
+                  isWinner ? '#c8a030' : i === 1 ? 'rgba(200,160,48,0.4)' : 'rgba(200,160,48,0.1)'
                 }`,
                 background: isWinner
-                  ? 'rgba(233,69,96,0.1)'
+                  ? 'rgba(200,160,48,0.12)'
                   : isJS
-                    ? 'rgba(245,166,35,0.06)'
+                    ? 'rgba(200,160,48,0.05)'
                     : 'rgba(255,255,255,0.02)',
               }}
             >
@@ -1852,7 +1868,7 @@ export function ActDetail({
           );
         })}
 
-        <div style={{ ...cSub, marginBottom: 12, marginTop: 24 }}>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 12, marginTop: 24, textTransform: 'uppercase' as const }}>
           Player Breakdown
         </div>
         <div
@@ -1876,8 +1892,9 @@ export function ActDetail({
                 <div
                   key={name}
                   style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${TC[ti]}33`,
+                    background: 'rgba(14,18,30,0.6)',
+                    border: `1px solid ${TC[ti]}44`,
+                    borderLeft: `3px solid ${TC[ti]}`,
                     borderRadius: 8,
                     padding: '10px 14px',
                   }}
@@ -1968,12 +1985,12 @@ export function ActDetail({
                     style={{
                       fontFamily: FONT_MONO,
                       fontSize: 10,
-                      color: '#555',
+                      color: '#556',
                       marginTop: 6,
                       textAlign: 'center',
                     }}
                   >
-                    {b} → <span style={{ color: '#c084fc' }}>{a}</span>
+                    {b} → <span style={{ color: '#c8a030' }}>{a}</span>
                   </div>
                 </div>
               );

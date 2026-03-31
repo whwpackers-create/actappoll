@@ -331,13 +331,14 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
   const togBtn: React.CSSProperties = {
     flex: 1,
     background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    border: '1px solid rgba(200,160,48,0.15)',
     borderRadius: 8,
-    padding: '10px',
-    color: '#666',
+    padding: '8px 10px',
+    color: '#8090a0',
     fontFamily: FONT_HEADER,
     fontSize: 13,
     cursor: 'pointer',
+    minHeight: 36,
   };
   const togAct: React.CSSProperties = {
     background: 'rgba(233,69,96,0.15)',
@@ -349,13 +350,13 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
     height: 38,
     borderRadius: 6,
     fontFamily: FONT_HEADER,
-    fontSize: 20,
+    fontSize: 18,
     textAlign: 'center',
     outline: 'none',
-    border: '1px solid',
+    border: '1px solid rgba(200,160,48,0.2)',
     boxSizing: 'border-box',
     padding: 0,
-    caretColor: '#e94560',
+    caretColor: '#c8a030',
   };
 
   return (
@@ -363,21 +364,23 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
       <button
         onClick={() => setView('dashboard')}
         style={{
-          background: 'none',
-          border: '1px solid #6a6040',
-          borderRadius: 4,
-          padding: '6px 14px',
+          background: 'rgba(180,160,60,0.08)',
+          border: '2px solid #9a8a40',
+          borderRadius: 6,
+          padding: '8px 18px',
           fontFamily: FONT_HEADER,
-          fontSize: 13,
-          color: '#c0b880',
+          fontSize: 14,
+          color: '#e0d080',
           cursor: 'pointer',
-          marginBottom: 14,
+          marginBottom: 16,
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
+          letterSpacing: 1,
+          minHeight: 36,
         }}
       >
-        ← Back
+        {'←'} Back
       </button>
 
       {step === 0 && (
@@ -386,7 +389,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
               gap: 12,
               marginBottom: 20,
             }}
@@ -478,7 +481,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${numTeams},1fr)`,
+              gridTemplateColumns: `repeat(auto-fill, minmax(140px, 1fr))`,
               gap: 10,
               marginBottom: 20,
             }}
@@ -711,17 +714,18 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
               <div
                 style={{
                   padding: 10,
-                  fontFamily: FONT_HEADER,
-                  fontSize: 12,
-                  color: '#666',
+                  fontFamily: FONT_MONO,
+                  fontSize: 10,
+                  color: '#8090a0',
+                  letterSpacing: 2,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.02)',
-                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  background: 'rgba(200,160,48,0.06)',
+                  borderBottom: '1px solid rgba(200,160,48,0.12)',
                 }}
               >
-                Round
+                ROUND
               </div>
               {teams.map((t, ti) => (
                 <div
@@ -729,7 +733,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                   style={{
                     padding: '10px 8px',
                     textAlign: 'center',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'rgba(200,160,48,0.06)',
                     borderBottom: `3px solid ${TC[ti]}`,
                   }}
                 >
@@ -750,14 +754,15 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
               <div
                 style={{
                   padding: 10,
-                  fontFamily: FONT_HEADER,
-                  fontSize: 12,
-                  color: '#666',
+                  fontFamily: FONT_MONO,
+                  fontSize: 10,
+                  color: '#8090a0',
+                  letterSpacing: 2,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.02)',
-                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  background: 'rgba(200,160,48,0.06)',
+                  borderBottom: '1px solid rgba(200,160,48,0.12)',
                 }}
               >
                 TOT
@@ -1088,10 +1093,10 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'rgba(233,69,96,0.08)',
+                  background: 'rgba(200,160,48,0.1)',
                 }}
               >
-                <span style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#e94560', letterSpacing: 2 }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030', letterSpacing: 2 }}>
                   FINAL
                 </span>
               </div>
@@ -1100,7 +1105,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                   key={ti}
                   style={{
                     padding: '8px 6px',
-                    background: 'rgba(233,69,96,0.05)',
+                    background: 'rgba(200,160,48,0.06)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1165,13 +1170,14 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                   style={{
                     marginTop: 20,
                     padding: 16,
-                    background: 'rgba(233,69,96,0.06)',
+                    background: 'rgba(200,160,48,0.07)',
                     borderRadius: 10,
-                    border: '1px solid rgba(233,69,96,0.15)',
+                    border: '1px solid rgba(200,160,48,0.2)',
+                    borderLeft: '4px solid #c8a030',
                   }}
                 >
-                  <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#f0e6d3', marginBottom: 8 }}>
-                    🏆 Jersey Swap
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#c8a030', marginBottom: 8, letterSpacing: 2 }}>
+                    JERSEY SWAP
                   </div>
                   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     {s.slice(0, 2).map((x, i) => (

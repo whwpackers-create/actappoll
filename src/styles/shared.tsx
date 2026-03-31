@@ -4,16 +4,16 @@ export const TC = ['#e94560', '#f5a623', '#50fa7b', '#8be9fd'];
 
 export const cSub = {
   fontFamily: FONT_MONO,
-  fontSize: 11,
-  color: '#666',
-  letterSpacing: 1,
+  fontSize: 10,
+  color: '#8090a0',
+  letterSpacing: 2,
 };
 
 export const card = {
-  background: 'rgba(12,14,22,0.6)',
-  border: '1px solid #6a6040',
+  background: 'rgba(14,18,30,0.85)',
+  border: '1px solid rgba(200,160,48,0.18)',
   borderRadius: 12,
-  padding: 20,
+  padding: '20px 24px',
 };
 
 export const cHead = {
@@ -28,8 +28,8 @@ export const cHead = {
 export const cTitle = {
   fontFamily: FONT_HEADER,
   fontSize: 20,
-  color: '#f0e6d3',
-  letterSpacing: 1.5,
+  color: '#ffffff',
+  letterSpacing: 3,
 };
 
 export const priBtn = {
@@ -37,33 +37,35 @@ export const priBtn = {
   border: 'none',
   color: '#fff',
   fontFamily: FONT_HEADER,
-  fontSize: 15,
+  fontSize: 14,
   letterSpacing: 1.5,
-  padding: '12px 24px',
+  padding: '10px 22px',
   borderRadius: 8,
   cursor: 'pointer',
+  minHeight: 36,
 };
 
 export const secBtn = {
   background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  border: '1px solid rgba(200,160,48,0.2)',
   color: '#a09880',
   fontFamily: FONT_HEADER,
-  fontSize: 14,
-  padding: '10px 20px',
+  fontSize: 13,
+  padding: '8px 18px',
   borderRadius: 8,
   cursor: 'pointer',
+  minHeight: 36,
 };
 
 export const inp = {
   width: '100%',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(106,96,64,0.3)',
-  borderRadius: 8,
-  padding: '10px 14px',
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(200,160,48,0.2)',
+  borderRadius: 6,
+  padding: '8px 12px',
   color: '#f0e6d3',
   fontFamily: "'DM Sans','Segoe UI',sans-serif",
-  fontSize: 15,
+  fontSize: 14,
   outline: 'none',
   boxSizing: 'border-box' as const,
 };
