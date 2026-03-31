@@ -1,13 +1,12 @@
 import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../types';
 
 export const BASE_ELO = 850;           // starting ELO for new players
-export const SOFT_FLOOR = 850;         // losses start dampening below this point
+export const SOFT_FLOOR = 850;         // near-hard floor: losses below this are capped to ~8%
 export const MAX_PTS = 24;
-export const K_BASE = 40;
+export const K_BASE = 50;
 export const PLACEMENT_ACTS = 8;       // overall ELO placement: first 8 ACTs get 1.5× K
 export const PLACEMENT_MULTI = 1.5;   // multiplier applied during placement period
-export const SOFT_FLOOR_DAMP_RANGE = 100; // range below SOFT_FLOOR where dampening ramps in (850→750)
-export const SOFT_FLOOR_DAMP_MAX = 0.92;  // near-hard cap: at 750 only 8% of losses apply
+export const SOFT_FLOOR_LOSS_KEEP = 0.08; // fraction of a loss that still applies below SOFT_FLOOR
 export const CARRY = 0.3; // kept for reference
 export const SAT_MULTI = 1.25;
 export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
@@ -269,12 +268,9 @@ export function computeAllElos(
         let ch = rawCh[name] * decayW;
         // PLACEMENT_MULTI× K during first PLACEMENT_ACTS overall ACTs
         if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= PLACEMENT_MULTI;
-        // Near-hard soft floor at SOFT_FLOOR (850): applies to everyone uniformly.
-        // Dampening ramps from 0% at 850 up to SOFT_FLOOR_DAMP_MAX (92%) at 750.
+        // Near-hard floor at SOFT_FLOOR (850): below this, only SOFT_FLOOR_LOSS_KEEP (8%) of any loss applies.
         if (ch < 0 && (elos[name] ?? BASE_ELO) < SOFT_FLOOR) {
-          const depthFactor = Math.min((SOFT_FLOOR - (elos[name] ?? BASE_ELO)) / SOFT_FLOOR_DAMP_RANGE, 1.0);
-          const damp = depthFactor * SOFT_FLOOR_DAMP_MAX;
-          ch *= (1 - damp);
+          ch *= SOFT_FLOOR_LOSS_KEEP;
         }
         elos[name] = (elos[name] ?? BASE_ELO) + ch;
         actCounts[name] = (actCounts[name] ?? 0) + 1;
