@@ -397,13 +397,11 @@ export function Analytics({ data, setView }: AnalyticsProps) {
         )}
 
         {selected.length > 0 && uniqueDates.length >= 2 && (
-          <div style={{ position: 'relative', overflowX: 'auto' }}>
+          <div style={{ position: 'relative', width: '100%' }}>
             <svg
               viewBox={'0 0 ' + W + ' ' + H}
               style={{
                 width: '100%',
-                maxWidth: 900,
-                height: 380,
                 display: 'block',
                 touchAction: 'none',
               }}
@@ -415,7 +413,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
               <text
                 x="16"
                 y={H / 2}
-                fill="#667"
+                fill="#8899aa"
                 fontSize="14"
                 fontFamily={FONT_MONO}
                 textAnchor="middle"
@@ -433,13 +431,13 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                       y1={y}
                       x2={W - padR}
                       y2={y}
-                      stroke="rgba(255,255,255,0.05)"
+                      stroke="rgba(255,255,255,0.10)"
                       strokeWidth="1"
                     />
                     <text
                       x={padL - 8}
                       y={y + 5}
-                      fill="#667"
+                      fill="#99aabb"
                       fontSize="14"
                       textAnchor="end"
                       fontFamily="monospace"
@@ -457,7 +455,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                     key={i}
                     x={scaleX(i)}
                     y={H - 10}
-                    fill="#667"
+                    fill="#99aabb"
                     fontSize="13"
                     textAnchor="middle"
                     fontFamily="monospace"

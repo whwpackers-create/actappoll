@@ -3,6 +3,29 @@ html, body { margin: 0; padding: 0; background: #08090e; color: #f0e6d3; }
 button { cursor: pointer; }
 input, select, textarea { font-family: inherit; }
 
+/* MK Wii checkered flag background */
+body::before {
+  content: '';
+  position: fixed;
+  top: -40%;
+  left: -40%;
+  width: 200%;
+  height: 200%;
+  background-image: repeating-conic-gradient(
+    rgba(190,178,110,0.075) 0% 25%,
+    rgba(0,0,0,0) 0% 50%
+  );
+  background-size: 68px 68px;
+  transform: rotate(-9deg);
+  z-index: 0;
+  pointer-events: none;
+  animation: mkFlag 14s ease-in-out infinite;
+}
+@keyframes mkFlag {
+  0%, 100% { transform: rotate(-9deg) translateX(0px); }
+  50% { transform: rotate(-9deg) translateX(-34px); }
+}
+
 /* Mobile responsive utilities */
 @media (max-width: 768px) {
   .lb-row { flex-direction: column !important; gap: 8px !important; }
