@@ -203,10 +203,10 @@ export function Analytics({ data, setView }: AnalyticsProps) {
   minE = Math.max(800, minE - 20);
   maxE = maxE + 20;
 
-  const padL = 50;
+  const padL = 60;
   const padR = 20;
   const padT = 20;
-  const padB = 50;
+  const padB = 60;
   const W = 900;
   const H = 380;
   const chartW = W - padL - padR;
@@ -215,8 +215,19 @@ export function Analytics({ data, setView }: AnalyticsProps) {
     padL + (i / Math.max(uniqueDates.length - 1, 1)) * chartW;
   const scaleY = (v: number) =>
     padT + chartH - ((v - minE) / (maxE - minE)) * chartH;
-  const gridLines = 6;
-  const labelStep = Math.max(1, Math.floor(uniqueDates.length / 8));
+  const gridLines = 5;
+  const labelStep = Math.max(1, Math.floor(uniqueDates.length / 6));
+
+  const handleSvgTouch = (e: React.TouchEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (touch.clientX - rect.left) * (W / rect.width);
+    if (uniqueDates.length < 2) return;
+    const idx = Math.round(((x - padL) / chartW) * (uniqueDates.length - 1));
+    const clamped = Math.max(0, Math.min(uniqueDates.length - 1, idx));
+    setHoverPt({ idx: clamped, date: uniqueDates[clamped] });
+  };
 
   const formatDate = (d: string) => {
     const p = d.split('-');
@@ -394,17 +405,21 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                 maxWidth: 900,
                 height: 380,
                 display: 'block',
+                touchAction: 'none',
               }}
               onMouseLeave={() => setHoverPt(null)}
+              onTouchStart={handleSvgTouch}
+              onTouchMove={handleSvgTouch}
+              onTouchEnd={() => setHoverPt(null)}
             >
               <text
-                x="14"
+                x="16"
                 y={H / 2}
-                fill="#445"
-                fontSize="10"
+                fill="#667"
+                fontSize="14"
                 fontFamily={FONT_MONO}
                 textAnchor="middle"
-                transform={'rotate(-90,14,' + H / 2 + ')'}
+                transform={'rotate(-90,16,' + H / 2 + ')'}
               >
                 Elo Rating
               </text>
@@ -422,10 +437,10 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                       strokeWidth="1"
                     />
                     <text
-                      x={padL - 6}
-                      y={y + 4}
-                      fill="#445"
-                      fontSize="10"
+                      x={padL - 8}
+                      y={y + 5}
+                      fill="#667"
+                      fontSize="14"
                       textAnchor="end"
                       fontFamily="monospace"
                     >
@@ -441,9 +456,9 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                   <text
                     key={i}
                     x={scaleX(i)}
-                    y={H - 12}
-                    fill="#445"
-                    fontSize="9"
+                    y={H - 10}
+                    fill="#667"
+                    fontSize="13"
                     textAnchor="middle"
                     fontFamily="monospace"
                   >
@@ -512,50 +527,58 @@ export function Analytics({ data, setView }: AnalyticsProps) {
               )}
             </svg>
 
-            {hoverPt && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 20,
-                  left: Math.min(scaleX(hoverPt.idx) + 10, W - 180),
-                  background: 'rgba(12,14,22,0.95)',
-                  border: '1px solid #3a4050',
-                  borderRadius: 8,
-                  padding: '10px 14px',
-                  pointerEvents: 'none',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
-                  zIndex: 5,
-                }}
-              >
+            {hoverPt && (() => {
+              const pct = (scaleX(hoverPt.idx) / W) * 100;
+              const showRight = pct < 22;
+              return (
                 <div
                   style={{
-                    fontFamily: FONT_MONO,
-                    fontSize: 10,
-                    color: '#889',
-                    marginBottom: 6,
+                    position: 'absolute',
+                    top: 20,
+                    ...(showRight
+                      ? { left: `calc(${pct}% + 8px)` }
+                      : { left: `calc(${pct}% - 185px)` }
+                    ),
+                    background: 'rgba(12,14,22,0.95)',
+                    border: '1px solid #3a4050',
+                    borderRadius: 8,
+                    padding: '10px 14px',
+                    pointerEvents: 'none',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                    zIndex: 5,
+                    minWidth: 160,
                   }}
                 >
-                  {formatDate(hoverPt.date)}
+                  <div
+                    style={{
+                      fontFamily: FONT_MONO,
+                      fontSize: 10,
+                      color: '#889',
+                      marginBottom: 6,
+                    }}
+                  >
+                    {formatDate(hoverPt.date)}
+                  </div>
+                  {lines.map((line) => {
+                    const pt = line.pts[hoverPt.idx];
+                    return pt && pt.elo !== null ? (
+                      <div
+                        key={line.name}
+                        style={{
+                          fontFamily: FONT_MONO,
+                          fontSize: 12,
+                          color: line.color,
+                          marginBottom: 2,
+                        }}
+                      >
+                        <span style={{ fontWeight: 'bold' }}>{line.name}:</span>{' '}
+                        {pt.elo}
+                      </div>
+                    ) : null;
+                  })}
                 </div>
-                {lines.map((line) => {
-                  const pt = line.pts[hoverPt.idx];
-                  return pt && pt.elo !== null ? (
-                    <div
-                      key={line.name}
-                      style={{
-                        fontFamily: FONT_MONO,
-                        fontSize: 12,
-                        color: line.color,
-                        marginBottom: 2,
-                      }}
-                    >
-                      <span style={{ fontWeight: 'bold' }}>{line.name}:</span>{' '}
-                      {pt.elo}
-                    </div>
-                  ) : null;
-                })}
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -792,7 +815,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                     <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#8090a0', textAlign: 'center', letterSpacing: 1 }}>{h2hData.p2.split(' ')[0].toUpperCase()} PTS</span>
                     <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#8090a0', textAlign: 'right', letterSpacing: 1 }}>W-L</span>
                   </div>
-                  {h2hData.actRows.map(({ act, p1TotalPts, p2TotalPts, p1RaceWins, p2RaceWins }, i) => (
+                  {[...h2hData.actRows].sort((a, b) => b.act.date.localeCompare(a.act.date)).map(({ act, p1TotalPts, p2TotalPts, p1RaceWins, p2RaceWins }, i) => (
                     <div
                       key={act.id || act._id}
                       style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px', padding: '8px 10px', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'center' }}

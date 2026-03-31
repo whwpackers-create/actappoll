@@ -442,8 +442,9 @@ export function Roster({
             }
           />
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="roster-table" style={{ overflowX: 'auto' }}>
             <div
+              className="roster-header"
               style={{
                 display: 'flex',
                 gap: 4,
@@ -479,6 +480,7 @@ export function Roster({
               return (
                 <div
                   key={p.name}
+                  className="roster-row"
                   style={{
                     display: 'flex',
                     gap: 4,
@@ -491,6 +493,7 @@ export function Roster({
                   }}
                 >
                   <div
+                    className="roster-row-name"
                     style={{ flex: 2, cursor: 'pointer' }}
                     onClick={() => startRename(p.name)}
                   >
@@ -535,7 +538,7 @@ export function Roster({
                       </div>
                     )}
                   </div>
-                  <span style={{ width: 70, textAlign: 'center' }}>
+                  <span className="roster-row-status" style={{ width: 70, textAlign: 'center' }}>
                     <button
                       onClick={() => toggleActive(p.name)}
                       style={{
@@ -556,7 +559,7 @@ export function Roster({
                       {isActive ? 'ACTIVE' : 'RETIRED'}
                     </button>
                   </span>
-                  <span style={tc}>
+                  <span className="roster-row-elo" style={tc}>
                     <span style={{ color: '#c8a030', fontWeight: 700 }}>
                       {p.elo}
                     </span>
@@ -571,20 +574,20 @@ export function Roster({
                       {lc !== 0 && (lc > 0 ? '+' : '') + lc.toFixed(1)}
                     </span>
                   </span>
-                  <span style={tc}>{p.actCount}</span>
-                  <span style={tc}>{p.totalRaces}</span>
-                  <span style={{ ...tc, color: '#e94560', fontWeight: 700 }}>
+                  <span className="roster-hide-mobile" style={tc}>{p.actCount}</span>
+                  <span className="roster-hide-mobile" style={tc}>{p.totalRaces}</span>
+                  <span className="roster-hide-mobile" style={{ ...tc, color: '#e94560', fontWeight: 700 }}>
                     {p.totalPoints}
                   </span>
-                  <span style={tc}>{p.avgPtsAct.toFixed(1)}</span>
-                  <span style={tc}>{p.avgPtsRace.toFixed(2)}</span>
-                  <span style={{ ...tc, color: '#50fa7b' }}>
+                  <span className="roster-hide-mobile" style={tc}>{p.avgPtsAct.toFixed(1)}</span>
+                  <span className="roster-hide-mobile" style={tc}>{p.avgPtsRace.toFixed(2)}</span>
+                  <span className="roster-hide-mobile" style={{ ...tc, color: '#50fa7b' }}>
                     {(p.winRate * 100).toFixed(0)}%
                   </span>
-                  <span style={{ ...tc, color: '#f5a623' }}>
+                  <span className="roster-hide-mobile" style={{ ...tc, color: '#f5a623' }}>
                     {(p.jsPct * 100).toFixed(0)}%
                   </span>
-                  <button onClick={() => rm(p.name)} style={delBtn}>
+                  <button className="roster-row-actions" onClick={() => rm(p.name)} style={delBtn}>
                     ✕
                   </button>
                 </div>

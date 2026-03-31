@@ -219,16 +219,26 @@ export function Dashboard({
     const seasonRanks = [...(data.seasons ?? [])]
       .sort((a, b) => b.startDate.localeCompare(a.startDate))
       .map((season) => {
-        const seasonActs = data.acts.filter((a) => a.date >= season.startDate && a.date <= season.endDate);
-        if (seasonActs.length === 0) return null;
-        const seasonStats = computeStats(data.players, seasonActs, data.sats ?? [], data.seasons);
-        const participated = seasonStats.filter((s) => s.actCount > 0);
-        const sorted = [...participated].sort((a, b) => b.elo - a.elo);
+        // Use each player's real ELO history (computed with full history context) to find
+        // their end-of-season ELO. This avoids wrong tiers from recomputing ELO in isolation.
+        const participants = stats
+          .map((ps) => {
+            const seasonEntries = (ps.eloHistory ?? []).filter(
+              (h) => h.date >= season.startDate && h.date <= season.endDate && !(h.isSat && h.points === 0)
+            );
+            if (seasonEntries.length === 0) return null;
+            const lastEntry = [...seasonEntries].sort((a, b) => a.date.localeCompare(b.date)).pop()!;
+            const actCount = seasonEntries.filter((h) => !h.isSat).length;
+            return { name: ps.name, elo: lastEntry.elo, actCount };
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null);
+        if (participants.length === 0) return null;
+        const sorted = [...participants].sort((a, b) => b.elo - a.elo);
         const rank = sorted.findIndex((s) => s.name === selPlayer) + 1;
-        const pStat = seasonStats.find((s) => s.name === selPlayer);
-        if (!pStat || pStat.actCount === 0 || rank === 0) return null;
-        const tier = getTier(Math.round(pStat.elo));
-        return { seasonName: season.name, rank, total: sorted.length, elo: Math.round(pStat.elo), pts: pStat.pts, actCount: pStat.actCount, tier };
+        const myEntry = participants.find((s) => s.name === selPlayer);
+        if (!myEntry || rank === 0) return null;
+        const tier = getTier(Math.round(myEntry.elo));
+        return { seasonName: season.name, rank, total: sorted.length, elo: Math.round(myEntry.elo), actCount: myEntry.actCount, tier };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
     return { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank, seasonRanks };
@@ -873,7 +883,7 @@ export function Dashboard({
                         <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.rank === 1 ? '#fde68a' : sr.rank === 2 ? '#94a3b8' : sr.rank === 3 ? '#cd7f32' : '#93c5fd' }}>
                           #{sr.rank}<span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>/{sr.total}</span>
                         </span>
-                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#93c5fd' }}>ELO {sr.elo}</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#93c5fd', fontWeight: 700 }}>ELO {sr.elo}</span>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{sr.actCount} ACTs</span>
                       </div>
                     </div>

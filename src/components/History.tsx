@@ -416,7 +416,6 @@ export function History({
                           border: '1px solid rgba(200,160,48,0.15)',
                           borderRadius: 10,
                           overflow: 'hidden',
-                          minWidth: 550,
                         }}
                       >
                         {/* Header: Round label */}
@@ -747,10 +746,10 @@ export function History({
                               const pts = (pp[eloKey] ?? pp[member] ?? 0);
                               return (
                                 <div key={member} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 10 }}>{slot}:</span>
-                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#d0d4dc', flex: 1 }}>{displayFirst}</span>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#a09880', minWidth: 28, textAlign: 'right' }}>{pts} pts</span>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, fontWeight: 700, color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#556', minWidth: 44, textAlign: 'right' }}>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#778', minWidth: 12 }}>{slot}:</span>
+                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#d0d4dc', flex: 1 }}>{displayFirst}</span>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#a09880', minWidth: 30, textAlign: 'right' }}>{pts} pts</span>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 12, fontWeight: 700, color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#556', minWidth: 50, textAlign: 'right' }}>
                                     {diff > 0 ? `+${diff}` : diff === 0 ? '0' : diff} ELO
                                   </span>
                                 </div>
@@ -764,8 +763,8 @@ export function History({
                     </div>
                   ) : (
                     /* Fallback: no saved grid — show race results from act.races */
-                    <div style={{ overflowX: 'auto', marginBottom: 10 }}>
-                      <div style={{ minWidth: 360 }}>
+                    <div style={{ marginBottom: 10 }}>
+                      <div>
                         <div
                           style={{
                             display: 'grid',

@@ -9,6 +9,16 @@ input, select, textarea { font-family: inherit; }
   .lb-stats { grid-template-columns: repeat(3, auto) !important; gap: 10px !important; }
   .dash-grid { grid-template-columns: 1fr !important; }
   .dash-menu { display: none !important; }
+
+  /* Roster: collapse to vertical card layout */
+  .roster-table { overflow: visible !important; }
+  .roster-header { display: none !important; }
+  .roster-row { min-width: 0 !important; flex-wrap: wrap !important; gap: 8px !important; padding: 12px 4px !important; }
+  .roster-row-name { flex: 1 1 100% !important; }
+  .roster-row-status { flex: none !important; }
+  .roster-row-elo { flex: none !important; }
+  .roster-hide-mobile { display: none !important; }
+  .roster-row-actions { flex: none !important; margin-left: auto !important; }
 }
 @media (max-width: 480px) {
   .lb-stats { grid-template-columns: repeat(2, auto) !important; }

@@ -55,6 +55,17 @@ export function NavBar({
             }}
             onClick={() => setView('dashboard')}
           >
+            <span style={{
+              fontFamily: FONT_HEADER,
+              fontSize: 22,
+              fontWeight: 900,
+              letterSpacing: 3,
+              color: '#3a3e50',
+              textShadow: '0 1px 0 rgba(255,255,255,0.4)',
+              whiteSpace: 'nowrap',
+            }}>
+              ACT AP POLL
+            </span>
             {siteLogo ? (
               <img
                 src={siteLogo}
@@ -118,19 +129,6 @@ export function NavBar({
             >
               {src === 'firebase' ? '● SYNC' : '● LOCAL'}
             </button>
-          </div>
-          {/* Centered title */}
-          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
-            <span style={{
-              fontFamily: FONT_HEADER,
-              fontSize: 28,
-              fontWeight: 900,
-              letterSpacing: 4,
-              color: '#6a7080',
-              textShadow: '0 1px 0 rgba(255,255,255,0.3)',
-            }}>
-              ACT AP POLL
-            </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {auth.unlocked && (
