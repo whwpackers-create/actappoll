@@ -611,6 +611,48 @@ export function Dashboard({
           </div>
         </div>
 
+        {/* ELO System Explanation */}
+        <div style={{ marginTop: 24, background: 'rgba(14,18,30,0.85)', border: '1px solid rgba(200,160,48,0.18)', borderRadius: 12, padding: '20px 24px' }}>
+          <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#c8a030', letterSpacing: 2, marginBottom: 16 }}>HOW ELO WORKS</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+            {[
+              {
+                title: 'Starting Point',
+                body: 'Every player begins at 850 ELO. Your first 8 ACTs are a placement period — all changes are boosted 1.5× so you reach your true level faster.',
+              },
+              {
+                title: 'How Points Become ELO',
+                body: 'Your score (out of 24 max) is compared against what was statistically expected. Beat expectations → gain ELO. Fall short → lose ELO. You are only compared against players in the same bracket slot.',
+              },
+              {
+                title: 'Lobby Quality Multiplier',
+                body: 'Wins in tough lobbies count more. If your bracket opponents average rank 1–7: gains are 2×. Rank 8–15: 1.5×. Rank 16–25: 1.2×. Rank 26+: 1×. Only gains are multiplied — losses are always standard.',
+              },
+              {
+                title: 'Season Decay',
+                body: 'Older seasons count for less: current season 100%, last season (Fall 2025) 90%, Spring 2025 80%, Fall 2024 75%, Spring 2024 65%, Fall 2023+ 60%. Recent performance matters most.',
+              },
+              {
+                title: 'Floor at 850',
+                body: 'Below 850, losses are cut to just 8% of their raw value — a near-hard cap. Once you\'ve raced enough and climbed above 850, it takes sustained bad play to sink back down.',
+              },
+              {
+                title: 'Competitive Bracket Protection',
+                body: 'If your bracket\'s average global rank is top 10 or better and you score 14+ points, you don\'t lose ELO — your saved loss is redistributed to your bracket peers instead.',
+              },
+              {
+                title: 'SAT Multipliers',
+                body: 'SAT gains are boosted by round: Day 1 = 1.1×, Day 2 = 1.2×, Day 3 = 1.5×, Finals = 1.75×. Only gains are amplified. SAT losses are normal.',
+              },
+            ].map((item) => (
+              <div key={item.title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#c8a030', marginBottom: 6, letterSpacing: 1 }}>{item.title}</div>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a8', lineHeight: 1.6 }}>{item.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div
           className="dash-menu"
           style={{ display: 'flex', flexDirection: 'column', gap: 6 }}

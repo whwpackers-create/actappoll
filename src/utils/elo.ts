@@ -8,7 +8,10 @@ export const PLACEMENT_ACTS = 8;       // overall ELO placement: first 8 ACTs ge
 export const PLACEMENT_MULTI = 1.5;   // multiplier applied during placement period
 export const SOFT_FLOOR_LOSS_KEEP = 0.08; // fraction of a loss that still applies below SOFT_FLOOR
 export const CARRY = 0.3; // kept for reference
-export const SAT_MULTI = 1.25;
+// SAT round gain multipliers — applies to gains only (not losses)
+// Round 1 = Day 1, Round 2 = Day 2, Round 3 = Day 3, Round 4+ = Finals
+export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 1.75 };
+export const SAT_ROUND_MULTI_DEFAULT = 1.1; // fallback if satRound not set
 export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
 // Lobby quality multiplier on gains — based on avg global rank of bracket opponents
 // Rank 1-7: 2.0×, 8-15: 1.5×, 16-25: 1.2×, 26+: 1.0× (no penalty for weak fields — just no bonus)
@@ -165,7 +168,8 @@ export function computeAllElos(
         })
       );
 
-      const multi = act.satId ? SAT_MULTI : 1;
+      const satGainMult = act.satId
+        ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
 
       const soloPlayers = new Set<string>();
       act.teams.forEach((t) => {
@@ -225,7 +229,8 @@ export function computeAllElos(
           const allOpps = [...pos0Opps, ...pos1Opps].filter(o => o !== name);
           const avgOppRank = allOpps.length > 0
             ? allOpps.reduce((s, o) => s + getGlobalRank(o, elos), 0) / allOpps.length : 20;
-          ch = ((eloChange(elos[name], oAvg0, pts0, avgOppRank) + eloChange(elos[name], oAvg1, pts1, avgOppRank)) / 2) * multi;
+          ch = (eloChange(elos[name], oAvg0, pts0, avgOppRank) + eloChange(elos[name], oAvg1, pts1, avgOppRank)) / 2;
+          if (ch > 0) ch *= satGainMult;
         } else {
           const mySlot = posMap[name];
           // Bracket opponents: same slot on other teams
@@ -238,7 +243,8 @@ export function computeAllElos(
           const avgOppRank = bracketOpps.length > 0
             ? bracketOpps.reduce((s, o) => s + getGlobalRank(o, elos), 0) / bracketOpps.length
             : 20;
-          ch = eloChange(elos[name], oAvg, pp[name] ?? 0, avgOppRank) * multi;
+          ch = eloChange(elos[name], oAvg, pp[name] ?? 0, avgOppRank);
+          if (ch > 0) ch *= satGainMult;
         }
         rawCh[name] = ch;
       });
@@ -339,7 +345,8 @@ export function computeSeasonElos(
         if (pn in pp) pp[pn] += res.points;
       })
     );
-    const multi = act.satId ? SAT_MULTI : 1;
+    const satGainMult = act.satId
+      ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
 
     const soloPlayers = new Set<string>();
     act.teams.forEach((t) => {
@@ -393,7 +400,8 @@ export function computeSeasonElos(
         const oAvg1 = pos1Opps.length > 0
           ? pos1Opps.reduce((s, o) => s + blendOpp(o), 0) / pos1Opps.length
           : BASE_ELO;
-        ch = ((eloChange(sE[name], oAvg0, pts0) + eloChange(sE[name], oAvg1, pts1)) / 2) * multi;
+        ch = (eloChange(sE[name], oAvg0, pts0) + eloChange(sE[name], oAvg1, pts1)) / 2;
+        if (ch > 0) ch *= satGainMult;
       } else {
         // Position-based opponents: compare against same-slot players from other teams only
         const playerTeam = act.teams.find((t) => t.members.map(remapName).includes(name));
@@ -407,7 +415,8 @@ export function computeSeasonElos(
         const oAvg = posOpps.length > 0
           ? posOpps.reduce((s, o) => s + blendOpp(o), 0) / posOpps.length
           : BASE_ELO;
-        ch = eloChange(sE[name], oAvg, pp[name] ?? 0) * multi;
+        ch = eloChange(sE[name], oAvg, pp[name] ?? 0);
+        if (ch > 0) ch *= satGainMult;
       }
       ch *= SEASON_K_MULTI;
       const mmr = atE[name] ?? BASE_ELO;
@@ -654,7 +663,8 @@ export function computeActBracketBreakdown(
     return c0 >= c1 ? 0 : 1;
   });
 
-  const multi = act.satId ? SAT_MULTI : 1;
+  const satGainMult = act.satId
+    ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
 
   soloPlayers.forEach((name) => {
     const pos0Opps = Object.entries(posMap).filter(([, v]) => v === 0).map(([k]) => k);
@@ -672,8 +682,10 @@ export function computeActBracketBreakdown(
     const oAvg1 = pos1Opps.length > 0
       ? pos1Opps.reduce((s, o) => s + (elosBefore[o] ?? BASE_ELO), 0) / pos1Opps.length
       : BASE_ELO;
-    const ch0 = (eloChange(elosBefore[name] ?? BASE_ELO, oAvg0, pts0) / 2) * multi;
-    const ch1 = (eloChange(elosBefore[name] ?? BASE_ELO, oAvg1, pts1) / 2) * multi;
+    let ch0 = eloChange(elosBefore[name] ?? BASE_ELO, oAvg0, pts0) / 2;
+    let ch1 = eloChange(elosBefore[name] ?? BASE_ELO, oAvg1, pts1) / 2;
+    if (ch0 > 0) ch0 *= satGainMult;
+    if (ch1 > 0) ch1 *= satGainMult;
     result[name] = { pts0, pts1, ch0, ch1 };
   });
 
