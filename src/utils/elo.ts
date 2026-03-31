@@ -6,9 +6,8 @@ export const MAX_PTS = 24;
 export const K_BASE = 40;
 export const PLACEMENT_ACTS = 8;       // overall ELO placement: first 8 ACTs get 1.5× K
 export const PLACEMENT_MULTI = 1.5;   // multiplier applied during placement period
-export const SOFT_FLOOR_DAMP_RANGE = 150; // range below SOFT_FLOOR where dampening ramps in (850→700)
-export const SOFT_FLOOR_DAMP_MAX = 0.85;  // max 85% loss reduction at the floor for experienced players
-export const SOFT_FLOOR_EXP_THRESHOLD = 10; // ACTs needed for full soft floor protection
+export const SOFT_FLOOR_DAMP_RANGE = 100; // range below SOFT_FLOOR where dampening ramps in (850→750)
+export const SOFT_FLOOR_DAMP_MAX = 0.92;  // near-hard cap: at 750 only 8% of losses apply
 export const CARRY = 0.3; // kept for reference
 export const SAT_MULTI = 1.25;
 export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
@@ -270,13 +269,11 @@ export function computeAllElos(
         let ch = rawCh[name] * decayW;
         // PLACEMENT_MULTI× K during first PLACEMENT_ACTS overall ACTs
         if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= PLACEMENT_MULTI;
-        // Experience-scaled soft floor at SOFT_FLOOR (850):
-        // New players (few ACTs) get little protection; veterans get up to SOFT_FLOOR_DAMP_MAX.
-        // expFactor ramps 0→1 over SOFT_FLOOR_EXP_THRESHOLD acts.
+        // Near-hard soft floor at SOFT_FLOOR (850): applies to everyone uniformly.
+        // Dampening ramps from 0% at 850 up to SOFT_FLOOR_DAMP_MAX (92%) at 750.
         if (ch < 0 && (elos[name] ?? BASE_ELO) < SOFT_FLOOR) {
-          const expFactor = Math.min((actCounts[name] ?? 0) / SOFT_FLOOR_EXP_THRESHOLD, 1.0);
           const depthFactor = Math.min((SOFT_FLOOR - (elos[name] ?? BASE_ELO)) / SOFT_FLOOR_DAMP_RANGE, 1.0);
-          const damp = expFactor * depthFactor * SOFT_FLOOR_DAMP_MAX;
+          const damp = depthFactor * SOFT_FLOOR_DAMP_MAX;
           ch *= (1 - damp);
         }
         elos[name] = (elos[name] ?? BASE_ELO) + ch;
