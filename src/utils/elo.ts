@@ -1,22 +1,22 @@
 import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../types';
 
-export const BASE_ELO = 700;           // everyone starts here; soft floor below this
+export const BASE_ELO = 1000;          // starting ELO for all players
+export const SOFT_FLOOR = 800;         // losses start dampening below this point
 export const MAX_PTS = 24;
 export const K_BASE = 40;
 export const PLACEMENT_ACTS = 4;       // overall ELO placement: first 4 ACTs get 2× K
-export const SOFT_FLOOR_DAMP_RANGE = 100; // range below BASE_ELO where loss dampening ramps in (700→600)
+export const SOFT_FLOOR_DAMP_RANGE = 200; // range below SOFT_FLOOR where dampening ramps in (800→600)
 export const SOFT_FLOOR_DAMP_MAX = 0.6;   // max 60% loss reduction at the floor
-export const CARRY = 0.3; // kept for reference but no longer used in season starting ELO
+export const CARRY = 0.3; // kept for reference
 export const SAT_MULTI = 1.25;
 export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
 // Lobby quality multiplier on gains — based on avg global rank of bracket opponents
-// Rank 1-7: 2.0×, 8-15: 1.5×, 16-25: 1.2×, 26-36: 1.0×, 37+: 0.8×
+// Rank 1-7: 2.0×, 8-15: 1.5×, 16-25: 1.2×, 26+: 1.0× (no penalty for weak fields — just no bonus)
 export const LOBBY_RANK_TIERS = [
   { maxRank: 7,  mult: 2.0 },
   { maxRank: 15, mult: 1.5 },
   { maxRank: 25, mult: 1.2 },
-  { maxRank: 36, mult: 1.0 },
-  { maxRank: Infinity, mult: 0.8 },
+  { maxRank: Infinity, mult: 1.0 },
 ] as const;
 export const SEASON_DECAY_PER = 0.1;   // 10% decay per season back in overall ELO
 export const SEASON_DECAY_MIN = 0.5;   // minimum weight (oldest seasons, 5+ back)
@@ -76,9 +76,9 @@ function eloChange(pE: number, oE: number, pts: number, avgOppRank?: number): nu
     K_BASE +
     (diff > 0 ? Math.min(diff / 20, 20) : Math.min(Math.abs(diff) / 30, 10));
   let ch = k * (norm - exp);
-  // Soft floor: dampen losses when player is below BASE_ELO (700), ramping up to 60% reduction at floor
-  if (ch < 0 && pE < BASE_ELO) {
-    const damp = Math.min((BASE_ELO - pE) / SOFT_FLOOR_DAMP_RANGE, 1) * SOFT_FLOOR_DAMP_MAX;
+  // Soft floor: dampen losses when player is below SOFT_FLOOR (800), ramping up to 60% reduction at 600
+  if (ch < 0 && pE < SOFT_FLOOR) {
+    const damp = Math.min((SOFT_FLOOR - pE) / SOFT_FLOOR_DAMP_RANGE, 1) * SOFT_FLOOR_DAMP_MAX;
     ch *= (1 - damp);
   }
   // Lobby quality multiplier — only applies to gains

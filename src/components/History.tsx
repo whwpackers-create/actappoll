@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { teamScores, computeAllElos, BASE_ELO } from '../utils/elo';
 import {
   card,
@@ -66,6 +66,26 @@ export function History({
   const [histMonth, setHistMonth] = useState('');
   const [histYear, setHistYear] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
+
+  // Compute full ELO history ONCE (O(n)), then derive per-ACT before/after from hist entries.
+  // hist[player] is an array of { actId, elo, change } in chronological order.
+  // before = elo - change, after = elo.
+  const { eloHist, eloFinal } = useMemo(() => {
+    const { elos: eloFinal, hist: eloHist } = computeAllElos(
+      data.players, data.acts, undefined, data.seasons
+    );
+    return { eloHist, eloFinal };
+  }, [data.acts, data.players, data.seasons]);
+
+  // Helper: get before/after ELO for a player in a specific ACT
+  const getEloChange = (playerName: string, actId: string): { before: number; after: number } => {
+    const entry = eloHist[playerName]?.find((h) => h.actId === actId);
+    if (!entry) {
+      const fallback = eloFinal[playerName] ?? BASE_ELO;
+      return { before: fallback, after: fallback };
+    }
+    return { before: Math.round(entry.elo - entry.change), after: Math.round(entry.elo) };
+  };
 
   const histYears = [
     ...new Set(data.acts.map((a) => new Date(a.date).getFullYear())),
@@ -204,23 +224,7 @@ export function History({
           const tSz = actType === '12man' ? 3 : actType === '16man' ? 4 : 2;
           const numTeams = actType === '6man' ? 3 : 4;
 
-          // ELO computation
-          const chronoActs = [...data.acts].sort(
-            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-          );
-          const ci = chronoActs.findIndex((a) => (a.id || a._id) === aid);
-          const { elos: eB } = computeAllElos(
-            data.players,
-            chronoActs.slice(0, ci),
-            undefined,
-            data.seasons
-          );
-          const { elos: eA } = computeAllElos(
-            data.players,
-            chronoActs.slice(0, ci + 1),
-            undefined,
-            data.seasons
-          );
+          // ELO snapshots come from precomputed history — O(1) per ACT
 
           // Per-player total points from races
           const pp: Record<string, number> = {};
@@ -706,59 +710,50 @@ export function History({
                             ))}
                         </div>
 
-                        {/* ELO changes row — inline below FINAL */}
-                        <div
-                          style={{
-                            padding: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'rgba(0,0,0,0.2)',
-                            borderTop: '1px solid rgba(200,160,48,0.1)',
-                          }}
-                        >
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030', letterSpacing: 1 }}>
-                            ELO ±
-                          </span>
+                        {/* ELO changes row — inline below FINAL, matching screenshot layout */}
+                        {/* Label cell */}
+                        <div style={{ padding: '6px 8px', background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(200,160,48,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030', letterSpacing: 1 }}>ELO ±</span>
                         </div>
+                        {/* One cell per team */}
                         {act.teams.slice(0, numTeams).map((team, ti) => (
                           <div
                             key={ti}
                             style={{
-                              padding: '6px 6px',
-                              background: 'rgba(0,0,0,0.2)',
-                              borderTop: '1px solid rgba(200,160,48,0.1)',
+                              padding: '6px 8px',
+                              background: 'rgba(0,0,0,0.25)',
+                              borderTop: '1px solid rgba(200,160,48,0.12)',
+                              borderLeft: `2px solid ${TC[ti]}33`,
                               display: 'flex',
                               flexDirection: 'column',
-                              alignItems: 'center',
-                              gap: 2,
+                              gap: 4,
                             }}
                           >
                             {team.members.map((member, mi) => {
                               const subName = team.subs?.[mi];
                               const eloKey = subName && subName !== '' ? subName : member;
-                              const diff = Math.round((eA[eloKey] ?? BASE_ELO) - (eB[eloKey] ?? BASE_ELO));
-                              const firstName = subName && subName !== ''
+                              const { before, after } = getEloChange(eloKey, aid ?? '');
+                              const diff = after - before;
+                              const slot = mi === 0 ? 'A' : mi === 1 ? 'B' : mi === 2 ? 'C' : 'D';
+                              const displayFirst = subName && subName !== ''
                                 ? `${subName.split(' ')[0]} (sub)`
                                 : member.split(' ')[0];
+                              const pts = (pp[eloKey] ?? pp[member] ?? 0);
                               return (
-                                <div key={member} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: TC[ti] }}>{firstName}</span>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#555' }}>
-                                    {diff > 0 ? `+${diff}` : `${diff}`}
+                                <div key={member} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 10 }}>{slot}:</span>
+                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#d0d4dc', flex: 1 }}>{displayFirst}</span>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#a09880', minWidth: 28, textAlign: 'right' }}>{pts} pts</span>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, fontWeight: 700, color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#556', minWidth: 44, textAlign: 'right' }}>
+                                    {diff > 0 ? `+${diff}` : diff === 0 ? '0' : diff} ELO
                                   </span>
                                 </div>
                               );
                             })}
                           </div>
                         ))}
-                        <div
-                          style={{
-                            padding: '6px 4px',
-                            background: 'rgba(0,0,0,0.2)',
-                            borderTop: '1px solid rgba(200,160,48,0.1)',
-                          }}
-                        />
+                        {/* TOT cell spacer */}
+                        <div style={{ padding: '6px 4px', background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(200,160,48,0.12)' }} />
                       </div>
                     </div>
                   ) : (
@@ -857,7 +852,8 @@ export function History({
                                 {team.members.map((member, mi) => {
                                   const subName = team.subs?.[mi];
                                   const eloKey = subName && subName !== '' ? subName : member;
-                                  const diff = Math.round((eA[eloKey] ?? BASE_ELO) - (eB[eloKey] ?? BASE_ELO));
+                                  const { before, after } = getEloChange(eloKey, aid ?? '');
+                                  const diff = after - before;
                                   const firstName = subName && subName !== ''
                                     ? `${subName.split(' ')[0]} (sub)`
                                     : member.split(' ')[0];
