@@ -19,8 +19,11 @@ export const LOBBY_RANK_TIERS = [
   { maxRank: 25, mult: 1.2 },
   { maxRank: Infinity, mult: 1.0 },
 ] as const;
-export const SEASON_DECAY_PER = 0.15;  // 15% decay per season back in overall ELO
-export const SEASON_DECAY_MIN = 0.4;   // minimum weight (oldest seasons, 4+ back)
+// ELO weight by how many seasons back an ACT falls (index 0 = current season).
+// Values represent how much of that season's ELO contribution is kept.
+// e.g. index 1 = 1 season back (Fall 2025 from Spring 2026) → 90% kept (10% decayed).
+// Index 5+ all use the last value (floor).
+export const SEASON_DECAY_TABLE = [1.0, 0.9, 0.8, 0.75, 0.65, 0.6] as const;
 export const SEASON_BASE_ELO = 800;        // everyone starts here each season (below leaderboard 1000)
 export const SEASON_K_MULTI = 2.0;         // base amplifier on all season changes — creates spread over short seasons
 export const SEASON_COMP_MMR_WEIGHT = 0.4; // how much opponent MMR vs season ELO affects competition level (0=season only, 1=MMR only)
@@ -97,8 +100,8 @@ export function computeAllElos(
   seasons?: Season[]
 ): { elos: Record<string, number>; hist: Record<string, EloHistoryEntry[]> } {
   // Build a sorted list of seasons (oldest first) for decay weighting.
-  // The most recent season = weight 1.0, each season further back loses SEASON_DECAY_PER,
-  // floored at SEASON_DECAY_MIN. ACTs outside any season use weight 1.0 (same as current).
+  // Weights come from SEASON_DECAY_TABLE indexed by seasons-back (0 = current).
+  // ACTs outside any season use weight 1.0 (same as current).
   const sortedSeasons = seasons
     ? [...seasons].sort((a, b) => a.startDate.localeCompare(b.startDate))
     : [];
@@ -112,7 +115,8 @@ export function computeAllElos(
     );
     if (si === -1) return 1.0; // outside any season → full weight
     const seasonsBack = totalSeasons - 1 - si; // 0 = most recent
-    return Math.max(SEASON_DECAY_MIN, 1.0 - seasonsBack * SEASON_DECAY_PER);
+    const idx = Math.min(seasonsBack, SEASON_DECAY_TABLE.length - 1);
+    return SEASON_DECAY_TABLE[idx];
   };
 
   // Also need global rank order for top-seed protection.
