@@ -1,14 +1,23 @@
 import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../types';
 
-export const BASE_ELO = 1000;
+export const BASE_ELO = 700;           // everyone starts here; soft floor below this
 export const MAX_PTS = 24;
 export const K_BASE = 40;
-export const LOW_ELO_GAIN_MAX = 0.4;  // max gain boost at BASE_ELO - LOW_ELO_GAIN_RANGE
-export const LOW_ELO_GAIN_RANGE = 200; // ELO range below BASE where gain boost applies (800–1000)
+export const PLACEMENT_ACTS = 4;       // overall ELO placement: first 4 ACTs get 2× K
+export const SOFT_FLOOR_DAMP_RANGE = 100; // range below BASE_ELO where loss dampening ramps in (700→600)
+export const SOFT_FLOOR_DAMP_MAX = 0.6;   // max 60% loss reduction at the floor
 export const CARRY = 0.3; // kept for reference but no longer used in season starting ELO
 export const SAT_MULTI = 1.25;
-export const PLACEMENT_ACTS = 7;       // kept for reference; no longer used in overall ELO
 export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
+// Lobby quality multiplier on gains — based on avg global rank of bracket opponents
+// Rank 1-7: 2.0×, 8-15: 1.5×, 16-25: 1.2×, 26-36: 1.0×, 37+: 0.8×
+export const LOBBY_RANK_TIERS = [
+  { maxRank: 7,  mult: 2.0 },
+  { maxRank: 15, mult: 1.5 },
+  { maxRank: 25, mult: 1.2 },
+  { maxRank: 36, mult: 1.0 },
+  { maxRank: Infinity, mult: 0.8 },
+] as const;
 export const SEASON_DECAY_PER = 0.1;   // 10% decay per season back in overall ELO
 export const SEASON_DECAY_MIN = 0.5;   // minimum weight (oldest seasons, 5+ back)
 export const SEASON_BASE_ELO = 800;        // everyone starts here each season (below leaderboard 1000)
@@ -52,7 +61,14 @@ function expectedScore(pE: number, oE: number): number {
   return 1 / (1 + Math.pow(10, (oE - pE) / 400));
 }
 
-function eloChange(pE: number, oE: number, pts: number): number {
+function getLobbyMult(avgOppRank: number): number {
+  for (const tier of LOBBY_RANK_TIERS) {
+    if (avgOppRank <= tier.maxRank) return tier.mult;
+  }
+  return 0.8;
+}
+
+function eloChange(pE: number, oE: number, pts: number, avgOppRank?: number): number {
   const norm = pts / MAX_PTS;
   const exp = expectedScore(pE, oE);
   const diff = oE - pE;
@@ -60,20 +76,23 @@ function eloChange(pE: number, oE: number, pts: number): number {
     K_BASE +
     (diff > 0 ? Math.min(diff / 20, 20) : Math.min(Math.abs(diff) / 30, 10));
   let ch = k * (norm - exp);
-  // No loss dampening — losses are full strength for everyone.
-  // For gains only: boost low-ELO players (under BASE_ELO) up to +40% extra at the floor.
-  if (ch > 0 && pE < BASE_ELO) {
-    const gainBoost = Math.min((BASE_ELO - pE) / LOW_ELO_GAIN_RANGE, 1) * LOW_ELO_GAIN_MAX;
-    ch *= (1 + gainBoost);
+  // Soft floor: dampen losses when player is below BASE_ELO (700), ramping up to 60% reduction at floor
+  if (ch < 0 && pE < BASE_ELO) {
+    const damp = Math.min((BASE_ELO - pE) / SOFT_FLOOR_DAMP_RANGE, 1) * SOFT_FLOOR_DAMP_MAX;
+    ch *= (1 - damp);
+  }
+  // Lobby quality multiplier — only applies to gains
+  if (ch > 0 && avgOppRank !== undefined) {
+    ch *= getLobbyMult(avgOppRank);
   }
   ch = Math.max(ch, -30);
-  return Math.min(Math.round(ch * 10) / 10, 45);
+  return Math.min(Math.round(ch * 10) / 10, 60);
 }
 
 export function computeAllElos(
   players: Player[],
   acts: Act[],
-  sats: Sat[] | null | undefined,
+  _sats: Sat[] | null | undefined,
   seasons?: Season[]
 ): { elos: Record<string, number>; hist: Record<string, EloHistoryEntry[]> } {
   // Build a sorted list of seasons (oldest first) for decay weighting.
@@ -105,10 +124,12 @@ export function computeAllElos(
 
   const elos: Record<string, number> = {};
   const hist: Record<string, EloHistoryEntry[]> = {};
+  const actCounts: Record<string, number> = {};
 
   players.forEach((p) => {
     elos[p.name] = BASE_ELO;
     hist[p.name] = [];
+    actCounts[p.name] = 0;
   });
 
   [...acts]
@@ -182,13 +203,12 @@ export function computeAllElos(
         return c0 >= c1 ? 0 : 1;
       });
 
-      // Phase 1: compute raw ELO changes (pre-placement multiplier)
+      // Phase 1: compute raw ELO changes with lobby-quality multiplier on gains
       const rawCh: Record<string, number> = {};
       ap.forEach((name) => {
-        if (!(name in elos)) elos[name] = BASE_ELO;
+        if (!(name in elos)) { elos[name] = BASE_ELO; actCounts[name] = 0; }
         let ch: number;
         if (soloPlayers.has(name)) {
-          // Calculate ELO separately for each bracket then sum
           const pos0Opps = Object.entries(posMap).filter(([, v]) => v === 0).map(([k]) => k);
           const pos1Opps = Object.entries(posMap).filter(([, v]) => v === 1).map(([k]) => k);
           let pts0 = 0, pts1 = 0;
@@ -199,27 +219,32 @@ export function computeAllElos(
             else if (racePos[i] === 1) pts1 += res.points;
           });
           const oAvg0 = pos0Opps.length > 0
-            ? pos0Opps.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / pos0Opps.length
-            : BASE_ELO;
+            ? pos0Opps.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / pos0Opps.length : BASE_ELO;
           const oAvg1 = pos1Opps.length > 0
-            ? pos1Opps.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / pos1Opps.length
-            : BASE_ELO;
-          ch = ((eloChange(elos[name], oAvg0, pts0) + eloChange(elos[name], oAvg1, pts1)) / 2) * multi;
+            ? pos1Opps.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / pos1Opps.length : BASE_ELO;
+          // Avg rank of opponents across both brackets
+          const allOpps = [...pos0Opps, ...pos1Opps].filter(o => o !== name);
+          const avgOppRank = allOpps.length > 0
+            ? allOpps.reduce((s, o) => s + getGlobalRank(o, elos), 0) / allOpps.length : 20;
+          ch = ((eloChange(elos[name], oAvg0, pts0, avgOppRank) + eloChange(elos[name], oAvg1, pts1, avgOppRank)) / 2) * multi;
         } else {
-          const opp = ap.filter((p) => p !== name);
-          const oAvg =
-            opp.length > 0
-              ? opp.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / opp.length
-              : BASE_ELO;
-          ch = eloChange(elos[name], oAvg, pp[name] ?? 0) * multi;
+          const mySlot = posMap[name];
+          // Bracket opponents: same slot on other teams
+          const bracketOpps = mySlot !== undefined
+            ? ap.filter(p => p !== name && posMap[p] === mySlot)
+            : ap.filter(p => p !== name);
+          const oAvg = bracketOpps.length > 0
+            ? bracketOpps.reduce((s, o) => s + (elos[o] ?? BASE_ELO), 0) / bracketOpps.length
+            : BASE_ELO;
+          const avgOppRank = bracketOpps.length > 0
+            ? bracketOpps.reduce((s, o) => s + getGlobalRank(o, elos), 0) / bracketOpps.length
+            : 20;
+          ch = eloChange(elos[name], oAvg, pp[name] ?? 0, avgOppRank) * multi;
         }
         rawCh[name] = ch;
       });
 
       // Phase 2: bracket-rank protection
-      // For each bracket (slot 0 and slot 1), compute the average global rank of its players.
-      // If the avg rank ≤ 10 (top-tier bracket), any player in that bracket who scored 14+
-      // has their loss zeroed and the saved amount redistributed to their bracket peers.
       const decayW = getDecayWeight(act.date);
       for (const slot of [0, 1] as const) {
         const bracketPlayers = ap.filter((n) => posMap[n] === slot);
@@ -239,10 +264,13 @@ export function computeAllElos(
         });
       }
 
-      // Phase 3: apply season decay weight and commit changes (no placement period in overall ELO)
+      // Phase 3: placement multiplier + season decay + commit
       ap.forEach((name) => {
-        const ch = rawCh[name] * decayW;
+        let ch = rawCh[name] * decayW;
+        // 2× K during first PLACEMENT_ACTS overall ACTs
+        if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= 2;
         elos[name] = (elos[name] ?? BASE_ELO) + ch;
+        actCounts[name] = (actCounts[name] ?? 0) + 1;
         if (!hist[name]) hist[name] = [];
         hist[name].push({
           actId: act.id ?? act._id ?? '',
@@ -255,35 +283,7 @@ export function computeAllElos(
         });
       });
     });
-
-  if (sats) {
-    sats.forEach((sat) => {
-      if (!sat.placements) return;
-      Object.entries(sat.placements).forEach(([pl, teams]) => {
-        const b = SAT_PLACEMENT_BONUS[pl] ?? 0;
-        if (!b) return;
-        (teams ?? []).forEach((tm) => {
-          [
-            ...(tm.members ?? []),
-            ...(tm.subs ?? []).filter(Boolean),
-          ].forEach((name) => {
-            if (!(name in elos)) elos[name] = BASE_ELO;
-            elos[name] += b;
-            if (!hist[name]) hist[name] = [];
-            hist[name].push({
-              actId: sat.id ?? sat._id ?? '',
-              actName: sat.name + ' (' + pl + ')',
-              date: sat.date ?? '',
-              elo: Math.round(elos[name]),
-              change: b,
-              points: 0,
-              isSat: true,
-            });
-          });
-        });
-      });
-    });
-  }
+    // SAT placement bonus removed — not applied retroactively or going forward
 
   return { elos, hist };
 }

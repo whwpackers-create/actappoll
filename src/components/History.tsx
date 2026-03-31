@@ -279,7 +279,9 @@ export function History({
               style={{
                 ...card,
                 marginBottom: 16,
-                borderLeft: '3px solid #e94560',
+                borderLeft: '4px solid #c8a030',
+                background: 'rgba(20,24,36,0.85)',
+                border: '1px solid rgba(200,160,48,0.18)',
               }}
             >
               <div
@@ -307,9 +309,9 @@ export function History({
                     <span
                       style={{
                         fontFamily: FONT_HEADER,
-                        fontSize: 18,
+                        fontSize: 20,
                         color: '#f0e6d3',
-                        letterSpacing: 1,
+                        letterSpacing: 2,
                       }}
                     >
                       {act.name}
@@ -318,7 +320,10 @@ export function History({
                       style={{
                         fontFamily: FONT_MONO,
                         fontSize: 11,
-                        color: '#555',
+                        color: '#c8a030',
+                        background: 'rgba(200,160,48,0.08)',
+                        padding: '2px 8px',
+                        borderRadius: 4,
                       }}
                     >
                       {act.date}
@@ -327,9 +332,9 @@ export function History({
                       style={{
                         fontFamily: FONT_MONO,
                         fontSize: 9,
-                        color: '#666',
-                        background: 'rgba(255,255,255,0.04)',
-                        padding: '2px 6px',
+                        color: '#c8a030',
+                        background: 'rgba(200,160,48,0.08)',
+                        padding: '2px 8px',
                         borderRadius: 4,
                       }}
                     >
@@ -356,8 +361,8 @@ export function History({
                   {w && (
                     <div
                       style={{
-                        background: 'rgba(233,69,96,0.08)',
-                        border: '1px solid rgba(233,69,96,0.2)',
+                        background: 'rgba(200,160,48,0.07)',
+                        border: '1px solid rgba(200,160,48,0.25)',
                         borderRadius: 8,
                         padding: '10px 14px',
                         marginBottom: 10,
@@ -372,7 +377,7 @@ export function History({
                           style={{
                             fontFamily: FONT_HEADER,
                             fontSize: 16,
-                            color: '#e94560',
+                            color: '#c8a030',
                           }}
                         >
                           {w.team.name} — {w.score} pts
@@ -398,7 +403,7 @@ export function History({
                           display: 'grid',
                           gridTemplateColumns: `70px repeat(${numTeams}, 1fr) 70px`,
                           gap: 0,
-                          border: '1px solid rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(200,160,48,0.15)',
                           borderRadius: 10,
                           overflow: 'hidden',
                           minWidth: 550,
@@ -447,17 +452,29 @@ export function History({
                                   return (
                                     <>
                                       <span style={{ color: '#8be9fd' }}>
-                                        TV1: {tv1.map(i => (t.members[i] ?? '').split(' ')[0] || `P${i+1}`).join(' & ')}
+                                        TV1: {tv1.map(i => {
+                                          const m = t.members[i] ?? '';
+                                          const s = t.subs?.[i];
+                                          if (s && s !== '') return `${s.split(' ')[0]} (sub for ${m.split(' ')[0] || `P${i+1}`})`;
+                                          return m.split(' ')[0] || `P${i+1}`;
+                                        }).join(' & ')}
                                       </span>
                                       <br />
                                       <span style={{ color: '#f5a623' }}>
-                                        TV2: {tv2.map(i => (t.members[i] ?? '').split(' ')[0] || `P${i+1}`).join(' & ')}
+                                        TV2: {tv2.map(i => {
+                                          const m = t.members[i] ?? '';
+                                          const s = t.subs?.[i];
+                                          if (s && s !== '') return `${s.split(' ')[0]} (sub for ${m.split(' ')[0] || `P${i+1}`})`;
+                                          return m.split(' ')[0] || `P${i+1}`;
+                                        }).join(' & ')}
                                       </span>
                                     </>
                                   );
                                 })()
                               ) : (
-                                t.members.join(' & ')
+                                t.members.map((m, i) =>
+                                  t.subs?.[i] && t.subs[i] !== '' ? `${t.subs[i]} (sub for ${m})` : m
+                                ).join(' & ')
                               )}
                             </div>
                           </div>
@@ -494,7 +511,7 @@ export function History({
                                 borderBottom: '1px solid rgba(255,255,255,0.04)',
                               }}
                             >
-                              <span style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#a09880' }}>
+                              <span style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#c8a030' }}>
                                 R{ri + 1}
                               </span>
                               <span style={{ fontSize: 14 }}>{['🏁', '⭐', '🔥', '👑'][ri]}</span>
@@ -554,7 +571,8 @@ export function History({
                                                 ? (ei < 4 ? (ei % 2 === 0 ? 0 : 2) : (ei % 2 === 0 ? 1 : 3))
                                                 : 0
                                           );
-                                          const pLabel = (t.members[mi] ?? '').split(' ')[0]?.slice(0, 5) || `P${mi + 1}`;
+                                          const subForMi = t.subs?.[mi];
+                                          const pLabel = (subForMi && subForMi !== '' ? subForMi : (t.members[mi] ?? '')).split(' ')[0]?.slice(0, 5) || `P${mi + 1}`;
                                           return (
                                             <div
                                               key={ei}
@@ -639,10 +657,10 @@ export function History({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: 'rgba(233,69,96,0.08)',
+                            background: 'rgba(200,160,48,0.08)',
                           }}
                         >
-                          <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: '#e94560', letterSpacing: 2 }}>
+                          <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: '#c8a030', letterSpacing: 2 }}>
                             FINAL
                           </span>
                         </div>
@@ -651,13 +669,13 @@ export function History({
                             key={ti}
                             style={{
                               padding: '8px 6px',
-                              background: 'rgba(233,69,96,0.05)',
+                              background: 'rgba(200,160,48,0.08)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                             }}
                           >
-                            <span style={{ fontFamily: FONT_HEADER, fontSize: 26, color: TC[ti] }}>
+                            <span style={{ fontFamily: FONT_HEADER, fontSize: 28, color: TC[ti] }}>
                               {getGrandTot(ti)}
                             </span>
                           </div>
@@ -665,7 +683,7 @@ export function History({
                         <div
                           style={{
                             padding: '8px 4px',
-                            background: 'rgba(233,69,96,0.05)',
+                            background: 'rgba(200,160,48,0.08)',
                             display: 'flex',
                             flexDirection: 'column',
                             justifyContent: 'center',
@@ -680,13 +698,67 @@ export function History({
                                 style={{
                                   fontFamily: FONT_MONO,
                                   fontSize: 9,
-                                  color: i === 0 ? '#e94560' : i === 1 ? '#f5a623' : '#555',
+                                  color: i === 0 ? '#c8a030' : i === 1 ? '#f5a623' : '#555',
                                 }}
                               >
                                 {i + 1}. {x.name} ({x.score})
                               </div>
                             ))}
                         </div>
+
+                        {/* ELO changes row — inline below FINAL */}
+                        <div
+                          style={{
+                            padding: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(0,0,0,0.2)',
+                            borderTop: '1px solid rgba(200,160,48,0.1)',
+                          }}
+                        >
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030', letterSpacing: 1 }}>
+                            ELO ±
+                          </span>
+                        </div>
+                        {act.teams.slice(0, numTeams).map((team, ti) => (
+                          <div
+                            key={ti}
+                            style={{
+                              padding: '6px 6px',
+                              background: 'rgba(0,0,0,0.2)',
+                              borderTop: '1px solid rgba(200,160,48,0.1)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: 2,
+                            }}
+                          >
+                            {team.members.map((member, mi) => {
+                              const subName = team.subs?.[mi];
+                              const eloKey = subName && subName !== '' ? subName : member;
+                              const diff = Math.round((eA[eloKey] ?? BASE_ELO) - (eB[eloKey] ?? BASE_ELO));
+                              const firstName = subName && subName !== ''
+                                ? `${subName.split(' ')[0]} (sub)`
+                                : member.split(' ')[0];
+                              return (
+                                <div key={member} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: TC[ti] }}>{firstName}</span>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#555' }}>
+                                    {diff > 0 ? `+${diff}` : `${diff}`}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                        <div
+                          style={{
+                            padding: '6px 4px',
+                            background: 'rgba(0,0,0,0.2)',
+                            borderTop: '1px solid rgba(200,160,48,0.1)',
+                          }}
+                        />
                       </div>
                     </div>
                   ) : (
@@ -770,117 +842,41 @@ export function History({
                                   </div>
                                 );
                               })}
+                              {/* Inline ELO row for fallback path */}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  gap: 8,
+                                  padding: '3px 8px 5px',
+                                  background: 'rgba(0,0,0,0.15)',
+                                  borderBottom: '1px solid rgba(200,160,48,0.08)',
+                                  flexWrap: 'wrap',
+                                }}
+                              >
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c8a030', letterSpacing: 1, alignSelf: 'center' }}>ELO±</span>
+                                {team.members.map((member, mi) => {
+                                  const subName = team.subs?.[mi];
+                                  const eloKey = subName && subName !== '' ? subName : member;
+                                  const diff = Math.round((eA[eloKey] ?? BASE_ELO) - (eB[eloKey] ?? BASE_ELO));
+                                  const firstName = subName && subName !== ''
+                                    ? `${subName.split(' ')[0]} (sub)`
+                                    : member.split(' ')[0];
+                                  return (
+                                    <div key={member} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                      <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: TC[ti] }}>{firstName}</span>
+                                      <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#555' }}>
+                                        {diff > 0 ? `+${diff}` : `${diff}`}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </Fragment>
                           );
                         })}
                       </div>
                     </div>
                   )}
-
-                  {/* Player ELO changes table */}
-                  <div style={{ marginTop: 8, marginBottom: 4 }}>
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1, marginBottom: 4 }}>
-                      PLAYER ELO CHANGES
-                    </div>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 48px 110px 60px',
-                        gap: 0,
-                        border: '1px solid rgba(255,255,255,0.05)',
-                        borderRadius: 6,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {/* ELO table header */}
-                      {['NAME', 'PTS', 'ELO', '+/-'].map((h) => (
-                        <div
-                          key={h}
-                          style={{
-                            padding: '3px 6px',
-                            fontFamily: FONT_MONO,
-                            fontSize: 8,
-                            color: '#445',
-                            background: 'rgba(255,255,255,0.03)',
-                            borderBottom: '1px solid rgba(255,255,255,0.05)',
-                            textAlign: h === 'NAME' ? 'left' : 'center',
-                          }}
-                        >
-                          {h}
-                        </div>
-                      ))}
-                      {/* ELO table rows */}
-                      {act.teams.flatMap((team, ti) =>
-                        team.members.map((member, mi) => {
-                          const pts = pp[member] ?? 0;
-                          const b = Math.round(eB[member] ?? BASE_ELO);
-                          const a = Math.round(eA[member] ?? BASE_ELO);
-                          const diff = a - b;
-                          const rowIdx = ti * team.members.length + mi;
-                          return (
-                            <Fragment key={member + ti}>
-                              <div
-                                style={{
-                                  padding: '3px 6px',
-                                  fontFamily: FONT_HEADER,
-                                  fontSize: 11,
-                                  color: TC[ti],
-                                  background: rowIdx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
-                                  borderBottom: '1px solid rgba(255,255,255,0.03)',
-                                  borderLeft: `2px solid ${TC[ti]}44`,
-                                }}
-                              >
-                                {member.split(' ')[0]}
-                                <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', marginLeft: 4 }}>
-                                  {team.name}
-                                </span>
-                              </div>
-                              <div
-                                style={{
-                                  padding: '3px 6px',
-                                  fontFamily: FONT_HEADER,
-                                  fontSize: 12,
-                                  color: '#c8bfa8',
-                                  textAlign: 'center',
-                                  background: rowIdx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
-                                  borderBottom: '1px solid rgba(255,255,255,0.03)',
-                                }}
-                              >
-                                {pts}
-                              </div>
-                              <div
-                                style={{
-                                  padding: '3px 6px',
-                                  fontFamily: FONT_MONO,
-                                  fontSize: 10,
-                                  color: '#888',
-                                  textAlign: 'center',
-                                  background: rowIdx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
-                                  borderBottom: '1px solid rgba(255,255,255,0.03)',
-                                }}
-                              >
-                                {b} → <span style={{ color: '#c084fc' }}>{a}</span>
-                              </div>
-                              <div
-                                style={{
-                                  padding: '3px 6px',
-                                  fontFamily: FONT_MONO,
-                                  fontSize: 11,
-                                  color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#444',
-                                  textAlign: 'center',
-                                  background: rowIdx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
-                                  borderBottom: '1px solid rgba(255,255,255,0.03)',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {diff > 0 ? '+' : ''}{diff}
-                              </div>
-                            </Fragment>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
                 </div>
                 <button
                   onClick={(e) => {
