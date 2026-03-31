@@ -1,10 +1,11 @@
 import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../types';
 
-export const BASE_ELO = 1000;          // starting ELO for all players
+export const BASE_ELO = 850;           // starting ELO for new players
 export const SOFT_FLOOR = 800;         // losses start dampening below this point
 export const MAX_PTS = 24;
 export const K_BASE = 40;
-export const PLACEMENT_ACTS = 4;       // overall ELO placement: first 4 ACTs get 2× K
+export const PLACEMENT_ACTS = 8;       // overall ELO placement: first 8 ACTs get 1.5× K
+export const PLACEMENT_MULTI = 1.5;   // multiplier applied during placement period
 export const SOFT_FLOOR_DAMP_RANGE = 200; // range below SOFT_FLOOR where dampening ramps in (800→600)
 export const SOFT_FLOOR_DAMP_MAX = 0.6;   // max 60% loss reduction at the floor
 export const CARRY = 0.3; // kept for reference
@@ -18,8 +19,8 @@ export const LOBBY_RANK_TIERS = [
   { maxRank: 25, mult: 1.2 },
   { maxRank: Infinity, mult: 1.0 },
 ] as const;
-export const SEASON_DECAY_PER = 0.1;   // 10% decay per season back in overall ELO
-export const SEASON_DECAY_MIN = 0.5;   // minimum weight (oldest seasons, 5+ back)
+export const SEASON_DECAY_PER = 0.15;  // 15% decay per season back in overall ELO
+export const SEASON_DECAY_MIN = 0.4;   // minimum weight (oldest seasons, 4+ back)
 export const SEASON_BASE_ELO = 800;        // everyone starts here each season (below leaderboard 1000)
 export const SEASON_K_MULTI = 2.0;         // base amplifier on all season changes — creates spread over short seasons
 export const SEASON_COMP_MMR_WEIGHT = 0.4; // how much opponent MMR vs season ELO affects competition level (0=season only, 1=MMR only)
@@ -267,8 +268,8 @@ export function computeAllElos(
       // Phase 3: placement multiplier + season decay + commit
       ap.forEach((name) => {
         let ch = rawCh[name] * decayW;
-        // 2× K during first PLACEMENT_ACTS overall ACTs
-        if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= 2;
+        // PLACEMENT_MULTI× K during first PLACEMENT_ACTS overall ACTs
+        if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= PLACEMENT_MULTI;
         elos[name] = (elos[name] ?? BASE_ELO) + ch;
         actCounts[name] = (actCounts[name] ?? 0) + 1;
         if (!hist[name]) hist[name] = [];

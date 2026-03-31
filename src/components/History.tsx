@@ -226,9 +226,15 @@ export function History({
 
           // ELO snapshots come from precomputed history — O(1) per ACT
 
-          // Per-player total points from races
+          // Per-player total points from races (include subs so their points show correctly)
           const pp: Record<string, number> = {};
-          act.teams.flatMap((t) => t.members).forEach((n) => { pp[n] = 0; });
+          act.teams.forEach((t) => {
+            t.members.forEach((m, i) => {
+              pp[m] = 0;
+              const sub = t.subs?.[i];
+              if (sub && sub !== '') pp[sub] = 0;
+            });
+          });
           act.races.forEach((r) =>
             r.results.forEach((x) => {
               if (x.player in pp) pp[x.player] += x.points;
