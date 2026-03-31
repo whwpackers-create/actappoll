@@ -12,10 +12,10 @@ export const CARRY = 0.3; // kept for reference
 // Round 1 = Day 1, Round 2 = Day 2, Round 3 = Day 3, Round 4+ = Finals
 export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 2.0 };
 export const SAT_ROUND_MULTI_DEFAULT = 1.1; // fallback if satRound not set
-// Late-round (R3+R4) ELO: flat low expected so most players gain from making it that far
-export const LATE_FLAT_EXP = 0.15;     // breakeven at ~3.6 pts out of 24 in late rounds
-export const LATE_GAIN_MULT = 1.3;     // gains in late rounds are boosted
-export const LATE_LOSS_FLOOR = 3;      // below 3 pts in R3+R4 = "shitting the bed", full loss
+// For SAT rounds 3+ (semis/finals), use a flat expected instead of ELO-based expected.
+// This means everyone can gain from good performance regardless of their rank.
+// Breakeven at 6/24 pts — almost everyone in semis/finals scores above this.
+export const SAT_LATE_FLAT_EXP = 0.25;
 export const LATE_LOSS_DAMP = 0.15;   // above floor, only 15% of late-round losses apply
 export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
 // Lobby quality multiplier on gains — based on avg global rank of bracket opponents
@@ -173,6 +173,8 @@ export function computeAllElos(
 
       const satGainMult = act.satId
         ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
+      // SAT rounds 3+ (semis/finals): flat expected so everyone can gain regardless of rank
+      const satFlatExp = (act.satId && (act.satRound ?? 1) >= 3) ? SAT_LATE_FLAT_EXP : undefined;
 
       const soloPlayers = new Set<string>();
       act.teams.forEach((t) => {
@@ -232,7 +234,7 @@ export function computeAllElos(
           const allOpps = [...pos0Opps, ...pos1Opps].filter(o => o !== name);
           const avgOppRank = allOpps.length > 0
             ? allOpps.reduce((s, o) => s + getGlobalRank(o, elos), 0) / allOpps.length : 20;
-          ch = (eloChange(elos[name], oAvg0, pts0, avgOppRank) + eloChange(elos[name], oAvg1, pts1, avgOppRank)) / 2;
+          ch = (eloChange(elos[name], oAvg0, pts0, avgOppRank, satFlatExp) + eloChange(elos[name], oAvg1, pts1, avgOppRank, satFlatExp)) / 2;
           if (ch > 0) ch *= satGainMult;
         } else {
           const mySlot = posMap[name];
@@ -246,7 +248,7 @@ export function computeAllElos(
           const avgOppRank = bracketOpps.length > 0
             ? bracketOpps.reduce((s, o) => s + getGlobalRank(o, elos), 0) / bracketOpps.length
             : 20;
-          ch = eloChange(elos[name], oAvg, pp[name] ?? 0, avgOppRank);
+          ch = eloChange(elos[name], oAvg, pp[name] ?? 0, avgOppRank, satFlatExp);
           if (ch > 0) ch *= satGainMult;
         }
         rawCh[name] = ch;
@@ -350,6 +352,7 @@ export function computeSeasonElos(
     );
     const satGainMult = act.satId
       ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
+    const satFlatExp = (act.satId && (act.satRound ?? 1) >= 3) ? SAT_LATE_FLAT_EXP : undefined;
 
     const soloPlayers = new Set<string>();
     act.teams.forEach((t) => {
@@ -403,7 +406,7 @@ export function computeSeasonElos(
         const oAvg1 = pos1Opps.length > 0
           ? pos1Opps.reduce((s, o) => s + blendOpp(o), 0) / pos1Opps.length
           : BASE_ELO;
-        ch = (eloChange(sE[name], oAvg0, pts0) + eloChange(sE[name], oAvg1, pts1)) / 2;
+        ch = (eloChange(sE[name], oAvg0, pts0, undefined, satFlatExp) + eloChange(sE[name], oAvg1, pts1, undefined, satFlatExp)) / 2;
         if (ch > 0) ch *= satGainMult;
       } else {
         // Position-based opponents: compare against same-slot players from other teams only
@@ -418,7 +421,7 @@ export function computeSeasonElos(
         const oAvg = posOpps.length > 0
           ? posOpps.reduce((s, o) => s + blendOpp(o), 0) / posOpps.length
           : BASE_ELO;
-        ch = eloChange(sE[name], oAvg, pp[name] ?? 0);
+        ch = eloChange(sE[name], oAvg, pp[name] ?? 0, undefined, satFlatExp);
         if (ch > 0) ch *= satGainMult;
       }
       ch *= SEASON_K_MULTI;
