@@ -1,13 +1,14 @@
 import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../types';
 
 export const BASE_ELO = 850;           // starting ELO for new players
-export const SOFT_FLOOR = 800;         // losses start dampening below this point
+export const SOFT_FLOOR = 850;         // losses start dampening below this point
 export const MAX_PTS = 24;
 export const K_BASE = 40;
 export const PLACEMENT_ACTS = 8;       // overall ELO placement: first 8 ACTs get 1.5× K
 export const PLACEMENT_MULTI = 1.5;   // multiplier applied during placement period
-export const SOFT_FLOOR_DAMP_RANGE = 200; // range below SOFT_FLOOR where dampening ramps in (800→600)
-export const SOFT_FLOOR_DAMP_MAX = 0.6;   // max 60% loss reduction at the floor
+export const SOFT_FLOOR_DAMP_RANGE = 150; // range below SOFT_FLOOR where dampening ramps in (850→700)
+export const SOFT_FLOOR_DAMP_MAX = 0.85;  // max 85% loss reduction at the floor for experienced players
+export const SOFT_FLOOR_EXP_THRESHOLD = 10; // ACTs needed for full soft floor protection
 export const CARRY = 0.3; // kept for reference
 export const SAT_MULTI = 1.25;
 export const SEASON_PLACEMENT_ACTS = 4; // placement period for season ELO only (2× K)
@@ -80,11 +81,6 @@ function eloChange(pE: number, oE: number, pts: number, avgOppRank?: number): nu
     K_BASE +
     (diff > 0 ? Math.min(diff / 20, 20) : Math.min(Math.abs(diff) / 30, 10));
   let ch = k * (norm - exp);
-  // Soft floor: dampen losses when player is below SOFT_FLOOR (800), ramping up to 60% reduction at 600
-  if (ch < 0 && pE < SOFT_FLOOR) {
-    const damp = Math.min((SOFT_FLOOR - pE) / SOFT_FLOOR_DAMP_RANGE, 1) * SOFT_FLOOR_DAMP_MAX;
-    ch *= (1 - damp);
-  }
   // Lobby quality multiplier — only applies to gains
   if (ch > 0 && avgOppRank !== undefined) {
     ch *= getLobbyMult(avgOppRank);
@@ -269,11 +265,20 @@ export function computeAllElos(
         });
       }
 
-      // Phase 3: placement multiplier + season decay + commit
+      // Phase 3: placement multiplier + season decay + experience-scaled soft floor + commit
       ap.forEach((name) => {
         let ch = rawCh[name] * decayW;
         // PLACEMENT_MULTI× K during first PLACEMENT_ACTS overall ACTs
         if ((actCounts[name] ?? 0) < PLACEMENT_ACTS) ch *= PLACEMENT_MULTI;
+        // Experience-scaled soft floor at SOFT_FLOOR (850):
+        // New players (few ACTs) get little protection; veterans get up to SOFT_FLOOR_DAMP_MAX.
+        // expFactor ramps 0→1 over SOFT_FLOOR_EXP_THRESHOLD acts.
+        if (ch < 0 && (elos[name] ?? BASE_ELO) < SOFT_FLOOR) {
+          const expFactor = Math.min((actCounts[name] ?? 0) / SOFT_FLOOR_EXP_THRESHOLD, 1.0);
+          const depthFactor = Math.min((SOFT_FLOOR - (elos[name] ?? BASE_ELO)) / SOFT_FLOOR_DAMP_RANGE, 1.0);
+          const damp = expFactor * depthFactor * SOFT_FLOOR_DAMP_MAX;
+          ch *= (1 - damp);
+        }
         elos[name] = (elos[name] ?? BASE_ELO) + ch;
         actCounts[name] = (actCounts[name] ?? 0) + 1;
         if (!hist[name]) hist[name] = [];
