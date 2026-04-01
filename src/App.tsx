@@ -989,197 +989,170 @@ export default function App() {
         position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <div className="trophy-spin" style={{ opacity: 0.34, marginTop: 60 }}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 380" width="500" height="665">
+        <div className="trophy-static" style={{ opacity: 0.36, marginTop: 60 }}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 390" width="490" height="670">
             <defs>
-              {/* Main cup body — strong off-center radial for 3D depth */}
-              <radialGradient id="tgCup" cx="36%" cy="30%" r="68%">
+              {/* Cup body — off-center radial for 3D depth */}
+              <radialGradient id="tgCup" cx="38%" cy="30%" r="66%">
                 <stop offset="0%"   stopColor="#fffce0"/>
-                <stop offset="18%"  stopColor="#ffe860"/>
-                <stop offset="45%"  stopColor="#d49018"/>
-                <stop offset="75%"  stopColor="#8a4e04"/>
+                <stop offset="20%"  stopColor="#ffe860"/>
+                <stop offset="48%"  stopColor="#d49018"/>
+                <stop offset="78%"  stopColor="#8a4e04"/>
                 <stop offset="100%" stopColor="#3e1a00"/>
               </radialGradient>
-              {/* Wing — slightly warmer tone */}
-              <radialGradient id="tgWing" cx="58%" cy="42%" r="62%">
-                <stop offset="0%"   stopColor="#ffe878"/>
-                <stop offset="40%"  stopColor="#c88010"/>
-                <stop offset="100%" stopColor="#5a2e00"/>
-              </radialGradient>
-              {/* Stem — cylindrical left-to-right */}
+              {/* Ear handle */}
+              <linearGradient id="tgHandle" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stopColor="#4a2000"/>
+                <stop offset="35%"  stopColor="#c07808"/>
+                <stop offset="60%"  stopColor="#ffe060"/>
+                <stop offset="100%" stopColor="#6a3200"/>
+              </linearGradient>
+              {/* Stem — cylindrical */}
               <linearGradient id="tgStem" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%"   stopColor="#5a2e00"/>
-                <stop offset="22%"  stopColor="#b87010"/>
+                <stop offset="0%"   stopColor="#4a2000"/>
+                <stop offset="25%"  stopColor="#b07010"/>
                 <stop offset="50%"  stopColor="#ffe060"/>
-                <stop offset="78%"  stopColor="#b87010"/>
-                <stop offset="100%" stopColor="#5a2e00"/>
+                <stop offset="75%"  stopColor="#b07010"/>
+                <stop offset="100%" stopColor="#4a2000"/>
               </linearGradient>
-              {/* Base — top to bottom */}
-              <linearGradient id="tgBase" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%"   stopColor="#d09020"/>
-                <stop offset="45%"  stopColor="#9a5e08"/>
-                <stop offset="100%" stopColor="#2e1200"/>
-              </linearGradient>
-              {/* Rim band — bright top */}
+              {/* Rim band */}
               <linearGradient id="tgRim" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%"   stopColor="#fff9c8"/>
-                <stop offset="35%"  stopColor="#ffcc30"/>
+                <stop offset="0%"   stopColor="#fff9c0"/>
+                <stop offset="38%"  stopColor="#ffca28"/>
                 <stop offset="100%" stopColor="#9a5e08"/>
               </linearGradient>
-              {/* Crown body uses cup gradient */}
-              {/* Gem blue */}
-              <radialGradient id="tgGemB" cx="35%" cy="28%" r="65%">
-                <stop offset="0%"   stopColor="#ffffff"/>
-                <stop offset="38%"  stopColor="#80ccff"/>
-                <stop offset="100%" stopColor="#1040a8"/>
+              {/* Crown */}
+              <radialGradient id="tgCrown" cx="36%" cy="28%" r="68%">
+                <stop offset="0%"   stopColor="#fff8d0"/>
+                <stop offset="28%"  stopColor="#ffd040"/>
+                <stop offset="65%"  stopColor="#c07808"/>
+                <stop offset="100%" stopColor="#4a2000"/>
               </radialGradient>
-              {/* Gem red */}
-              <radialGradient id="tgGemR" cx="35%" cy="28%" r="65%">
-                <stop offset="0%"   stopColor="#ffffff"/>
-                <stop offset="38%"  stopColor="#ffaaaa"/>
-                <stop offset="100%" stopColor="#a01020"/>
+              {/* Red base */}
+              <radialGradient id="tgBase" cx="50%" cy="30%" r="60%">
+                <stop offset="0%"   stopColor="#cc1818"/>
+                <stop offset="55%"  stopColor="#8a0808"/>
+                <stop offset="100%" stopColor="#3a0000"/>
               </radialGradient>
-              {/* Star emblem */}
-              <radialGradient id="tgStar" cx="40%" cy="35%" r="60%">
+              {/* Gold base rim */}
+              <linearGradient id="tgBaseRim" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%"   stopColor="#e0a020"/>
+                <stop offset="100%" stopColor="#8a5008"/>
+              </linearGradient>
+              {/* Red gem */}
+              <radialGradient id="tgGemR" cx="33%" cy="26%" r="65%">
                 <stop offset="0%"   stopColor="#ffffff"/>
-                <stop offset="30%"  stopColor="#fff070"/>
-                <stop offset="100%" stopColor="#b07a00"/>
+                <stop offset="32%"  stopColor="#ff7070"/>
+                <stop offset="100%" stopColor="#980010"/>
               </radialGradient>
+              {/* Red accent band */}
+              <linearGradient id="tgAccent" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%"   stopColor="#cc1818"/>
+                <stop offset="60%"  stopColor="#7a0606"/>
+                <stop offset="100%" stopColor="#3a0000"/>
+              </linearGradient>
+              {/* Clip path for cup body — used by shading sweep */}
+              <clipPath id="tgClip">
+                <path d="M 64,88 C 56,118 52,148 54,175 C 56,202 66,238 88,258 C 106,272 122,276 140,276 C 158,276 174,272 192,258 C 214,238 224,202 226,175 C 228,148 224,118 216,88 Z"/>
+              </clipPath>
               {/* Glow */}
               <filter id="tgGlow" x="-25%" y="-25%" width="150%" height="150%">
-                <feGaussianBlur stdDeviation="5" result="blur"/>
+                <feGaussianBlur stdDeviation="4" result="blur"/>
                 <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-              {/* Drop shadow for wings */}
-              <filter id="tgShad" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="4" dy="5" stdDeviation="5" floodColor="#2a0e00" floodOpacity="0.55"/>
               </filter>
             </defs>
 
-            {/* ── Base pedestal ── */}
-            <rect x="64"  y="328" width="152" height="20" rx="5" fill="url(#tgBase)"/>
-            <rect x="76"  y="312" width="128" height="18" rx="4" fill="url(#tgBase)"/>
-            {/* Tier rim highlights */}
-            <rect x="64"  y="328" width="152" height="4"  rx="2" fill="rgba(255,230,90,0.45)"/>
-            <rect x="76"  y="312" width="128" height="4"  rx="2" fill="rgba(255,230,90,0.45)"/>
+            {/* ── Red base ── */}
+            <ellipse cx="140" cy="360" rx="62" ry="17" fill="url(#tgBase)"/>
+            <ellipse cx="140" cy="356" rx="62" ry="14" fill="url(#tgBase)"/>
+            {/* Gold trim ring on base */}
+            <ellipse cx="140" cy="342" rx="60" ry="9" fill="url(#tgBaseRim)"/>
+            <ellipse cx="140" cy="340" rx="60" ry="7" fill="rgba(255,218,50,0.38)"/>
 
             {/* ── Stem ── */}
-            <rect x="120" y="274" width="40" height="40" rx="9" fill="url(#tgStem)"/>
-            {/* Stem highlight stripe */}
-            <rect x="128" y="274" width="12" height="40" rx="5" fill="rgba(255,245,130,0.28)"/>
+            <rect x="124" y="280" width="32" height="62" rx="7" fill="url(#tgStem)"/>
+            <rect x="130" y="280" width="10" height="62" rx="4" fill="rgba(255,242,120,0.25)"/>
 
             {/* ── Connector disc ── */}
-            <ellipse cx="140" cy="276" rx="56" ry="13" fill="url(#tgBase)"/>
-            <ellipse cx="140" cy="273" rx="56" ry="11" fill="url(#tgRim)"/>
-            <ellipse cx="130" cy="270" rx="24"  ry="5"  fill="rgba(255,252,190,0.35)"/>
+            <ellipse cx="140" cy="282" rx="54" ry="12" fill="url(#tgBaseRim)"/>
+            <ellipse cx="140" cy="280" rx="54" ry="10" fill="url(#tgRim)"/>
+            <ellipse cx="128" cy="277" rx="24" ry="5"  fill="rgba(255,252,190,0.32)"/>
 
-            {/* ── Left wing — behind cup ── */}
-            <path d="M 74,108 C 44,96 14,82 8,56 C 2,32 24,22 52,40 C 64,50 70,78 74,108 Z"
-              fill="url(#tgWing)" stroke="#9a5e10" strokeWidth="2" filter="url(#tgShad)"/>
-            {/* Wing inner highlight */}
-            <path d="M 72,104 C 48,92 24,78 18,56 C 14,40 28,34 50,48"
-              fill="none" stroke="rgba(255,240,100,0.45)" strokeWidth="2.5"/>
-            {/* Wing vein lines */}
-            <path d="M 30,62 C 44,82 60,100 72,118"  stroke="#7a4806" strokeWidth="1.8" fill="none" opacity="0.65"/>
-            <path d="M 20,54 C 36,76 54,98 70,118"  stroke="#7a4806" strokeWidth="1.2" fill="none" opacity="0.4"/>
-            {/* Wing lower portion */}
-            <path d="M 74,108 C 46,118 22,130 14,156 C 8,176 24,196 52,196 C 62,196 70,192 74,186"
-              fill="url(#tgWing)" stroke="#9a5e10" strokeWidth="2"/>
-            <path d="M 72,110 C 48,120 28,132 22,154 C 18,170 28,184 50,188"
-              fill="none" stroke="rgba(255,240,100,0.4)" strokeWidth="2"/>
-            <path d="M 22,154 C 38,162 58,172 72,180" stroke="#7a4806" strokeWidth="1.5" fill="none" opacity="0.55"/>
+            {/* ── Red accent band at cup bottom ── */}
+            <path d="M 88,258 C 106,272 122,276 140,276 C 158,276 174,272 192,258 L 186,252 C 170,266 156,270 140,270 C 124,270 110,266 94,252 Z"
+              fill="url(#tgAccent)"/>
 
-            {/* ── Right wing — behind cup ── */}
-            <path d="M 206,108 C 236,96 266,82 272,56 C 278,32 256,22 228,40 C 216,50 210,78 206,108 Z"
-              fill="url(#tgWing)" stroke="#9a5e10" strokeWidth="2" filter="url(#tgShad)"/>
-            <path d="M 208,104 C 232,92 256,78 262,56 C 266,40 252,34 230,48"
-              fill="none" stroke="rgba(255,240,100,0.45)" strokeWidth="2.5"/>
-            <path d="M 250,62 C 236,82 220,100 208,118" stroke="#7a4806" strokeWidth="1.8" fill="none" opacity="0.65"/>
-            <path d="M 260,54 C 244,76 226,98 210,118" stroke="#7a4806" strokeWidth="1.2" fill="none" opacity="0.4"/>
-            <path d="M 206,108 C 234,118 258,130 266,156 C 272,176 256,196 228,196 C 218,196 210,192 206,186"
-              fill="url(#tgWing)" stroke="#9a5e10" strokeWidth="2"/>
-            <path d="M 208,110 C 232,120 252,132 258,154 C 262,170 252,184 230,188"
-              fill="none" stroke="rgba(255,240,100,0.4)" strokeWidth="2"/>
-            <path d="M 258,154 C 242,162 222,172 208,180" stroke="#7a4806" strokeWidth="1.5" fill="none" opacity="0.55"/>
+            {/* ── Left ear handle (behind cup) ── */}
+            <path d="M 63,130 C 32,126 16,150 20,178 C 24,200 40,214 63,216"
+              fill="none" stroke="#b07808" strokeWidth="20" strokeLinecap="round"/>
+            <path d="M 63,130 C 34,128 20,152 24,178 C 27,198 42,210 63,212"
+              fill="none" stroke="url(#tgHandle)" strokeWidth="16" strokeLinecap="round"/>
+            {/* Handle highlight */}
+            <path d="M 63,134 C 40,132 28,154 30,178 C 32,196 44,206 63,210"
+              fill="none" stroke="rgba(255,238,90,0.3)" strokeWidth="5" strokeLinecap="round"/>
 
-            {/* ── Main cup body — chalice/vase shape ── */}
-            <path d="
-              M 72,82
-              C 64,108 56,138 54,166
-              C 52,192 56,222 72,246
-              C 90,264 114,274 140,274
-              C 166,274 190,264 208,246
-              C 224,222 228,192 226,166
-              C 224,138 216,108 208,82 Z"
+            {/* ── Right ear handle (behind cup) ── */}
+            <path d="M 217,130 C 248,126 264,150 260,178 C 256,200 240,214 217,216"
+              fill="none" stroke="#b07808" strokeWidth="20" strokeLinecap="round"/>
+            <path d="M 217,130 C 246,128 260,152 256,178 C 253,198 238,210 217,212"
+              fill="none" stroke="url(#tgHandle)" strokeWidth="16" strokeLinecap="round"/>
+            <path d="M 217,134 C 240,132 252,154 250,178 C 248,196 236,206 217,210"
+              fill="none" stroke="rgba(255,238,90,0.3)" strokeWidth="5" strokeLinecap="round"/>
+
+            {/* ── Main cup body ── */}
+            <path d="M 64,88 C 56,118 52,148 54,175 C 56,202 66,238 88,258 C 106,272 122,276 140,276 C 158,276 174,272 192,258 C 214,238 224,202 226,175 C 228,148 224,118 216,88 Z"
               fill="url(#tgCup)" filter="url(#tgGlow)"/>
 
-            {/* 3-D highlight — upper-left bright zone */}
-            <path d="
-              M 72,82
-              C 64,108 58,136 58,162
-              C 58,180 62,202 72,222
-              C 80,238 94,252 110,260
-              C 100,248 92,230 88,208
-              C 84,184 84,156 88,128
-              C 92,104 100,86 110,76 Z"
-              fill="rgba(255,252,190,0.16)"/>
+            {/* Static shadow — right side */}
+            <path d="M 216,88 C 224,118 228,148 226,175 C 224,202 214,238 192,258 C 182,266 170,272 158,274 C 178,268 198,248 210,222 C 220,198 224,170 222,146 C 220,120 216,96 216,88 Z"
+              fill="rgba(40,14,0,0.20)"/>
 
-            {/* Shadow — right side */}
-            <path d="
-              M 208,82
-              C 216,108 224,138 226,166
-              C 228,192 224,222 208,246
-              C 200,260 188,268 174,272
-              C 192,264 206,246 214,224
-              C 222,200 224,170 220,146
-              C 216,118 208,94 208,82 Z"
-              fill="rgba(40,14,0,0.22)"/>
+            {/* ── Animated shine sweep (simulates rotation) ── */}
+            <g clipPath="url(#tgClip)">
+              <ellipse cx="140" cy="180" rx="52" ry="105" fill="rgba(255,252,200,0.20)">
+                <animateTransform attributeName="transform" type="translate"
+                  values="-100,0; 100,0; -100,0" dur="7s" repeatCount="indefinite"
+                  calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" keyTimes="0;0.5;1"/>
+              </ellipse>
+            </g>
 
-            {/* ── Rim / cup opening ── */}
-            <ellipse cx="140" cy="82" rx="68" ry="22" fill="url(#tgRim)"/>
+            {/* ── Cup rim ── */}
+            <ellipse cx="140" cy="88" rx="76" ry="22" fill="url(#tgRim)"/>
             {/* Inner cup darkness */}
-            <ellipse cx="140" cy="80" rx="60" ry="16" fill="rgba(30,10,0,0.65)"/>
-            {/* Rim highlight glint */}
-            <ellipse cx="118" cy="74" rx="30" ry="9" fill="rgba(255,254,210,0.32)"/>
+            <ellipse cx="140" cy="86" rx="68" ry="16" fill="rgba(22,8,0,0.68)"/>
+            {/* Rim glint */}
+            <ellipse cx="114" cy="82" rx="32" ry="9" fill="rgba(255,254,210,0.28)"/>
 
-            {/* ── Star/sunburst emblem on front ── */}
-            {/* 8-pointed star — no face, just decoration */}
-            <path d="M 140,144 L 147,162 L 166,162 L 151,174 L 157,194 L 140,182 L 123,194 L 129,174 L 114,162 L 133,162 Z"
-              fill="url(#tgStar)" stroke="rgba(180,120,10,0.7)" strokeWidth="1.5" filter="url(#tgGlow)"/>
-            {/* Star inner shine */}
-            <path d="M 140,150 L 145,163 L 158,163 L 148,171 L 152,184 L 140,177 L 128,184 L 132,171 L 122,163 L 135,163 Z"
-              fill="rgba(255,255,200,0.28)"/>
+            {/* ── Crown base band ── */}
+            <rect x="82" y="54" width="116" height="36" rx="6" fill="url(#tgCrown)"/>
+            <rect x="82" y="54" width="116" height="6"  rx="3" fill="rgba(255,238,90,0.55)"/>
+            <rect x="82" y="84" width="116" height="4"  rx="2" fill="rgba(150,70,8,0.55)"/>
 
-            {/* Decorative band across mid-cup */}
-            <path d="M 56,168 C 68,172 100,174 140,174 C 180,174 212,172 224,168"
-              stroke="rgba(255,220,60,0.35)" strokeWidth="5" fill="none"/>
-            <path d="M 56,168 C 68,172 100,174 140,174 C 180,174 212,172 224,168"
-              stroke="rgba(255,250,160,0.2)" strokeWidth="2" fill="none"/>
+            {/* ── Crown points (5 spikes) ── */}
+            <polygon points="82,56  93,20  104,56"  fill="url(#tgCrown)" stroke="#b07010" strokeWidth="1.8"/>
+            <polygon points="107,56 120,10 133,56" fill="url(#tgCrown)" stroke="#b07010" strokeWidth="1.8"/>
+            <polygon points="126,56 140,6  154,56" fill="url(#tgCrown)" stroke="#b07010" strokeWidth="1.8"/>
+            <polygon points="147,56 160,10 173,56" fill="url(#tgCrown)" stroke="#b07010" strokeWidth="1.8"/>
+            <polygon points="176,56 187,20 198,56"  fill="url(#tgCrown)" stroke="#b07010" strokeWidth="1.8"/>
+            {/* Crown highlight edges */}
+            <polygon points="82,56  93,20  104,56"  fill="none" stroke="rgba(255,240,100,0.48)" strokeWidth="1"/>
+            <polygon points="107,56 120,10 133,56" fill="none" stroke="rgba(255,240,100,0.48)" strokeWidth="1"/>
+            <polygon points="126,56 140,6  154,56" fill="none" stroke="rgba(255,240,100,0.48)" strokeWidth="1"/>
+            <polygon points="147,56 160,10 173,56" fill="none" stroke="rgba(255,240,100,0.48)" strokeWidth="1"/>
+            <polygon points="176,56 187,20 198,56"  fill="none" stroke="rgba(255,240,100,0.48)" strokeWidth="1"/>
 
-            {/* ── Crown on top ── */}
-            {/* Crown base band */}
-            <rect x="80" y="54" width="120" height="30" rx="6" fill="url(#tgCup)"/>
-            <rect x="80" y="54" width="120" height="6"  rx="3" fill="rgba(255,238,90,0.55)"/>
-            {/* Crown band bottom rim */}
-            <rect x="80" y="78" width="120" height="4"  rx="2" fill="rgba(180,100,10,0.5)"/>
-
-            {/* Crown points — 3 spikes */}
-            <polygon points="80,56  96,16  112,56"  fill="url(#tgCup)" stroke="#b07010" strokeWidth="2"/>
-            <polygon points="114,56 140,8  166,56" fill="url(#tgCup)" stroke="#b07010" strokeWidth="2"/>
-            <polygon points="168,56 184,16 200,56"  fill="url(#tgCup)" stroke="#b07010" strokeWidth="2"/>
-            {/* Crown point highlight edges */}
-            <polygon points="80,56  96,16  112,56"  fill="none" stroke="rgba(255,242,100,0.5)" strokeWidth="1.2"/>
-            <polygon points="114,56 140,8  166,56" fill="none" stroke="rgba(255,242,100,0.5)" strokeWidth="1.2"/>
-            <polygon points="168,56 184,16 200,56"  fill="none" stroke="rgba(255,242,100,0.5)" strokeWidth="1.2"/>
-
-            {/* Crown gems */}
-            <circle cx="96"  cy="28" r="9"  fill="url(#tgGemR)"/>
-            <circle cx="140" cy="18" r="11" fill="url(#tgGemB)"/>
-            <circle cx="184" cy="28" r="9"  fill="url(#tgGemR)"/>
-            {/* Gem glint specular */}
-            <circle cx="93"  cy="23" r="3.5" fill="rgba(255,255,255,0.95)"/>
-            <circle cx="137" cy="13" r="4"   fill="rgba(255,255,255,0.95)"/>
-            <circle cx="181" cy="23" r="3.5" fill="rgba(255,255,255,0.95)"/>
+            {/* ── Crown gems — all red like the image ── */}
+            <circle cx="93"  cy="26" r="8.5" fill="url(#tgGemR)"/>
+            <circle cx="120" cy="16" r="8.5" fill="url(#tgGemR)"/>
+            <circle cx="140" cy="12" r="9.5" fill="url(#tgGemR)"/>
+            <circle cx="160" cy="16" r="8.5" fill="url(#tgGemR)"/>
+            <circle cx="187" cy="26" r="8.5" fill="url(#tgGemR)"/>
+            {/* Gem specular */}
+            <circle cx="90"  cy="21" r="3"   fill="rgba(255,255,255,0.92)"/>
+            <circle cx="117" cy="11" r="3"   fill="rgba(255,255,255,0.92)"/>
+            <circle cx="137" cy="7"  r="3.5" fill="rgba(255,255,255,0.92)"/>
+            <circle cx="157" cy="11" r="3"   fill="rgba(255,255,255,0.92)"/>
+            <circle cx="184" cy="21" r="3"   fill="rgba(255,255,255,0.92)"/>
           </svg>
         </div>
       </div>

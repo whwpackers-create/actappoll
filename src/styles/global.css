@@ -19,15 +19,9 @@ body::before {
   pointer-events: none;
 }
 
-/* MK Wii trophy 3D spin */
-@keyframes trophySpin {
-  0%   { transform: perspective(900px) rotateY(0deg);   }
-  100% { transform: perspective(900px) rotateY(360deg); }
-}
-.trophy-spin {
-  animation: trophySpin 10s linear infinite;
-  transform-origin: center center;
-  transform-style: preserve-3d;
+/* MK Wii trophy — no rotation, shading sweep handles the animation */
+.trophy-static {
+  /* shine sweep handled by SVG animateTransform inside the SVG */
 }
 
 /* Mobile responsive utilities */
