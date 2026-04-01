@@ -318,6 +318,30 @@ export function Dashboard({
         position: 'relative',
       }}
     >
+      {/* Checkered flag background — MK Wii style */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+        {/* Diagonal speed lines */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'repeating-linear-gradient(62deg, transparent 0px, transparent 28px, rgba(255,255,255,0.018) 28px, rgba(255,255,255,0.018) 30px)',
+        }} />
+        {/* Checkered flag */}
+        <svg
+          style={{ position: 'absolute', top: '38%', left: '50%', transform: 'translate(-50%, -50%) rotate(-12deg)', opacity: 0.07, width: 560, height: 420 }}
+          viewBox="0 0 560 420"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <defs>
+            <pattern id="bgChecker" width="40" height="40" patternUnits="userSpaceOnUse">
+              <rect width="20" height="20" fill="white"/>
+              <rect x="20" width="20" height="20" fill="black"/>
+              <rect y="20" width="20" height="20" fill="black"/>
+              <rect x="20" y="20" width="20" height="20" fill="white"/>
+            </pattern>
+          </defs>
+          <rect width="560" height="420" fill="url(#bgChecker)"/>
+        </svg>
+      </div>
       <div
         className="stat-cards"
         style={{
@@ -328,6 +352,8 @@ export function Dashboard({
           border: '2px solid #2a3550',
           borderRadius: 6,
           overflow: 'hidden',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         {[
@@ -440,6 +466,8 @@ export function Dashboard({
           display: 'grid',
           gridTemplateColumns: '1fr 340px',
           gap: 16,
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         <div
