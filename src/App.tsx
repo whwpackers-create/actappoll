@@ -984,29 +984,29 @@ export default function App() {
         position: 'relative',
       }}
     >
-      {/* Global checkered flag — full-screen fixed layer, SVG overflow visible */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      {/* Global checkered flag — pole base at bottom, flag visible center-screen */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'visible' }}>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           overflow="visible"
           style={{
             position: 'absolute',
             bottom: 0,
-            left: '44%',
+            left: '42%',
             transform: 'translateX(-50%)',
-            width: 660,
-            height: 960,
-            opacity: 0.30,
+            width: 560,
+            height: 920,
+            opacity: 0.32,
             display: 'block',
           }}
-          viewBox="0 0 660 960"
+          viewBox="0 0 560 920"
         >
           <defs>
-            <pattern id="appChecker" width="46" height="46" patternUnits="userSpaceOnUse">
-              <rect width="23" height="23" fill="#d4d4d4"/>
-              <rect x="23" width="23" height="23" fill="#181818"/>
-              <rect y="23" width="23" height="23" fill="#181818"/>
-              <rect x="23" y="23" width="23" height="23" fill="#d4d4d4"/>
+            <pattern id="appChecker" width="44" height="44" patternUnits="userSpaceOnUse">
+              <rect width="22" height="22" fill="#d0d0d0"/>
+              <rect x="22" width="22" height="22" fill="#181818"/>
+              <rect y="22" width="22" height="22" fill="#181818"/>
+              <rect x="22" y="22" width="22" height="22" fill="#d0d0d0"/>
             </pattern>
             <linearGradient id="poleGold" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%"   stopColor="#4a2e06"/>
@@ -1017,51 +1017,44 @@ export default function App() {
             </linearGradient>
           </defs>
 
-          {/* Rotate +13° clockwise around pole base so top leans right like MK Wii */}
-          <g transform="rotate(13, 115, 960)">
-            {/* Gold pole */}
-            <rect x="106" y="0" width="18" height="960" rx="7" fill="url(#poleGold)"/>
-            {/* Pole sheen */}
-            <rect x="112" y="0" width="6"  height="960" rx="3" fill="rgba(255,230,100,0.5)"/>
+          {/* +10° clockwise around pole base (90, 920) */}
+          <g transform="rotate(10, 90, 920)">
+            {/* Slim gold pole */}
+            <rect x="84" y="0" width="10" height="920" rx="4" fill="url(#poleGold)"/>
+            <rect x="87" y="0" width="3"  height="920" rx="1" fill="rgba(255,230,100,0.55)"/>
 
-            {/* Large wavy flag body — cubic bezier waves, 2.5 cycles */}
+            {/* Wavy flag — sits in the middle third of the SVG height so it's center-screen */}
             <path d="
-              M 124 75
-              C 190 38  250 118 320 75
-              C 390 32  450 112 520 72
-              C 570 44  610 80  640 60
-              L 640 330
-              C 610 350 570 314 520 342
-              C 450 382 390 302 320 345
-              C 250 388 190 308 124 345
+              M 94 310
+              C 170 272 240 358 320 310
+              C 400 262 470 348 540 308
+              L 540 560
+              C 470 600 400 514 320 562
+              C 240 610 170 524 94 562
               Z
             " fill="url(#appChecker)"/>
 
-            {/* Bottom hem shadow for depth */}
+            {/* Bottom hem shadow */}
             <path d="
-              M 124 338
-              C 190 301 250 381 320 338
-              C 390 295 450 375 520 335
-              C 570 307 610 343 640 323
-              L 640 356
-              C 610 376 570 340 520 368
-              C 450 408 390 328 320 371
-              C 250 414 190 334 124 371
+              M 94 554
+              C 170 516 240 602 320 554
+              C 400 506 470 592 540 552
+              L 540 574
+              C 470 614 400 528 320 576
+              C 240 624 170 538 94 576
               Z
-            " fill="rgba(0,0,0,0.28)"/>
+            " fill="rgba(0,0,0,0.30)"/>
 
-            {/* Top-edge highlight */}
+            {/* Top highlight strip */}
             <path d="
-              M 124 75
-              C 190 38  250 118 320 75
-              C 390 32  450 112 520 72
-              C 570 44  610 80  640 60
-              L 640 80
-              C 610 100 570 64 520 92
-              C 450 132 390 52 320 95
-              C 250 138 190 58 124 95
+              M 94 310
+              C 170 272 240 358 320 310
+              C 400 262 470 348 540 308
+              L 540 328
+              C 470 368 400 282 320 330
+              C 240 378 170 292 94 330
               Z
-            " fill="rgba(255,255,255,0.07)"/>
+            " fill="rgba(255,255,255,0.08)"/>
           </g>
         </svg>
       </div>
