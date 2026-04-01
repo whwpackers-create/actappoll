@@ -1200,6 +1200,40 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* MK Wii-style footer bar */}
+      <div style={{ position: 'relative', zIndex: 100 }}>
+        {/* Top accent line */}
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#1a2a5a 0%,#3a5aaa 40%,#1a2a5a 100%)' }}/>
+        <div style={{
+          position: 'relative',
+          height: 40,
+          background: 'linear-gradient(180deg,#12141e 0%,#0a0c14 100%)',
+          overflow: 'hidden',
+        }}>
+          {/* Checker strip — right side, dark blue-grey squares */}
+          <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 180 }}>
+            <svg width="180" height="40" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="footChecker" width="13" height="13" patternUnits="userSpaceOnUse">
+                  <rect width="6" height="6" fill="rgba(60,80,140,0.55)"/>
+                  <rect x="6" width="7" height="6" fill="rgba(20,24,40,0.7)"/>
+                  <rect y="6" width="6" height="7" fill="rgba(20,24,40,0.7)"/>
+                  <rect x="6" y="6" width="7" height="7" fill="rgba(60,80,140,0.55)"/>
+                </pattern>
+                <linearGradient id="footFade" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="white" stopOpacity="0"/>
+                  <stop offset="45%" stopColor="white" stopOpacity="1"/>
+                </linearGradient>
+                <mask id="footMask">
+                  <rect width="180" height="40" fill="url(#footFade)"/>
+                </mask>
+              </defs>
+              <rect width="180" height="40" fill="url(#footChecker)" mask="url(#footMask)"/>
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

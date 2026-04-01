@@ -22,121 +22,113 @@ export function NavBar({
   menuImgs,
 }: NavBarProps) {
   const siteLogo = menuImgs?.['site_logo'] ?? '';
+
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-      <div
-        style={{
-          background:
-            'linear-gradient(180deg,#e8eaf0 0%,#c8ccd8 30%,#b0b4c0 50%,#a0a4b0 70%,#8a8e9a 100%)',
-          padding: '10px 16px',
-          boxShadow:
-            '0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.6)',
-          borderBottom: '2px solid #666a74',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1200,
-            margin: '0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 6,
-            position: 'relative',
-          }}
-        >
+      {/* Main bar */}
+      <div style={{ position: 'relative', overflow: 'hidden', height: 56 }}>
+
+        {/* Background — silver/grey gradient with diagonal dip on bottom-left */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg,#dde0e8 0%,#b8bcc8 40%,#9ca0ae 70%,#888c9a 100%)',
+          clipPath: 'polygon(0 0, 100% 0, 100% 100%, 52px 100%, 0 52%)',
+          boxShadow: '0 3px 10px rgba(0,0,0,0.5)',
+        }}/>
+
+        {/* Diagonal blue accent line along the dip edge */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'transparent',
+          clipPath: 'polygon(0 50%, 52px 100%, 64px 100%, 10px 50%)',
+          backgroundColor: '#4a6aaa',
+          opacity: 0.7,
+        }}/>
+
+        {/* Checker strip — right side, light grey/white squares */}
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 140, overflow: 'hidden',
+        }}>
+          <svg width="140" height="56" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="navChecker" width="14" height="14" patternUnits="userSpaceOnUse">
+                <rect width="7" height="7" fill="rgba(255,255,255,0.55)"/>
+                <rect x="7" width="7" height="7" fill="rgba(160,168,185,0.35)"/>
+                <rect y="7" width="7" height="7" fill="rgba(160,168,185,0.35)"/>
+                <rect x="7" y="7" width="7" height="7" fill="rgba(255,255,255,0.55)"/>
+              </pattern>
+              {/* Fade mask: transparent on left, opaque on right */}
+              <linearGradient id="navFade" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="white" stopOpacity="0"/>
+                <stop offset="50%" stopColor="white" stopOpacity="1"/>
+              </linearGradient>
+              <mask id="navMask">
+                <rect width="140" height="56" fill="url(#navFade)"/>
+              </mask>
+            </defs>
+            <rect width="140" height="56" fill="url(#navChecker)" mask="url(#navMask)"/>
+          </svg>
+        </div>
+
+        {/* Content */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 16px 0 20px',
+        }}>
+          {/* Left: site name */}
           <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              cursor: 'pointer',
-            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
             onClick={() => setView('dashboard')}
           >
+            {siteLogo ? (
+              <img src={siteLogo} alt="Logo" style={{ height: 36, objectFit: 'contain' }}/>
+            ) : null}
             <span style={{
               fontFamily: FONT_HEADER,
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: 900,
               letterSpacing: 3,
-              color: '#3a3e50',
-              textShadow: '0 1px 0 rgba(255,255,255,0.4)',
+              color: '#1e2230',
+              textShadow: '0 1px 0 rgba(255,255,255,0.5)',
               whiteSpace: 'nowrap',
             }}>
               ACT AP POLL
             </span>
-            {siteLogo ? (
-              <img
-                src={siteLogo}
-                alt="ACT Logo"
-                style={{ height: 44, objectFit: 'contain', display: 'block' }}
-              />
-            ) : (
-              <>
-                <span style={{ fontSize: 24 }}>🏎️</span>
-                <span
-                  style={{
-                    fontFamily: FONT_HEADER,
-                    fontSize: 22,
-                    color: '#1a1e28',
-                    letterSpacing: 2,
-                    textShadow: '0 1px 0 rgba(255,255,255,0.4)',
-                  }}
-                >
-                  ACT
-                </span>
-                <span
-                  style={{
-                    fontFamily: FONT_MONO,
-                    fontSize: 8,
-                    color: '#4a4e58',
-                    letterSpacing: 2,
-                  }}
-                >
-                  ALL CUP TOUR
-                </span>
-              </>
-            )}
-            <span
-              style={{
-                background: '#c03040',
-                color: '#fff',
-                fontFamily: FONT_HEADER,
-                fontSize: 11,
-                padding: '2px 7px',
-                borderRadius: 3,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-              }}
-            >
+            <span style={{
+              background: '#c03040',
+              color: '#fff',
+              fontFamily: FONT_HEADER,
+              fontSize: 10,
+              padding: '2px 6px',
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            }}>
               {ct}
             </span>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSync();
-              }}
+              onClick={(e) => { e.stopPropagation(); onSync(); }}
               style={{
                 background: 'rgba(0,0,0,0.1)',
-                border: '1px solid rgba(0,0,0,0.15)',
+                border: '1px solid rgba(0,0,0,0.18)',
                 borderRadius: 3,
-                padding: '1px 7px',
+                padding: '1px 6px',
                 fontSize: 8,
                 fontFamily: FONT_MONO,
-                color: src === 'firebase' ? '#2a6a3a' : '#8a6a1a',
+                color: src === 'firebase' ? '#1a5a2a' : '#7a5a0a',
                 cursor: 'pointer',
               }}
             >
               {src === 'firebase' ? '● SYNC' : '● LOCAL'}
             </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+
+          {/* Right: admin */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 148 }}>
             {auth.unlocked && (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMigrate();
-                }}
+                onClick={(e) => { e.stopPropagation(); onMigrate(); }}
                 style={{
                   background: 'rgba(0,0,0,0.08)',
                   border: '1px solid rgba(0,0,0,0.12)',
@@ -152,22 +144,15 @@ export function NavBar({
               </button>
             )}
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                auth.req(() => {});
-              }}
+              onClick={(e) => { e.stopPropagation(); auth.req(() => {}); }}
               style={{
-                background: auth.unlocked
-                  ? 'rgba(40,80,40,0.15)'
-                  : 'rgba(0,0,0,0.08)',
-                border: auth.unlocked
-                  ? '1px solid rgba(60,120,60,0.3)'
-                  : '1px solid rgba(0,0,0,0.15)',
+                background: auth.unlocked ? 'rgba(40,80,40,0.18)' : 'rgba(0,0,0,0.1)',
+                border: auth.unlocked ? '1px solid rgba(60,120,60,0.35)' : '1px solid rgba(0,0,0,0.18)',
                 borderRadius: 4,
                 padding: '3px 10px',
                 fontSize: 9,
                 fontFamily: FONT_MONO,
-                color: auth.unlocked ? '#3a7a3a' : '#5a5a6a',
+                color: auth.unlocked ? '#2a6a2a' : '#4a4a5a',
                 cursor: 'pointer',
                 letterSpacing: 1,
               }}
@@ -177,12 +162,12 @@ export function NavBar({
           </div>
         </div>
       </div>
-      <div
-        style={{
-          height: 2,
-          background: 'linear-gradient(180deg,#3a3e48 0%,#1a1e28 100%)',
-        }}
-      />
+
+      {/* Blue accent border under the bar */}
+      <div style={{
+        height: 3,
+        background: 'linear-gradient(90deg, #3a5aaa 0%, #5a7acc 40%, #3a5aaa 100%)',
+      }}/>
     </header>
   );
 }
