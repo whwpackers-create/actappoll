@@ -984,70 +984,84 @@ export default function App() {
         position: 'relative',
       }}
     >
-      {/* Global checkered flag — fixed, pole base at bottom-center, slanted & wavy */}
-      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 0, pointerEvents: 'none', overflow: 'visible' }}>
-        <svg viewBox="0 0 500 820" style={{ width: 500, height: 820, opacity: 0.28, display: 'block' }} xmlns="http://www.w3.org/2000/svg">
+      {/* Global checkered flag — full-screen fixed layer, SVG overflow visible */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          overflow="visible"
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: '44%',
+            transform: 'translateX(-50%)',
+            width: 660,
+            height: 960,
+            opacity: 0.30,
+            display: 'block',
+          }}
+          viewBox="0 0 660 960"
+        >
           <defs>
-            <pattern id="appChecker" width="36" height="36" patternUnits="userSpaceOnUse">
-              <rect width="18" height="18" fill="#cccccc"/>
-              <rect x="18" width="18" height="18" fill="#1a1a1a"/>
-              <rect y="18" width="18" height="18" fill="#1a1a1a"/>
-              <rect x="18" y="18" width="18" height="18" fill="#cccccc"/>
+            <pattern id="appChecker" width="46" height="46" patternUnits="userSpaceOnUse">
+              <rect width="23" height="23" fill="#d4d4d4"/>
+              <rect x="23" width="23" height="23" fill="#181818"/>
+              <rect y="23" width="23" height="23" fill="#181818"/>
+              <rect x="23" y="23" width="23" height="23" fill="#d4d4d4"/>
             </pattern>
-            {/* Gold pole gradient */}
             <linearGradient id="poleGold" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="#5a3a08"/>
-              <stop offset="25%"  stopColor="#e8b820"/>
-              <stop offset="50%"  stopColor="#ffd84a"/>
-              <stop offset="75%"  stopColor="#c89010"/>
-              <stop offset="100%" stopColor="#5a3a08"/>
+              <stop offset="0%"   stopColor="#4a2e06"/>
+              <stop offset="28%"  stopColor="#e0aa18"/>
+              <stop offset="52%"  stopColor="#ffe050"/>
+              <stop offset="76%"  stopColor="#c08810"/>
+              <stop offset="100%" stopColor="#4a2e06"/>
             </linearGradient>
           </defs>
-          {/* Entire flag rotated -11° around pole base (100, 820) */}
-          <g transform="rotate(-11, 100, 820)">
+
+          {/* Rotate +13° clockwise around pole base so top leans right like MK Wii */}
+          <g transform="rotate(13, 115, 960)">
             {/* Gold pole */}
-            <rect x="92" y="0" width="16" height="820" rx="6" fill="url(#poleGold)"/>
-            {/* Pole highlight */}
-            <rect x="97" y="0" width="5"  height="820" rx="2" fill="rgba(255,235,120,0.45)"/>
-            {/* Wavy flag — top edge curves up then down, bottom mirrors */}
-            <path
-              d="
-                M 108 95
-                Q 195 68  282 95
-                Q 369 122 440 95
-                L 440 310
-                Q 369 337 282 310
-                Q 195 283 108 310
-                Z
-              "
-              fill="url(#appChecker)"
-            />
-            {/* Wave shadow along bottom hem */}
-            <path
-              d="
-                M 108 303
-                Q 195 276 282 303
-                Q 369 330 440 303
-                L 440 320
-                Q 369 347 282 320
-                Q 195 293 108 320
-                Z
-              "
-              fill="rgba(0,0,0,0.32)"
-            />
-            {/* Subtle top-edge highlight */}
-            <path
-              d="
-                M 108 95
-                Q 195 68  282 95
-                Q 369 122 440 95
-                L 440 108
-                Q 369 135 282 108
-                Q 195 81  108 108
-                Z
-              "
-              fill="rgba(255,255,255,0.08)"
-            />
+            <rect x="106" y="0" width="18" height="960" rx="7" fill="url(#poleGold)"/>
+            {/* Pole sheen */}
+            <rect x="112" y="0" width="6"  height="960" rx="3" fill="rgba(255,230,100,0.5)"/>
+
+            {/* Large wavy flag body — cubic bezier waves, 2.5 cycles */}
+            <path d="
+              M 124 75
+              C 190 38  250 118 320 75
+              C 390 32  450 112 520 72
+              C 570 44  610 80  640 60
+              L 640 330
+              C 610 350 570 314 520 342
+              C 450 382 390 302 320 345
+              C 250 388 190 308 124 345
+              Z
+            " fill="url(#appChecker)"/>
+
+            {/* Bottom hem shadow for depth */}
+            <path d="
+              M 124 338
+              C 190 301 250 381 320 338
+              C 390 295 450 375 520 335
+              C 570 307 610 343 640 323
+              L 640 356
+              C 610 376 570 340 520 368
+              C 450 408 390 328 320 371
+              C 250 414 190 334 124 371
+              Z
+            " fill="rgba(0,0,0,0.28)"/>
+
+            {/* Top-edge highlight */}
+            <path d="
+              M 124 75
+              C 190 38  250 118 320 75
+              C 390 32  450 112 520 72
+              C 570 44  610 80  640 60
+              L 640 80
+              C 610 100 570 64 520 92
+              C 450 132 390 52 320 95
+              C 250 138 190 58 124 95
+              Z
+            " fill="rgba(255,255,255,0.07)"/>
           </g>
         </svg>
       </div>
