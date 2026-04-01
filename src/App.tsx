@@ -1002,26 +1002,26 @@ export default function App() {
           viewBox="0 0 560 920"
         >
           <defs>
-            <pattern id="appChecker" width="86" height="86" patternUnits="userSpaceOnUse">
-              <rect width="43" height="43" fill="#d2d2d2"/>
-              <rect x="43" width="43" height="43" fill="#161616"/>
-              <rect y="43" width="43" height="43" fill="#161616"/>
-              <rect x="43" y="43" width="43" height="43" fill="#d2d2d2"/>
+            <pattern id="appChecker" width="116" height="116" patternUnits="userSpaceOnUse">
+              <rect width="58" height="58" fill="#d2d2d2"/>
+              <rect x="58" width="58" height="58" fill="#161616"/>
+              <rect y="58" width="58" height="58" fill="#161616"/>
+              <rect x="58" y="58" width="58" height="58" fill="#d2d2d2"/>
             </pattern>
-            <linearGradient id="poleDark" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="#0a0a0a"/>
-              <stop offset="30%"  stopColor="#4a4a4a"/>
-              <stop offset="52%"  stopColor="#5e5e5e"/>
-              <stop offset="72%"  stopColor="#303030"/>
-              <stop offset="100%" stopColor="#0a0a0a"/>
+            <linearGradient id="poleBronze" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stopColor="#3b1f08"/>
+              <stop offset="28%"  stopColor="#a0622a"/>
+              <stop offset="50%"  stopColor="#cd8032"/>
+              <stop offset="72%"  stopColor="#8a4e1a"/>
+              <stop offset="100%" stopColor="#3b1f08"/>
             </linearGradient>
           </defs>
 
           {/* +10° clockwise around pole base (90, 920) */}
           <g transform="rotate(10, 90, 920)">
-            {/* Dark charcoal pole — matches MK Wii */}
-            <rect x="80" y="0" width="18" height="920" rx="6" fill="url(#poleDark)"/>
-            <rect x="84" y="0" width="4"  height="920" rx="2" fill="rgba(255,255,255,0.12)"/>
+            {/* Bronze pole */}
+            <rect x="80" y="0" width="18" height="920" rx="6" fill="url(#poleBronze)"/>
+            <rect x="84" y="0" width="4"  height="920" rx="2" fill="rgba(255,210,140,0.25)"/>
 
             {/* Wavy flag — sits in the middle third of the SVG height so it's center-screen */}
             <path d="
