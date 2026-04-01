@@ -21,15 +21,13 @@ body::before {
 
 /* MK Wii trophy 3D spin */
 @keyframes trophySpin {
-  0%   { transform: perspective(600px) rotateY(0deg)   scaleX(1);    }
-  25%  { transform: perspective(600px) rotateY(90deg)  scaleX(0.08); }
-  50%  { transform: perspective(600px) rotateY(180deg) scaleX(1);    }
-  75%  { transform: perspective(600px) rotateY(270deg) scaleX(0.08); }
-  100% { transform: perspective(600px) rotateY(360deg) scaleX(1);    }
+  0%   { transform: perspective(900px) rotateY(0deg);   }
+  100% { transform: perspective(900px) rotateY(360deg); }
 }
 .trophy-spin {
-  animation: trophySpin 9s linear infinite;
+  animation: trophySpin 10s linear infinite;
   transform-origin: center center;
+  transform-style: preserve-3d;
 }
 
 /* Mobile responsive utilities */
