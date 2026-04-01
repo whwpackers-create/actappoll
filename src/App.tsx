@@ -984,24 +984,71 @@ export default function App() {
         position: 'relative',
       }}
     >
-      {/* Global checkered flag — fixed behind all content */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <svg viewBox="0 0 420 580" style={{ width: 420, height: 580, opacity: 0.26 }} xmlns="http://www.w3.org/2000/svg">
+      {/* Global checkered flag — fixed, pole base at bottom-center, slanted & wavy */}
+      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 0, pointerEvents: 'none', overflow: 'visible' }}>
+        <svg viewBox="0 0 500 820" style={{ width: 500, height: 820, opacity: 0.28, display: 'block' }} xmlns="http://www.w3.org/2000/svg">
           <defs>
             <pattern id="appChecker" width="36" height="36" patternUnits="userSpaceOnUse">
               <rect width="18" height="18" fill="#cccccc"/>
-              <rect x="18" width="18" height="18" fill="#181818"/>
-              <rect y="18" width="18" height="18" fill="#181818"/>
+              <rect x="18" width="18" height="18" fill="#1a1a1a"/>
+              <rect y="18" width="18" height="18" fill="#1a1a1a"/>
               <rect x="18" y="18" width="18" height="18" fill="#cccccc"/>
             </pattern>
+            {/* Gold pole gradient */}
+            <linearGradient id="poleGold" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stopColor="#5a3a08"/>
+              <stop offset="25%"  stopColor="#e8b820"/>
+              <stop offset="50%"  stopColor="#ffd84a"/>
+              <stop offset="75%"  stopColor="#c89010"/>
+              <stop offset="100%" stopColor="#5a3a08"/>
+            </linearGradient>
           </defs>
-          {/* Pole */}
-          <rect x="28" y="0" width="11" height="580" rx="4" fill="#999"/>
-          <rect x="30" y="0" width="4" height="580" rx="2" fill="#bbb"/>
-          {/* Flag body */}
-          <rect x="39" y="28" width="358" height="230" fill="url(#appChecker)"/>
-          {/* Bottom edge shadow for depth */}
-          <rect x="39" y="250" width="358" height="8" fill="rgba(0,0,0,0.35)"/>
+          {/* Entire flag rotated -11° around pole base (100, 820) */}
+          <g transform="rotate(-11, 100, 820)">
+            {/* Gold pole */}
+            <rect x="92" y="0" width="16" height="820" rx="6" fill="url(#poleGold)"/>
+            {/* Pole highlight */}
+            <rect x="97" y="0" width="5"  height="820" rx="2" fill="rgba(255,235,120,0.45)"/>
+            {/* Wavy flag — top edge curves up then down, bottom mirrors */}
+            <path
+              d="
+                M 108 95
+                Q 195 68  282 95
+                Q 369 122 440 95
+                L 440 310
+                Q 369 337 282 310
+                Q 195 283 108 310
+                Z
+              "
+              fill="url(#appChecker)"
+            />
+            {/* Wave shadow along bottom hem */}
+            <path
+              d="
+                M 108 303
+                Q 195 276 282 303
+                Q 369 330 440 303
+                L 440 320
+                Q 369 347 282 320
+                Q 195 293 108 320
+                Z
+              "
+              fill="rgba(0,0,0,0.32)"
+            />
+            {/* Subtle top-edge highlight */}
+            <path
+              d="
+                M 108 95
+                Q 195 68  282 95
+                Q 369 122 440 95
+                L 440 108
+                Q 369 135 282 108
+                Q 195 81  108 108
+                Z
+              "
+              fill="rgba(255,255,255,0.08)"
+            />
+          </g>
         </svg>
       </div>
 
