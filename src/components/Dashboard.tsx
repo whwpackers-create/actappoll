@@ -63,13 +63,13 @@ interface DashboardProps {
 
 // Wins that predate data collection — added manually
 const MANUAL_SAT_WINS: Record<string, number> = {
-  'MCG': 1,
+  'Mcg': 1,
   'Nate Kim': 1,
 };
 
 // Pre-data SAT placements shown in player detail
 const MANUAL_SAT_PLACEMENTS: Record<string, { satName: string; placement: string; date: string }[]> = {
-  'MCG': [{ satName: 'Spring 2023 SAT', placement: 'winner', date: '2023-05-01' }],
+  'Mcg': [{ satName: 'Spring 2023 SAT', placement: 'winner', date: '2023-05-01' }],
   'Nate Kim': [{ satName: 'Spring 2023 SAT', placement: 'winner', date: '2023-05-01' }],
 };
 
