@@ -86,6 +86,8 @@ export function ActDetail({
   const [eTv1Pair, setETv1Pair] = useState<'02' | '01' | '03'>(
     (act.tv1Pair as '02' | '01' | '03') ?? '02'
   );
+  const [dragSlot, setDragSlot] = useState<{ ri: number; ti: number; ei: number } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ ri: number; ti: number; ei: number } | null>(null);
 
   const startEdit = () => {
     auth.req(() => {
@@ -392,6 +394,42 @@ export function ActDetail({
       if (is16man) return [[0,1,2,3],[4,5,6,7]];
       if (!eGrid || !eGrid[ri]?.[ti]) return [Array.from({ length: eTSz * 2 }, (_, i) => i)];
       return [(eGrid[ri][ti] as unknown[]).map((_, i) => i)];
+    };
+
+    // Build a full editable player map from current state or defaults
+    const buildFullMap = (): number[][][] => {
+      if (ePlayerMap) return ePlayerMap.map((r) => r.map((t) => [...t]));
+      if (savedPM) return savedPM.map((r) => r.map((t) => [...t]));
+      const ro = act.raceOrder ?? 'A';
+      return Array.from({ length: 4 }, () =>
+        Array.from({ length: eNumTeams }, () =>
+          Array.from({ length: eTSz * 2 }, (_, ei) => {
+            if (is16man) {
+              const group = ei < 4 ? eTv1Idx : eTv2Idx;
+              return group[ei % 2];
+            } else if (actType === '12man') {
+              const mapR: Record<string, number> = { A: 0, B: 1, C: 2 };
+              const seq = [...ro].map((c) => mapR[c] ?? 0);
+              return ([...seq, ...seq])[ei] ?? 0;
+            } else {
+              return ro === 'A' ? ei % eTSz : eTSz - 1 - (ei % eTSz);
+            }
+          })
+        )
+      );
+    };
+
+    const handleDropSlot = (toRi: number, toTi: number, toEi: number) => {
+      if (!dragSlot) return;
+      const { ri: fRi, ti: fTi, ei: fEi } = dragSlot;
+      if (fRi === toRi && fTi === toTi && fEi === toEi) { setDragSlot(null); setDropTarget(null); return; }
+      const map = buildFullMap();
+      const tmp = map[fRi][fTi][fEi];
+      map[fRi][fTi][fEi] = map[toRi][toTi][toEi];
+      map[toRi][toTi][toEi] = tmp;
+      setEPlayerMap(map);
+      setDragSlot(null);
+      setDropTarget(null);
     };
 
     // Player label from effective playerMap
@@ -793,20 +831,40 @@ export function ActDetail({
                                     const penVal = getEPenVal(ri, ti, ei);
                                     const pLabel = getEPLabel(ri, ti, ei);
                                     return (
-                                      <div key={ei} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                                        {/* Player label — clickable in 16man to swap who races that slot */}
+                                      <div
+                                        key={ei}
+                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+                                        onDragOver={(e) => { e.preventDefault(); setDropTarget({ ri, ti, ei }); }}
+                                        onDragLeave={() => setDropTarget(null)}
+                                        onDrop={() => handleDropSlot(ri, ti, ei)}
+                                      >
+                                        {/* Player label — draggable to reassign slot (double-ups); clickable in 16man to swap */}
                                         <div
+                                          draggable
+                                          onDragStart={() => setDragSlot({ ri, ti, ei })}
+                                          onDragEnd={() => { setDragSlot(null); setDropTarget(null); }}
                                           onClick={is16man ? () => toggleESlot(ri, ti, ei) : undefined}
                                           style={{
                                             fontFamily: FONT_MONO,
                                             fontSize: 9,
-                                            color: is16man ? '#8be9fd' : '#666',
-                                            background: is16man ? 'rgba(139,233,253,0.08)' : 'rgba(255,255,255,0.03)',
+                                            color: dragSlot && dropTarget?.ri === ri && dropTarget?.ti === ti && dropTarget?.ei === ei
+                                              ? '#fbbf24'
+                                              : dragSlot?.ri === ri && dragSlot?.ti === ti && dragSlot?.ei === ei
+                                              ? '#60a5fa'
+                                              : is16man ? '#8be9fd' : '#888',
+                                            background: dragSlot && dropTarget?.ri === ri && dropTarget?.ti === ti && dropTarget?.ei === ei
+                                              ? 'rgba(251,191,36,0.2)'
+                                              : dragSlot?.ri === ri && dragSlot?.ti === ti && dragSlot?.ei === ei
+                                              ? 'rgba(96,165,250,0.2)'
+                                              : is16man ? 'rgba(139,233,253,0.08)' : 'rgba(255,255,255,0.03)',
+                                            border: dragSlot && dropTarget?.ri === ri && dropTarget?.ti === ti && dropTarget?.ei === ei
+                                              ? '1px dashed #fbbf24'
+                                              : '1px solid transparent',
                                             borderRadius: 3,
                                             padding: '1px 3px',
                                             minWidth: 28,
                                             textAlign: 'center',
-                                            cursor: is16man ? 'pointer' : 'default',
+                                            cursor: 'grab',
                                             userSelect: 'none',
                                           }}
                                         >
