@@ -114,7 +114,7 @@ function mkBar(
       style={{
         display: 'block',
         width: '100%',
-        padding: '30px 0',
+        padding: '44px 0',
         textAlign: 'center',
         cursor: 'pointer',
         background: selected ? 'rgba(60,90,150,0.12)' : 'transparent',
@@ -755,45 +755,6 @@ export function Dashboard({
               </div>
             )
           )}
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: 100,
-              position: 'relative',
-              borderRadius: 4,
-              overflow: 'hidden',
-            }}
-          >
-            {menuImgs['mi_trophy'] ? (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundImage: `url(${menuImgs['mi_trophy']})`,
-                  backgroundSize: `${parseInt(menuImgs['mz_trophy'] ?? '100') || 100}%`,
-                  backgroundPosition: `${parseInt(menuImgs['mx_trophy'] ?? '50') || 50}% ${parseInt(menuImgs['mp_trophy'] ?? '50') || 50}%`,
-                  backgroundRepeat: 'no-repeat',
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  fontSize: 72,
-                  filter:
-                    'drop-shadow(0 8px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 30px rgba(200,170,60,0.15))',
-                  opacity: 0.7,
-                }}
-              >
-                🏆
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
