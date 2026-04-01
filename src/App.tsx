@@ -984,79 +984,148 @@ export default function App() {
         position: 'relative',
       }}
     >
-      {/* Global checkered flag — pole base at bottom, flag visible center-screen */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'visible' }}>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          overflow="visible"
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: '42%',
-            transform: 'translateX(-50%)',
-            width: 560,
-            height: 920,
-            opacity: 0.32,
-            display: 'block',
-          }}
-          viewBox="0 0 560 920"
-        >
-          <defs>
-            <pattern id="appChecker" width="116" height="116" patternUnits="userSpaceOnUse">
-              <rect width="58" height="58" fill="#d2d2d2"/>
-              <rect x="58" width="58" height="58" fill="#161616"/>
-              <rect y="58" width="58" height="58" fill="#161616"/>
-              <rect x="58" y="58" width="58" height="58" fill="#d2d2d2"/>
-            </pattern>
-            <linearGradient id="poleBronze" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="#3b1f08"/>
-              <stop offset="28%"  stopColor="#a0622a"/>
-              <stop offset="50%"  stopColor="#cd8032"/>
-              <stop offset="72%"  stopColor="#8a4e1a"/>
-              <stop offset="100%" stopColor="#3b1f08"/>
-            </linearGradient>
-          </defs>
+      {/* MK Wii trophy — fixed center, 3D spin, same opacity/positioning as flag */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div className="trophy-spin" style={{ opacity: 0.30, marginTop: 60 }}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 340" width="340" height="440">
+            <defs>
+              {/* Gold gradients */}
+              <radialGradient id="tgBody" cx="42%" cy="38%" r="60%">
+                <stop offset="0%"   stopColor="#fff5a0"/>
+                <stop offset="30%"  stopColor="#ffd340"/>
+                <stop offset="65%"  stopColor="#c88010"/>
+                <stop offset="100%" stopColor="#7a4800"/>
+              </radialGradient>
+              <radialGradient id="tgCup" cx="40%" cy="35%" r="58%">
+                <stop offset="0%"   stopColor="#fff0a0"/>
+                <stop offset="35%"  stopColor="#ffcc30"/>
+                <stop offset="70%"  stopColor="#b87010"/>
+                <stop offset="100%" stopColor="#6a3800"/>
+              </radialGradient>
+              <linearGradient id="tgBase" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%"   stopColor="#d49020"/>
+                <stop offset="50%"  stopColor="#8a5008"/>
+                <stop offset="100%" stopColor="#3a1800"/>
+              </linearGradient>
+              <linearGradient id="tgStem" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stopColor="#7a4808"/>
+                <stop offset="40%"  stopColor="#e0a020"/>
+                <stop offset="60%"  stopColor="#ffd040"/>
+                <stop offset="100%" stopColor="#7a4808"/>
+              </linearGradient>
+              <radialGradient id="tgWing" cx="50%" cy="50%" r="50%">
+                <stop offset="0%"   stopColor="#ffe060"/>
+                <stop offset="60%"  stopColor="#c88010"/>
+                <stop offset="100%" stopColor="#7a4000"/>
+              </radialGradient>
+              <radialGradient id="tgEye" cx="50%" cy="40%" r="50%">
+                <stop offset="0%"   stopColor="#222"/>
+                <stop offset="100%" stopColor="#000"/>
+              </radialGradient>
+              <radialGradient id="tgGem" cx="40%" cy="30%" r="60%">
+                <stop offset="0%"   stopColor="#ffffff"/>
+                <stop offset="40%"  stopColor="#a0d8ff"/>
+                <stop offset="100%" stopColor="#2060b0"/>
+              </radialGradient>
+              <radialGradient id="tgGemR" cx="40%" cy="30%" r="60%">
+                <stop offset="0%"   stopColor="#ffffff"/>
+                <stop offset="40%"  stopColor="#ffb0b0"/>
+                <stop offset="100%" stopColor="#c02020"/>
+              </radialGradient>
+              <filter id="tgGlow">
+                <feGaussianBlur stdDeviation="3" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
 
-          {/* +10° clockwise around pole base (90, 920) */}
-          <g transform="rotate(10, 90, 920)">
-            {/* Bronze pole — starts at flag top (y=310), no stub above flag */}
-            <rect x="80" y="310" width="18" height="610" rx="6" fill="url(#poleBronze)"/>
-            <rect x="84" y="310" width="4"  height="610" rx="2" fill="rgba(255,210,140,0.25)"/>
+            {/* ── Base pedestal ── */}
+            <rect x="82" y="302" width="96" height="14" rx="5" fill="url(#tgBase)"/>
+            <rect x="74" y="314" width="112" height="10" rx="4" fill="url(#tgBase)"/>
+            <rect x="88" y="289" width="84" height="14" rx="3" fill="url(#tgStem)"/>
+            <rect x="84" y="287" width="92" height="5"  rx="2" fill="rgba(255,220,80,0.5)"/>
 
-            {/* Wavy flag — sits in the middle third of the SVG height so it's center-screen */}
-            <path d="
-              M 94 310
-              C 170 272 240 358 320 310
-              C 400 262 470 348 540 308
-              L 540 560
-              C 470 600 400 514 320 562
-              C 240 610 170 524 94 562
-              Z
-            " fill="url(#appChecker)"/>
+            {/* ── Stem ── */}
+            <rect x="116" y="248" width="28" height="42" rx="6" fill="url(#tgStem)"/>
+            <rect x="120" y="248" width="8"  height="42" rx="3" fill="rgba(255,230,100,0.35)"/>
 
-            {/* Bottom hem shadow */}
-            <path d="
-              M 94 554
-              C 170 516 240 602 320 554
-              C 400 506 470 592 540 552
-              L 540 574
-              C 470 614 400 528 320 576
-              C 240 624 170 538 94 576
-              Z
-            " fill="rgba(0,0,0,0.30)"/>
+            {/* ── Cup connector disc ── */}
+            <ellipse cx="130" cy="250" rx="44" ry="10" fill="url(#tgBase)"/>
+            <ellipse cx="130" cy="248" rx="44" ry="8"  fill="url(#tgStem)"/>
 
-            {/* Top highlight strip */}
-            <path d="
-              M 94 310
-              C 170 272 240 358 320 310
-              C 400 262 470 348 540 308
-              L 540 328
-              C 470 368 400 282 320 330
-              C 240 378 170 292 94 330
-              Z
-            " fill="rgba(255,255,255,0.08)"/>
-          </g>
-        </svg>
+            {/* ── Left wing ── */}
+            <path d="M 72 190 C 30 168 8 140 18 108 C 28 80 58 88 72 108 Z"
+              fill="url(#tgWing)" stroke="#a06010" strokeWidth="1.5"/>
+            <path d="M 68 186 C 34 166 18 140 26 116 C 32 100 52 104 64 118 Z"
+              fill="rgba(255,220,60,0.3)"/>
+            {/* Wing feather lines */}
+            <path d="M 38 130 C 50 148 62 162 72 178" stroke="#a06010" strokeWidth="1.2" fill="none" opacity="0.6"/>
+            <path d="M 28 120 C 44 140 58 158 68 176" stroke="#a06010" strokeWidth="1"   fill="none" opacity="0.4"/>
+
+            {/* ── Right wing (mirror) ── */}
+            <path d="M 188 190 C 230 168 252 140 242 108 C 232 80 202 88 188 108 Z"
+              fill="url(#tgWing)" stroke="#a06010" strokeWidth="1.5"/>
+            <path d="M 192 186 C 226 166 242 140 234 116 C 228 100 208 104 196 118 Z"
+              fill="rgba(255,220,60,0.3)"/>
+            <path d="M 222 130 C 210 148 198 162 188 178" stroke="#a06010" strokeWidth="1.2" fill="none" opacity="0.6"/>
+            <path d="M 232 120 C 216 140 202 158 192 176" stroke="#a06010" strokeWidth="1"   fill="none" opacity="0.4"/>
+
+            {/* ── Main cup body ── */}
+            <ellipse cx="130" cy="175" rx="78" ry="82" fill="url(#tgBody)" filter="url(#tgGlow)"/>
+            {/* Body sheen */}
+            <ellipse cx="108" cy="138" rx="28" ry="22" fill="rgba(255,255,200,0.18)"/>
+
+            {/* ── Cup opening (top ellipse) ── */}
+            <ellipse cx="130" cy="96" rx="58" ry="18" fill="url(#tgCup)"/>
+            <ellipse cx="130" cy="93" rx="58" ry="14" fill="rgba(255,240,140,0.25)"/>
+
+            {/* ── Cup rim ── */}
+            <path d="M 72 96 C 72 72 188 72 188 96" stroke="#e0a020" strokeWidth="4" fill="none"/>
+            <path d="M 74 94 C 74 72 186 72 186 94" stroke="rgba(255,240,100,0.5)" strokeWidth="2" fill="none"/>
+
+            {/* ── Face: eyes ── */}
+            <ellipse cx="110" cy="175" rx="14" ry="16" fill="url(#tgEye)"/>
+            <ellipse cx="150" cy="175" rx="14" ry="16" fill="url(#tgEye)"/>
+            {/* Eye glints */}
+            <ellipse cx="115" cy="169" rx="5"  ry="4"  fill="rgba(255,255,255,0.8)"/>
+            <ellipse cx="155" cy="169" rx="5"  ry="4"  fill="rgba(255,255,255,0.8)"/>
+
+            {/* ── Smile ── */}
+            <path d="M 106 202 Q 130 222 154 202" stroke="#6a3800" strokeWidth="3.5" fill="none" strokeLinecap="round"/>
+            <path d="M 108 203 Q 130 220 152 203" stroke="rgba(0,0,0,0.3)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+
+            {/* ── Cheek blush ── */}
+            <ellipse cx="96"  cy="195" rx="10" ry="6" fill="rgba(220,80,60,0.28)"/>
+            <ellipse cx="164" cy="195" rx="10" ry="6" fill="rgba(220,80,60,0.28)"/>
+
+            {/* ── Front star/diamond emblem ── */}
+            <polygon points="130,140 138,158 158,158 142,170 148,188 130,177 112,188 118,170 102,158 122,158"
+              fill="url(#tgGem)" stroke="rgba(255,255,255,0.6)" strokeWidth="1"/>
+
+            {/* ── Crown on top ── */}
+            {/* Crown base band */}
+            <rect x="90" y="56" width="80" height="20" rx="4" fill="url(#tgStem)"/>
+            <rect x="90" y="55" width="80" height="5"  rx="2" fill="rgba(255,220,80,0.5)"/>
+            {/* Crown points */}
+            <polygon points="90,56  102,28 114,56" fill="url(#tgBody)"/>
+            <polygon points="118,56 130,22 142,56" fill="url(#tgBody)"/>
+            <polygon points="146,56 158,28 170,56" fill="url(#tgBody)"/>
+            {/* Crown point outlines */}
+            <polygon points="90,56  102,28 114,56" fill="none" stroke="#c08010" strokeWidth="1.5"/>
+            <polygon points="118,56 130,22 142,56" fill="none" stroke="#c08010" strokeWidth="1.5"/>
+            <polygon points="146,56 158,28 170,56" fill="none" stroke="#c08010" strokeWidth="1.5"/>
+            {/* Crown gems */}
+            <circle cx="102" cy="36" r="6" fill="url(#tgGemR)"/>
+            <circle cx="130" cy="30" r="7" fill="url(#tgGem)"/>
+            <circle cx="158" cy="36" r="6" fill="url(#tgGemR)"/>
+            {/* Gem glints */}
+            <circle cx="100" cy="33" r="2" fill="rgba(255,255,255,0.9)"/>
+            <circle cx="128" cy="27" r="2.5" fill="rgba(255,255,255,0.9)"/>
+            <circle cx="156" cy="33" r="2" fill="rgba(255,255,255,0.9)"/>
+          </svg>
+        </div>
       </div>
 
       {toast && (
