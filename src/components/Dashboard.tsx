@@ -61,8 +61,20 @@ interface DashboardProps {
   menuImgs: Record<string, string>;
 }
 
+// Wins that predate data collection — added manually
+const MANUAL_SAT_WINS: Record<string, number> = {
+  'MCG': 1,
+  'Nate Kim': 1,
+};
+
+// Pre-data SAT placements shown in player detail
+const MANUAL_SAT_PLACEMENTS: Record<string, { satName: string; placement: string; date: string }[]> = {
+  'MCG': [{ satName: 'Spring 2023 SAT', placement: 'winner', date: '2023-05-01' }],
+  'Nate Kim': [{ satName: 'Spring 2023 SAT', placement: 'winner', date: '2023-05-01' }],
+};
+
 function countSatWins(sats: AppData['sats'], playerName: string): number {
-  let w = 0;
+  let w = MANUAL_SAT_WINS[playerName] ?? 0;
   sats.forEach((s) => {
     if (s.placements?.winner) {
       s.placements.winner.forEach((t) => {
@@ -187,25 +199,61 @@ export function Dashboard({
   const [filterStatus, setFilterStatus] = useState('active');
   const [selPlayer, setSelPlayer] = useState<string | null>(null);
   const [showEloInfo, setShowEloInfo] = useState(false);
+  const [showCurrentSeason, setShowCurrentSeason] = useState(false);
+
+  // Determine current season and compute per-player season ELOs
+  const currentSeason = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return (data.seasons ?? []).find(s => today >= s.startDate && today <= s.endDate) ?? null;
+  }, [data.seasons]);
+
+  const currentSeasonRankings = useMemo(() => {
+    if (!currentSeason) return null;
+    const entries = stats.map(ps => {
+      const seasonEntries = (ps.eloHistory ?? []).filter(
+        h => h.date >= currentSeason.startDate && h.date <= currentSeason.endDate && !(h.isSat && h.points === 0)
+      );
+      if (seasonEntries.length === 0) return null;
+      const lastEntry = [...seasonEntries].sort((a, b) => a.date.localeCompare(b.date)).pop()!;
+      const actCount = seasonEntries.filter(h => !h.isSat).length;
+      return { name: ps.name, elo: Math.round(lastEntry.elo), actCount };
+    }).filter((x): x is NonNullable<typeof x> => x !== null);
+    return entries.sort((a, b) => b.elo - a.elo);
+  }, [currentSeason, stats]);
+
+  // Build a lookup for current season ELO by player name
+  const csEloMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    (currentSeasonRankings ?? []).forEach(e => { map[e.name] = e.elo; });
+    return map;
+  }, [currentSeasonRankings]);
 
   let filtered: PlayerStats[] = [...stats];
   if (filterStatus === 'active')
     filtered = filtered.filter((s) => activePlayers.includes(s.name));
   else if (filterStatus === 'inactive')
     filtered = filtered.filter((s) => !activePlayers.includes(s.name));
-  filtered.sort((a, b) => {
-    if (sortBy === 'elo') return b.elo - a.elo;
-    if (sortBy === 'points') return b.pts - a.pts;
-    if (sortBy === 'wins') return b.wins - a.wins;
-    if (sortBy === 'acts') return b.actCount - a.actCount;
-    if (sortBy === 'avg')
-      return (b.actCount ? b.pts / b.actCount : 0) - (a.actCount ? a.pts / a.actCount : 0);
-    if (sortBy === 'winrate')
-      return (b.actCount ? b.wins / b.actCount : 0) - (a.actCount ? a.wins / a.actCount : 0);
-    if (sortBy === 'jerseyswap') return (b.jerseySwaps ?? 0) - (a.jerseySwaps ?? 0);
-    if (sortBy === '30d') return (b.change30d ?? 0) - (a.change30d ?? 0);
-    return b.elo - a.elo;
-  });
+
+  if (showCurrentSeason && currentSeasonRankings) {
+    // In current season mode: only show players with season data, sorted by season ELO
+    const csNames = new Set(currentSeasonRankings.map(e => e.name));
+    filtered = filtered.filter(p => csNames.has(p.name));
+    filtered.sort((a, b) => (csEloMap[b.name] ?? 0) - (csEloMap[a.name] ?? 0));
+  } else {
+    filtered.sort((a, b) => {
+      if (sortBy === 'elo') return b.elo - a.elo;
+      if (sortBy === 'points') return b.pts - a.pts;
+      if (sortBy === 'wins') return b.wins - a.wins;
+      if (sortBy === 'acts') return b.actCount - a.actCount;
+      if (sortBy === 'avg')
+        return (b.actCount ? b.pts / b.actCount : 0) - (a.actCount ? a.pts / a.actCount : 0);
+      if (sortBy === 'winrate')
+        return (b.actCount ? b.wins / b.actCount : 0) - (a.actCount ? a.wins / a.actCount : 0);
+      if (sortBy === 'jerseyswap') return (b.jerseySwaps ?? 0) - (a.jerseySwaps ?? 0);
+      if (sortBy === '30d') return (b.change30d ?? 0) - (a.change30d ?? 0);
+      return b.elo - a.elo;
+    });
+  }
 
   const selPlayerStats = useMemo(() => {
     if (!selPlayer) return null;
@@ -213,7 +261,10 @@ export function Dashboard({
     if (!ps) return null;
     const finishes = getPlayerFinishes(selPlayer, data.acts);
     const totalFinishes = finishes.reduce((a, b) => a + b, 0);
-    const satPlacements = getSatPlacements(selPlayer, data.sats ?? []);
+    const satPlacements = [
+      ...(MANUAL_SAT_PLACEMENTS[selPlayer] ?? []),
+      ...getSatPlacements(selPlayer, data.sats ?? []),
+    ];
     const peakElo = ps.eloHistory.length > 0 ? Math.round(Math.max(...ps.eloHistory.map((h) => h.elo))) : Math.round(ps.elo);
     const lbRank = filtered.findIndex((p) => p.name === selPlayer) + 1;
     const seasonRanks = [...(data.seasons ?? [])]
@@ -445,23 +496,44 @@ export function Dashboard({
                   {filtered.length} PLAYERS
                 </span>
               </div>
-              <button
-                onClick={() => setShowEloInfo(v => !v)}
-                style={{
-                  background: showEloInfo ? 'rgba(200,160,48,0.18)' : 'rgba(255,255,255,0.05)',
-                  border: `1px solid ${showEloInfo ? 'rgba(200,160,48,0.5)' : 'rgba(255,255,255,0.1)'}`,
-                  borderRadius: 6,
-                  padding: '6px 14px',
-                  fontFamily: FONT_HEADER,
-                  fontSize: 11,
-                  color: showEloInfo ? '#c8a030' : '#8090a8',
-                  cursor: 'pointer',
-                  letterSpacing: 1,
-                  transition: 'all 0.15s',
-                }}
-              >
-                ELO INFO {showEloInfo ? '▲' : '▼'}
-              </button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {currentSeason && (
+                  <button
+                    onClick={() => setShowCurrentSeason(v => !v)}
+                    style={{
+                      background: showCurrentSeason ? 'rgba(96,165,250,0.18)' : 'rgba(255,255,255,0.05)',
+                      border: `1px solid ${showCurrentSeason ? 'rgba(96,165,250,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: 6,
+                      padding: '6px 14px',
+                      fontFamily: FONT_HEADER,
+                      fontSize: 11,
+                      color: showCurrentSeason ? '#60a5fa' : '#8090a8',
+                      cursor: 'pointer',
+                      letterSpacing: 1,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {showCurrentSeason ? `${currentSeason.name} ✕` : 'CURRENT SEASON'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowEloInfo(v => !v)}
+                  style={{
+                    background: showEloInfo ? 'rgba(200,160,48,0.18)' : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${showEloInfo ? 'rgba(200,160,48,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 6,
+                    padding: '6px 14px',
+                    fontFamily: FONT_HEADER,
+                    fontSize: 11,
+                    color: showEloInfo ? '#c8a030' : '#8090a8',
+                    cursor: 'pointer',
+                    letterSpacing: 1,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  ELO INFO
+                </button>
+              </div>
             </div>
 
             <div
@@ -607,21 +679,19 @@ export function Dashboard({
                       className="lb-stats"
                       style={{ display: 'grid', gridTemplateColumns: 'repeat(5,auto)', gap: 20, textAlign: 'right' }}
                     >
-                      {[
-                        {
-                          l: 'ELO',
-                          v: Math.round(p.elo),
-                          c: '#93c5fd',
-                        },
-                        {
-                          l: '30D CHANGE',
-                          v: (ch30 > 0 ? '+' : '') + ch30,
-                          c: ch30 > 0 ? '#86efac' : ch30 < 0 ? '#fca5a5' : '#556',
-                        },
+                      {(showCurrentSeason && csEloMap[p.name] != null ? [
+                        { l: 'SEASON ELO', v: csEloMap[p.name], c: '#60a5fa' },
+                        { l: 'ALL-TIME ELO', v: Math.round(p.elo), c: '#475569' },
                         { l: 'POINTS', v: p.pts, c: '#fde68a' },
                         { l: 'WINS', v: p.wins, c: '#86efac' },
                         { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#f9a8d4' },
-                      ].map((c, ci) => (
+                      ] : [
+                        { l: 'ELO', v: Math.round(p.elo), c: '#93c5fd' },
+                        { l: '30D CHANGE', v: (ch30 > 0 ? '+' : '') + ch30, c: ch30 > 0 ? '#86efac' : ch30 < 0 ? '#fca5a5' : '#556' },
+                        { l: 'POINTS', v: p.pts, c: '#fde68a' },
+                        { l: 'WINS', v: p.wins, c: '#86efac' },
+                        { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#f9a8d4' },
+                      ]).map((c, ci) => (
                         <div key={ci}>
                           <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1, marginBottom: 3 }}>
                             {c.l}
@@ -639,51 +709,6 @@ export function Dashboard({
           </div>
         </div>
 
-        {/* ELO System Explanation — toggled via ELO INFO button */}
-        {showEloInfo && <div style={{ marginTop: 12, background: 'rgba(14,18,30,0.85)', border: '1px solid rgba(200,160,48,0.18)', borderRadius: 12, padding: '20px 24px' }}>
-          <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#c8a030', letterSpacing: 2, marginBottom: 16 }}>HOW ELO WORKS</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-            {[
-              {
-                title: 'Starting Point',
-                body: 'Every player begins at 850 ELO. Your first 8 ACTs are a placement period — all changes are boosted 1.5× so you reach your true level faster.',
-              },
-              {
-                title: 'How Points Become ELO',
-                body: 'Your score (out of 24 max) is compared against what was statistically expected. Beat expectations → gain ELO. Fall short → lose ELO. You are only compared against players in the same bracket slot.',
-              },
-              {
-                title: 'Lobby Quality Multiplier',
-                body: 'Wins in tough lobbies count more. If your bracket opponents average rank 1–7: gains are 2×. Rank 8–15: 1.5×. Rank 16–25: 1.2×. Rank 26+: 1×. Only gains are multiplied — losses are always standard.',
-              },
-              {
-                title: 'Season Decay',
-                body: 'Older seasons count for less: current season 100%, last season (Fall 2025) 90%, Spring 2025 80%, Fall 2024 75%, Spring 2024 65%, Fall 2023+ 60%. Recent performance matters most.',
-              },
-              {
-                title: 'Floor at 850',
-                body: 'Below 850, losses are cut to just 8% of their raw value — a near-hard cap. Once you\'ve raced enough and climbed above 850, it takes sustained bad play to sink back down.',
-              },
-              {
-                title: 'Competitive Bracket Protection',
-                body: 'If your bracket\'s average global rank is top 10 or better and you score 14+ points, you don\'t lose ELO — your saved loss is redistributed to your bracket peers instead.',
-              },
-              {
-                title: 'SAT Multipliers',
-                body: 'SAT gains are boosted by round: Day 1 = 1.1×, Day 2 = 1.2×, Day 3 = 1.5×, Finals = 2×. Only gains are amplified. SAT losses are normal.',
-              },
-              {
-                title: 'Late Rounds (R3+R4)',
-                body: 'Rounds 3 and 4 use a flat low expected score — making it there is itself rewarded. Gains are boosted 1.3× and losses are dampened to 15% unless you score under 3 pts.',
-              },
-            ].map((item) => (
-              <div key={item.title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px' }}>
-                <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#c8a030', marginBottom: 6, letterSpacing: 1 }}>{item.title}</div>
-                <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a8', lineHeight: 1.6 }}>{item.body}</div>
-              </div>
-            ))}
-          </div>
-        </div>}
 
         <div
           className="dash-menu"
@@ -799,6 +824,63 @@ export function Dashboard({
         </div>
       </div>
     </div>
+
+    {/* ELO Info modal */}
+    {showEloInfo && (
+      <div
+        onClick={() => setShowEloInfo(false)}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(4px)' }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ background: '#0c1018', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 14, padding: '28px 30px', width: '100%', maxWidth: 780, maxHeight: '90vh', overflowY: 'auto', position: 'relative', boxShadow: '0 0 40px rgba(200,160,48,0.08)' }}
+        >
+          <button onClick={() => setShowEloInfo(false)} style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none', color: '#556', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+          <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#c8a030', letterSpacing: 2, marginBottom: 20 }}>HOW ELO WORKS</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+            {[
+              {
+                title: 'Starting Point',
+                body: 'Every player begins at 850 ELO. Your first 8 ACTs are a placement period — all changes are boosted 1.5× so you reach your true level faster.',
+              },
+              {
+                title: 'How Points Become ELO',
+                body: 'Your score (out of 24 max) is compared against what was statistically expected. Beat expectations → gain ELO. Fall short → lose ELO. You are only compared against players in the same bracket slot.',
+              },
+              {
+                title: 'Lobby Quality Multiplier',
+                body: 'Wins in tough lobbies count more. If your bracket opponents average rank 1–7: gains are 2×. Rank 8–15: 1.5×. Rank 16–25: 1.2×. Rank 26+: 1×. Only gains are multiplied — losses are always standard.',
+              },
+              {
+                title: 'Season Decay',
+                body: 'Older seasons count for less: current season 100%, last season (Fall 2025) 90%, Spring 2025 80%, Fall 2024 75%, Spring 2024 65%, Fall 2023+ 60%. Recent performance matters most.',
+              },
+              {
+                title: 'Floor at 850',
+                body: "Below 850, losses are cut to just 8% of their raw value — a near-hard cap. Once you've raced enough and climbed above 850, it takes sustained bad play to sink back down.",
+              },
+              {
+                title: 'Competitive Bracket Protection',
+                body: "If your bracket's average global rank is top 10 or better and you score 14+ points, you don't lose ELO — your saved loss is redistributed to your bracket peers instead.",
+              },
+              {
+                title: 'SAT Multipliers',
+                body: 'SAT gains are boosted by day: Day 1 = 1.1×, Day 2 = 1.2×, Day 3 = 1.5×, Finals = 2×. Only gains are amplified. SAT losses are normal.',
+              },
+              {
+                title: 'Days 3 & 4 (Semis/Finals)',
+                body: 'Days 3 and 4 use a flat low expected score — making it there is itself rewarded. Gains are boosted 1.3× and losses are dampened to 15% unless you score under 3 pts.',
+              },
+            ].map((item) => (
+              <div key={item.title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#c8a030', marginBottom: 6, letterSpacing: 1 }}>{item.title}</div>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a8', lineHeight: 1.6 }}>{item.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Player detail modal */}
     {selPlayer && selPlayerStats && (() => {
