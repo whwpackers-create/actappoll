@@ -10,7 +10,7 @@ export const cSub = {
 };
 
 export const card = {
-  background: 'rgba(14,18,30,0.85)',
+  background: 'rgba(14,18,30,0.62)',
   border: '1px solid rgba(200,160,48,0.18)',
   borderRadius: 12,
   padding: '20px 24px',

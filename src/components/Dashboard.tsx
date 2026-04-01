@@ -318,31 +318,6 @@ export function Dashboard({
         position: 'relative',
       }}
     >
-      {/* Checkered flag centrepiece — MK Wii style */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg
-          style={{ opacity: 0.13, width: 340, height: 440 }}
-          viewBox="0 0 340 440"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <pattern id="flagChecker" width="32" height="32" patternUnits="userSpaceOnUse">
-              <rect width="16" height="16" fill="#c8c8c8"/>
-              <rect x="16" width="16" height="16" fill="#1a1a1a"/>
-              <rect y="16" width="16" height="16" fill="#1a1a1a"/>
-              <rect x="16" y="16" width="16" height="16" fill="#c8c8c8"/>
-            </pattern>
-          </defs>
-          {/* Pole */}
-          <rect x="18" y="0" width="8" height="440" fill="#888" rx="3"/>
-          {/* Flag rectangle — slightly angled via skew on a group */}
-          <g transform="translate(26,20)">
-            <rect width="290" height="190" fill="url(#flagChecker)" rx="2"/>
-            {/* Subtle wave shadow at bottom edge */}
-            <rect y="182" width="290" height="8" fill="rgba(0,0,0,0.3)" rx="2"/>
-          </g>
-        </svg>
-      </div>
       <div
         className="stat-cards"
         style={{
@@ -423,7 +398,7 @@ export function Dashboard({
           <div
             key={i}
             style={{
-              background: 'rgba(15,18,25,0.7)',
+              background: 'rgba(15,18,25,0.48)',
               backdropFilter: 'blur(4px)',
               borderRight: i < 3 ? `1px solid rgba(42,53,80,0.6)` : 'none',
               padding: '22px 20px',
@@ -473,7 +448,7 @@ export function Dashboard({
       >
         <div
           style={{
-            background: 'rgba(8,12,22,0.85)',
+            background: 'rgba(8,12,22,0.58)',
             backdropFilter: 'blur(4px)',
             border: '2px solid #2a3550',
             borderRadius: 8,

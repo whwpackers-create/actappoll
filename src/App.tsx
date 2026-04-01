@@ -984,6 +984,27 @@ export default function App() {
         position: 'relative',
       }}
     >
+      {/* Global checkered flag — fixed behind all content */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <svg viewBox="0 0 420 580" style={{ width: 420, height: 580, opacity: 0.26 }} xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="appChecker" width="36" height="36" patternUnits="userSpaceOnUse">
+              <rect width="18" height="18" fill="#cccccc"/>
+              <rect x="18" width="18" height="18" fill="#181818"/>
+              <rect y="18" width="18" height="18" fill="#181818"/>
+              <rect x="18" y="18" width="18" height="18" fill="#cccccc"/>
+            </pattern>
+          </defs>
+          {/* Pole */}
+          <rect x="28" y="0" width="11" height="580" rx="4" fill="#999"/>
+          <rect x="30" y="0" width="4" height="580" rx="2" fill="#bbb"/>
+          {/* Flag body */}
+          <rect x="39" y="28" width="358" height="230" fill="url(#appChecker)"/>
+          {/* Bottom edge shadow for depth */}
+          <rect x="39" y="250" width="358" height="8" fill="rgba(0,0,0,0.35)"/>
+        </svg>
+      </div>
+
       {toast && (
         <div
           style={{
