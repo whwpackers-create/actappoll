@@ -1019,9 +1019,9 @@ export default function App() {
 
           {/* +10° clockwise around pole base (90, 920) */}
           <g transform="rotate(10, 90, 920)">
-            {/* Bronze pole */}
-            <rect x="80" y="0" width="18" height="920" rx="6" fill="url(#poleBronze)"/>
-            <rect x="84" y="0" width="4"  height="920" rx="2" fill="rgba(255,210,140,0.25)"/>
+            {/* Bronze pole — starts at flag top (y=310), no stub above flag */}
+            <rect x="80" y="310" width="18" height="610" rx="6" fill="url(#poleBronze)"/>
+            <rect x="84" y="310" width="4"  height="610" rx="2" fill="rgba(255,210,140,0.25)"/>
 
             {/* Wavy flag — sits in the middle third of the SVG height so it's center-screen */}
             <path d="
