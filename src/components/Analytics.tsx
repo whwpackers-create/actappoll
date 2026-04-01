@@ -10,11 +10,12 @@ interface AnalyticsProps {
 
 export function Analytics({ data, setView }: AnalyticsProps) {
   const stats = computeStats(data.players, data.acts, data.sats ?? [], data.seasons);
-  const topPlayers = [...stats]
+  const activePlayers = data.players.filter((p) => p.active !== false).map((p) => p.name);
+  const topByElo = [...stats]
+    .filter((p) => activePlayers.includes(p.name))
     .sort((a, b) => b.elo - a.elo)
-    .slice(0, 3)
     .map((p) => p.name);
-  const [selected, setSelected] = useState<string[]>(topPlayers);
+  const [selected, setSelected] = useState<string[]>(topByElo.slice(0, 5));
   const [hoverPt, setHoverPt] = useState<{ idx: number; date: string } | null>(
     null
   );
@@ -278,6 +279,49 @@ export function Analytics({ data, setView }: AnalyticsProps) {
           }}
         >
           COMPARE PLAYER ELO RATINGS OVER TIME
+        </div>
+
+        {/* Quick-select preset buttons */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          {[3, 5].map((n) => {
+            const isActive = selected.length === n && selected.every((name, i) => topByElo[i] === name);
+            return (
+              <button
+                key={n}
+                onClick={() => setSelected(topByElo.slice(0, n))}
+                style={{
+                  fontFamily: FONT_HEADER,
+                  fontSize: 11,
+                  letterSpacing: 1,
+                  padding: '5px 14px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  background: isActive ? 'rgba(200,160,48,0.18)' : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${isActive ? 'rgba(200,160,48,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  color: isActive ? '#c8a030' : '#8090a8',
+                  transition: 'all 0.15s',
+                }}
+              >
+                TOP {n}
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setSelected([])}
+            style={{
+              fontFamily: FONT_HEADER,
+              fontSize: 11,
+              letterSpacing: 1,
+              padding: '5px 14px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#556',
+            }}
+          >
+            CLEAR
+          </button>
         </div>
 
         <div
