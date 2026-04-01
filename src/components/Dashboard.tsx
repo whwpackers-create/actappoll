@@ -318,28 +318,29 @@ export function Dashboard({
         position: 'relative',
       }}
     >
-      {/* Checkered flag background — MK Wii style */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
-        {/* Diagonal speed lines */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'repeating-linear-gradient(62deg, transparent 0px, transparent 28px, rgba(255,255,255,0.018) 28px, rgba(255,255,255,0.018) 30px)',
-        }} />
-        {/* Checkered flag */}
+      {/* Checkered flag centrepiece — MK Wii style */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <svg
-          style={{ position: 'absolute', top: '38%', left: '50%', transform: 'translate(-50%, -50%) rotate(-12deg)', opacity: 0.07, width: 560, height: 420 }}
-          viewBox="0 0 560 420"
+          style={{ opacity: 0.13, width: 340, height: 440 }}
+          viewBox="0 0 340 440"
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <pattern id="bgChecker" width="40" height="40" patternUnits="userSpaceOnUse">
-              <rect width="20" height="20" fill="white"/>
-              <rect x="20" width="20" height="20" fill="black"/>
-              <rect y="20" width="20" height="20" fill="black"/>
-              <rect x="20" y="20" width="20" height="20" fill="white"/>
+            <pattern id="flagChecker" width="32" height="32" patternUnits="userSpaceOnUse">
+              <rect width="16" height="16" fill="#c8c8c8"/>
+              <rect x="16" width="16" height="16" fill="#1a1a1a"/>
+              <rect y="16" width="16" height="16" fill="#1a1a1a"/>
+              <rect x="16" y="16" width="16" height="16" fill="#c8c8c8"/>
             </pattern>
           </defs>
-          <rect width="560" height="420" fill="url(#bgChecker)"/>
+          {/* Pole */}
+          <rect x="18" y="0" width="8" height="440" fill="#888" rx="3"/>
+          {/* Flag rectangle — slightly angled via skew on a group */}
+          <g transform="translate(26,20)">
+            <rect width="290" height="190" fill="url(#flagChecker)" rx="2"/>
+            {/* Subtle wave shadow at bottom edge */}
+            <rect y="182" width="290" height="8" fill="rgba(0,0,0,0.3)" rx="2"/>
+          </g>
         </svg>
       </div>
       <div
