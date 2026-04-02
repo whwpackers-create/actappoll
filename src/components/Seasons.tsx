@@ -184,7 +184,7 @@ export function Seasons({
         <div style={cHead}>
           <span style={cTitle}>◎ Seasons</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <span style={cSub}>Elo per semester</span>
+            <span style={cSub}>VR per semester</span>
             <button
               onClick={() => auth.req(() => setEditMode(!editMode))}
               style={{
@@ -636,7 +636,7 @@ export function Seasons({
                               { l: 'PTS', v: p.pts, c: '#6aca6a' },
                               { l: 'JS', v: p.js, c: '#aa7aca' },
                               { l: 'WINS', v: p.wins, c: '#caa040' },
-                              { l: 'ELO', v: p.elo, c: '#e94560' },
+                              { l: 'VR', v: p.elo, c: '#e94560' },
                               {
                                 l: 'LAST',
                                 v: (p.lc > 0 ? '+' : '') + p.lc.toFixed(1),
@@ -684,7 +684,7 @@ export function Seasons({
           opacity: 0.75,
         }}
       >
-        <div style={{ ...cTitle, fontSize: 16, letterSpacing: 2 }}>HOW ELO WORKS</div>
+        <div style={{ ...cTitle, fontSize: 16, letterSpacing: 2 }}>HOW VR WORKS</div>
         <div
           style={{
             fontSize: 12,
@@ -694,21 +694,14 @@ export function Seasons({
           }}
         >
           Everyone starts each season at{' '}
-          <strong style={{ color: '#c084fc' }}>800</strong> — no carryover.
+          <strong style={{ color: '#c084fc' }}>5000</strong> VR — no carryover.
           <br />
           <br />
-          <strong style={{ color: '#f5a623' }}>MMR anchor:</strong> Your
-          all-time leaderboard Elo acts as a skill anchor.
+          <strong style={{ color: '#f5a623' }}>Finish position</strong> determines your base VR change each race.
           <br />
-          <strong style={{ color: '#50fa7b' }}>MMR above season Elo</strong> →
-          gain more per win, lose less per loss (you're underranked).
+          <strong style={{ color: '#50fa7b' }}>Skill modifier</strong> adjusts gains and losses based on your VR vs the room average.
           <br />
-          <strong style={{ color: '#e94560' }}>MMR below season Elo</strong> →
-          gain less per win, lose more per loss (you're overranked).
-          <br />
-          <br />
-          Competition level still matters — beating higher-ranked opponents
-          earns more than beating lower-ranked ones.
+          <strong style={{ color: '#e94560' }}>SAT multipliers</strong> boost gains on Day 1 (1.1×) through Finals (2×).
         </div>
       </div>
     </div>

@@ -321,7 +321,7 @@ export function Roster({
                   marginBottom: 16,
                 }}
               >
-                Set graduation / retirement date for Elo records
+                Set graduation / retirement date for VR records
               </div>
               <label style={lbl}>Retirement Date</label>
               <input
@@ -463,7 +463,7 @@ export function Roster({
             >
               <span style={{ flex: 2 }}>Player</span>
               <span style={{ width: 70, textAlign: 'center' }}>Status</span>
-              <span style={tc}>Elo</span>
+              <span style={tc}>VR</span>
               <span style={tc}>ACTs</span>
               <span style={tc}>Races</span>
               <span style={tc}>Pts</span>

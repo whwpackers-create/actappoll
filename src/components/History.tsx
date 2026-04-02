@@ -718,7 +718,7 @@ export function History({
                         {/* ELO changes row — inline below FINAL, matching screenshot layout */}
                         {/* Label cell */}
                         <div style={{ padding: '6px 8px', background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(200,160,48,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030', letterSpacing: 1 }}>ELO ±</span>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030', letterSpacing: 1 }}>VR ±</span>
                         </div>
                         {/* One cell per team */}
                         {act.teams.slice(0, numTeams).map((team, ti) => (
@@ -750,7 +750,7 @@ export function History({
                                   <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#d0d4dc', flex: 1 }}>{displayFirst}</span>
                                   <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#a09880', minWidth: 30, textAlign: 'right' }}>{pts} pts</span>
                                   <span style={{ fontFamily: FONT_MONO, fontSize: 12, fontWeight: 700, color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#556', minWidth: 50, textAlign: 'right' }}>
-                                    {diff > 0 ? `+${diff}` : diff === 0 ? '0' : diff} ELO
+                                    {diff > 0 ? `+${diff}` : diff === 0 ? '0' : diff} VR
                                   </span>
                                 </div>
                               );
@@ -853,7 +853,7 @@ export function History({
                                   flexWrap: 'wrap',
                                 }}
                               >
-                                <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c8a030', letterSpacing: 1, alignSelf: 'center' }}>ELO±</span>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c8a030', letterSpacing: 1, alignSelf: 'center' }}>VR±</span>
                                 {team.members.map((member, mi) => {
                                   const subName = team.subs?.[mi];
                                   const eloKey = subName && subName !== '' ? subName : member;

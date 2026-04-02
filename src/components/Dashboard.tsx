@@ -538,7 +538,7 @@ export function Dashboard({
                     transition: 'all 0.15s',
                   }}
                 >
-                  ELO INFO
+                  VR INFO
                 </button>
               </div>
             </div>
@@ -560,7 +560,7 @@ export function Dashboard({
                   onChange={(e) => setSortBy(e.target.value)}
                   style={selS}
                 >
-                  <option value="elo">ELO</option>
+                  <option value="elo">VR</option>
                   <option value="points">Points</option>
                   <option value="wins">Wins</option>
                   <option value="acts">ACTs</option>
@@ -687,13 +687,13 @@ export function Dashboard({
                       style={{ display: 'grid', gridTemplateColumns: 'repeat(5,auto)', gap: 20, textAlign: 'right' }}
                     >
                       {(showCurrentSeason && csEloMap[p.name] != null ? [
-                        { l: 'SEASON ELO', v: csEloMap[p.name], c: '#60a5fa' },
-                        { l: 'ALL-TIME ELO', v: Math.round(p.elo), c: '#475569' },
+                        { l: 'SEASON VR', v: csEloMap[p.name], c: '#60a5fa' },
+                        { l: 'ALL-TIME VR', v: Math.round(p.elo), c: '#475569' },
                         { l: 'POINTS', v: p.pts, c: '#fde68a' },
                         { l: 'WINS', v: p.wins, c: '#86efac' },
                         { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#f9a8d4' },
                       ] : [
-                        { l: 'ELO', v: Math.round(p.elo), c: '#93c5fd' },
+                        { l: 'VR', v: Math.round(p.elo), c: '#93c5fd' },
                         { l: '30D CHANGE', v: (ch30 > 0 ? '+' : '') + ch30, c: ch30 > 0 ? '#86efac' : ch30 < 0 ? '#fca5a5' : '#556' },
                         { l: 'POINTS', v: p.pts, c: '#fde68a' },
                         { l: 'WINS', v: p.wins, c: '#86efac' },
@@ -886,7 +886,7 @@ export function Dashboard({
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#60a5fa' }}>
-                  ELO {Math.round(ps.elo)}
+                  VR {Math.round(ps.elo)}
                 </span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#6080a0' }}>Peak {peakElo}</span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: ch30 > 0 ? '#4ade80' : ch30 < 0 ? '#f87171' : '#445' }}>
@@ -921,7 +921,7 @@ export function Dashboard({
                         <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.rank === 1 ? '#fde68a' : sr.rank === 2 ? '#94a3b8' : sr.rank === 3 ? '#cd7f32' : '#93c5fd' }}>
                           #{sr.rank}<span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>/{sr.total}</span>
                         </span>
-                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#93c5fd', fontWeight: 700 }}>ELO {sr.elo}</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#93c5fd', fontWeight: 700 }}>VR {sr.elo}</span>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{sr.actCount} ACTs</span>
                       </div>
                     </div>

@@ -22,7 +22,7 @@ const MENU_LABELS: Record<string, string> = {
   seasons: 'Seasons',
   sat: 'SAT',
   chooser: 'Chooser',
-  analytics: 'Elo Analytics',
+  analytics: 'VR Analytics',
   trophy: 'Trophy Icon',
 };
 
@@ -998,7 +998,7 @@ export function Settings({
                 <div
                   style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}
                 >
-                  {rank.min}+ ELO
+                  {rank.min}+ VR
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

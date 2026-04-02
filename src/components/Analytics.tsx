@@ -175,13 +175,13 @@ export function Analytics({ data, setView }: AnalyticsProps) {
     const p = stats.find((s) => s.name === name);
     // Filter out SAT placement bonus entries for the same reason
     const hist = (p?.eloHistory ?? []).filter((h) => !(h.isSat && h.points === 0));
-    const finalElo = p ? Math.round(p.elo) : 1000;
+    const finalElo = p ? Math.round(p.elo) : 5000;
     // First date the player actually appeared in an ACT
     const firstDate = hist.length > 0
       ? [...hist].sort((a, b) => a.date.localeCompare(b.date))[0].date
       : null;
     const pts: { date: string; elo: number | null; idx: number }[] = [];
-    let curElo = 1000;
+    let curElo = 5000;
     uniqueDates.forEach((date, di) => {
       const isLast = di === uniqueDates.length - 1;
       // Don't show a line before the player's first recorded ACT
@@ -270,7 +270,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
             letterSpacing: 3,
           }}
         >
-          Elo History
+          VR History
         </div>
         <div
           style={{
@@ -281,7 +281,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
             marginBottom: 16,
           }}
         >
-          COMPARE PLAYER ELO RATINGS OVER TIME
+          COMPARE PLAYER VR RATINGS OVER TIME
         </div>
 
         {/* Quick-select preset buttons */}
@@ -393,7 +393,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                 >
                   {p.name}{' '}
                   <span style={{ color: '#556', fontSize: 10 }}>
-                    ({Math.round(p.elo)} Elo)
+                    ({Math.round(p.elo)} VR)
                   </span>
                 </div>
               ))}
@@ -466,7 +466,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
                 textAnchor="middle"
                 transform={'rotate(-90,16,' + H / 2 + ')'}
               >
-                Elo Rating
+                VR Rating
               </text>
               {Array.from({ length: gridLines }).map((_, gi) => {
                 const v = minE + ((maxE - minE) / (gridLines - 1)) * gi;
@@ -637,7 +637,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
               textAlign: 'center',
             }}
           >
-            Search and add players to compare their Elo history
+            Search and add players to compare their VR history
           </div>
         )}
         {selected.length > 0 && uniqueDates.length < 2 && (
