@@ -627,30 +627,26 @@ export function Seasons({
                           <div
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: 'repeat(auto-fill, minmax(40px, auto))',
-                              gap: 8,
+                              gridTemplateColumns: 'repeat(5, auto)',
+                              gap: 20,
                               textAlign: 'right',
                             }}
                           >
                             {[
-                              { l: 'PTS', v: p.pts, c: '#6aca6a' },
-                              { l: 'JS', v: p.js, c: '#aa7aca' },
-                              { l: 'WINS', v: p.wins, c: '#caa040' },
-                              { l: 'VR', v: p.elo, c: '#e94560' },
-                              {
-                                l: 'LAST',
-                                v: (p.lc > 0 ? '+' : '') + p.lc.toFixed(1),
-                                c:
-                                  p.lc > 0 ? '#6aca6a' : p.lc < 0 ? '#e94560' : '#556',
-                              },
+                              { l: 'VR', v: p.elo, c: '#93c5fd' },
+                              { l: 'LAST', v: (p.lc > 0 ? '+' : '') + p.lc.toFixed(1), c: p.lc > 0 ? '#86efac' : p.lc < 0 ? '#fca5a5' : '#556' },
+                              { l: 'POINTS', v: p.pts, c: '#fde68a' },
+                              { l: 'WINS', v: p.wins, c: '#86efac' },
+                              { l: 'JERSEY SWAPS', v: p.js, c: '#f9a8d4' },
                             ].map((c, ci) => (
                               <div key={ci}>
                                 <div
                                   style={{
                                     fontFamily: FONT_MONO,
-                                    fontSize: 7,
-                                    color: '#3a4a5a',
+                                    fontSize: 9,
+                                    color: '#445',
                                     letterSpacing: 1,
+                                    marginBottom: 3,
                                   }}
                                 >
                                   {c.l}
@@ -658,7 +654,7 @@ export function Seasons({
                                 <div
                                   style={{
                                     fontFamily: FONT_HEADER,
-                                    fontSize: 14,
+                                    fontSize: 20,
                                     color: c.c,
                                   }}
                                 >
