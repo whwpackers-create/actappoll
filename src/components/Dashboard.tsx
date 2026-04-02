@@ -6,12 +6,12 @@ import type { PlayerStats } from '../types';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 
 const TIERS = [
-  { name: 'Bronze',   min: 0,    max: 950,  color: '#cd7f32', icon: '🥉' },
-  { name: 'Silver',   min: 950,  max: 1025, color: '#94a3b8', icon: '🥈' },
-  { name: 'Gold',     min: 1025, max: 1100, color: '#fbbf24', icon: '🥇' },
-  { name: 'Platinum', min: 1100, max: 1200, color: '#60a5fa', icon: '💎' },
-  { name: 'Diamond',  min: 1200, max: 1350, color: '#c084fc', icon: '💠' },
-  { name: 'Master',   min: 1350, max: Infinity, color: '#f87171', icon: '👑' },
+  { name: 'Copper',   min: 0,    max: 5000, color: '#b45309', icon: '🪙' },
+  { name: 'Bronze',   min: 5000, max: 5500, color: '#cd7f32', icon: '🥉' },
+  { name: 'Silver',   min: 5500, max: 6200, color: '#94a3b8', icon: '🥈' },
+  { name: 'Gold',     min: 6200, max: 7000, color: '#fbbf24', icon: '🥇' },
+  { name: 'Platinum', min: 7000, max: 8000, color: '#60a5fa', icon: '💎' },
+  { name: 'Diamond',  min: 8000, max: Infinity, color: '#c084fc', icon: '💠' },
 ];
 
 function getTier(elo: number) {
@@ -804,40 +804,28 @@ export function Dashboard({
           style={{ background: '#0c1018', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 14, padding: '28px 30px', width: '100%', maxWidth: 780, maxHeight: '90vh', overflowY: 'auto', position: 'relative', boxShadow: '0 0 40px rgba(200,160,48,0.08)' }}
         >
           <button onClick={() => setShowEloInfo(false)} style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none', color: '#556', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>✕</button>
-          <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#c8a030', letterSpacing: 2, marginBottom: 20 }}>HOW ELO WORKS</div>
+          <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#c8a030', letterSpacing: 2, marginBottom: 20 }}>HOW VR WORKS</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
             {[
               {
-                title: 'Starting Point',
-                body: 'Every player begins at 850 ELO. Your first 8 ACTs are a placement period — all changes are boosted 1.5× so you reach your true level faster.',
+                title: 'Starting VR',
+                body: 'Every player starts at 5000 VR — the same as Mario Kart Wii. VR is calculated per race, not per ACT, so each individual race moves your rating.',
               },
               {
-                title: 'How Points Become ELO',
-                body: 'Your score (out of 24 max) is compared against what was statistically expected. Beat expectations → gain ELO. Fall short → lose ELO. You are only compared against players in the same bracket slot.',
+                title: 'Finish Position',
+                body: '1st place: +20 VR. 2nd place: +10 VR. 3rd place: −10 VR. 4th place: −20 VR. These are base values before the skill modifier is applied.',
               },
               {
-                title: 'Lobby Quality Multiplier',
-                body: 'Wins in tough lobbies count more. If your bracket opponents average rank 1–7: gains are 2×. Rank 8–15: 1.5×. Rank 16–25: 1.2×. Rank 26+: 1×. Only gains are multiplied — losses are always standard.',
+                title: 'Skill Modifier',
+                body: 'Your VR vs the room average adjusts your gain/loss. If you\'re rated well above the room, wins are worth less and losses cost more. If you\'re the underdog, wins pay more and losses hurt less.',
               },
               {
-                title: 'Season Decay',
-                body: 'Older seasons count for less: current season 100%, last season (Fall 2025) 90%, Spring 2025 80%, Fall 2024 75%, Spring 2024 65%, Fall 2023+ 60%. Recent performance matters most.',
-              },
-              {
-                title: 'Floor at 850',
-                body: "Below 850, losses are cut to just 8% of their raw value — a near-hard cap. Once you've raced enough and climbed above 850, it takes sustained bad play to sink back down.",
-              },
-              {
-                title: 'Competitive Bracket Protection',
-                body: "If your bracket's average global rank is top 10 or better and you score 14+ points, you don't lose ELO — your saved loss is redistributed to your bracket peers instead.",
+                title: 'Ceiling at 9999',
+                body: 'VR is capped at 9999. Above 9000, gains start shrinking — at 9500 you earn half the normal gain, at 9900 only 10%. Losses are always full strength.',
               },
               {
                 title: 'SAT Multipliers',
-                body: 'SAT gains are boosted by day: Day 1 = 1.1×, Day 2 = 1.2×, Day 3 = 1.5×, Finals = 2×. Only gains are amplified. SAT losses are normal.',
-              },
-              {
-                title: 'Days 3 & 4 (Semis/Finals)',
-                body: 'Days 3 and 4 use a flat low expected score — making it there is itself rewarded. Gains are boosted 1.3× and losses are dampened to 15% unless you score under 3 pts.',
+                body: 'SAT gains are boosted by day: Day 1 = 1.1×, Day 2 = 1.2×, Day 3 = 1.5×, Finals = 2×. Only gains are amplified — SAT losses are normal.',
               },
             ].map((item) => (
               <div key={item.title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px' }}>
