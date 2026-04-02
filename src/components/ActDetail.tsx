@@ -1,5 +1,5 @@
 import React, { useState, Fragment } from 'react';
-import { teamScores, computeAllElos, computeActBracketBreakdown, BASE_ELO } from '../utils/elo';
+import { teamScores, computeAllElos, computeActBracketBreakdown, STARTING_VR } from '../utils/elo';
 import { fsSet, gid } from '../services/firestore';
 import { card, cHead, cTitle, cSub, inp, TC } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
@@ -1899,8 +1899,8 @@ export function ActDetail({
                       );
                     }
                     const pts = playerPts[name] ?? 0;
-                    const b = Math.round(eB[name] ?? BASE_ELO);
-                    const a = Math.round(eA[name] ?? BASE_ELO);
+                    const b = Math.round(eB[name] ?? STARTING_VR);
+                    const a = Math.round(eA[name] ?? STARTING_VR);
                     const d = a - b;
                     return (
                       <span
@@ -1939,8 +1939,8 @@ export function ActDetail({
           {act.teams.flatMap((t, ti) =>
             t.members.map((name) => {
               const pts = playerPts[name] ?? 0;
-              const b = Math.round(eB[name] ?? BASE_ELO);
-              const a = Math.round(eA[name] ?? BASE_ELO);
+              const b = Math.round(eB[name] ?? STARTING_VR);
+              const a = Math.round(eA[name] ?? STARTING_VR);
               const d = a - b;
               const races = act.races.filter((r) =>
                 r.results.find((x) => x.player === name)

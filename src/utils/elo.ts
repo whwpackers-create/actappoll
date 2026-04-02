@@ -1,9 +1,10 @@
 import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../types';
 
 // ─── VR System Constants ────────────────────────────────────────────────────
-export const BASE_ELO = 5000;          // starting VR for all players
-export const VR_MAX   = 9999;          // hard ceiling
-export const VR_ELITE = 9000;          // diminishing returns kick in above this
+export const BASE_ELO    = 5000;       // midpoint used for skill-modifier defaults
+export const STARTING_VR = 3500;       // new player starting VR (below established players)
+export const VR_MAX      = 9999;       // hard ceiling
+export const VR_ELITE    = 9000;       // diminishing returns kick in above this
 
 // Base VR change by finishing position (index 0 = 1st place)
 const VR_BASE_PTS = [20, 10, -10, -20];
@@ -12,6 +13,12 @@ const VR_BASE_PTS = [20, 10, -10, -20];
 // If you're rated higher than the room, you gain less and lose more
 const VR_DIFF_K   = 180;
 const VR_DIFF_CAP = 15;
+
+// Underdog protection thresholds
+// When a player is this many VR below room average, losses start being reduced
+const UNDERDOG_FLOOR  = 600;   // deficit at which protection starts
+const UNDERDOG_SCALE  = 1200;  // deficit at which protection is at max
+const UNDERDOG_MAX    = 0.80;  // maximum loss reduction (80%)
 
 // SAT gain multipliers — gains only, losses are normal
 export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 2.0 };
@@ -61,6 +68,14 @@ function vrChange(
   // SAT day multiplier (gains only)
   if (change > 0) change *= satGainMult;
 
+  // Underdog protection: reduce losses when substantially below room average
+  // e.g. 600 below = 0% reduction, 1200 below = 40%, 1800+ below = 80%
+  if (change < 0 && diff < -UNDERDOG_FLOOR) {
+    const deficit = Math.abs(diff) - UNDERDOG_FLOOR;
+    const reductionFactor = Math.min(UNDERDOG_MAX, (deficit / UNDERDOG_SCALE) * UNDERDOG_MAX);
+    change *= (1 - reductionFactor);
+  }
+
   // Diminishing returns above VR_ELITE (losses unaffected)
   if (change > 0 && myVR > VR_ELITE) {
     change *= Math.max(0, (VR_MAX - myVR) / (VR_MAX - VR_ELITE));
@@ -79,7 +94,7 @@ export function computeAllElos(
   const vrs:  Record<string, number>           = {};
   const hist: Record<string, EloHistoryEntry[]> = {};
 
-  players.forEach((p) => { vrs[p.name] = BASE_ELO; hist[p.name] = []; });
+  players.forEach((p) => { vrs[p.name] = STARTING_VR; hist[p.name] = []; });
 
   [...acts]
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -102,7 +117,7 @@ export function computeAllElos(
       const startVR:   Record<string, number> = {};
       const totalPts:  Record<string, number> = {};
       actPlayers.forEach((name) => {
-        if (!(name in vrs)) { vrs[name] = BASE_ELO; hist[name] = []; }
+        if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; }
         startVR[name]  = vrs[name];
         totalPts[name] = 0;
       });
@@ -122,9 +137,9 @@ export function computeAllElos(
         const sorted = [...raceResults].sort((a, b) => b.pts - a.pts);
 
         sorted.forEach(({ name }, pos) => {
-          if (!(name in vrs)) { vrs[name] = BASE_ELO; hist[name] = []; startVR[name] = BASE_ELO; totalPts[name] = 0; }
+          if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; startVR[name] = STARTING_VR; totalPts[name] = 0; }
 
-          const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => vrs[opp] ?? BASE_ELO);
+          const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => vrs[opp] ?? STARTING_VR);
           const change = vrChange(vrs[name], oppVRs, pos, satGainMult);
           vrs[name] = Math.max(1, Math.min(VR_MAX, vrs[name] + change));
         });
@@ -286,7 +301,7 @@ export function computeStats(
 
     return {
       ...p,
-      elo:          Math.round(elos[p.name] ?? BASE_ELO),
+      elo:          Math.round(elos[p.name] ?? STARTING_VR),
       eloHistory:   eloH,
       totalRaces:   tR,
       totalPoints:  tP,
@@ -362,8 +377,8 @@ export function computeActBracketBreakdown(
       const pos = sorted.findIndex((r) => r.name === name);
       if (pos === -1) return;
 
-      const oppVRs = sorted.filter((_, j) => j !== pos).map(({ name: opp }) => vrsBefore[opp] ?? BASE_ELO);
-      const change = vrChange(vrsBefore[name] ?? BASE_ELO, oppVRs, pos, satGainMult);
+      const oppVRs = sorted.filter((_, j) => j !== pos).map(({ name: opp }) => vrsBefore[opp] ?? STARTING_VR);
+      const change = vrChange(vrsBefore[name] ?? STARTING_VR, oppVRs, pos, satGainMult);
       const pts = sorted[pos].pts;
 
       if (racePos[i] === 0)      { pts0 += pts; ch0 += change; }

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { computeStats } from '../utils/elo';
+import { computeStats, STARTING_VR } from '../utils/elo';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import type { AppData } from '../types';
 
@@ -175,13 +175,13 @@ export function Analytics({ data, setView }: AnalyticsProps) {
     const p = stats.find((s) => s.name === name);
     // Filter out SAT placement bonus entries for the same reason
     const hist = (p?.eloHistory ?? []).filter((h) => !(h.isSat && h.points === 0));
-    const finalElo = p ? Math.round(p.elo) : 5000;
+    const finalElo = p ? Math.round(p.elo) : STARTING_VR;
     // First date the player actually appeared in an ACT
     const firstDate = hist.length > 0
       ? [...hist].sort((a, b) => a.date.localeCompare(b.date))[0].date
       : null;
     const pts: { date: string; elo: number | null; idx: number }[] = [];
-    let curElo = 5000;
+    let curElo = STARTING_VR;
     uniqueDates.forEach((date, di) => {
       const isLast = di === uniqueDates.length - 1;
       // Don't show a line before the player's first recorded ACT

@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from 'react';
-import { teamScores, computeAllElos, BASE_ELO } from '../utils/elo';
+import { teamScores, computeAllElos, STARTING_VR } from '../utils/elo';
 import {
   card,
   cHead,
@@ -81,7 +81,7 @@ export function History({
   const getEloChange = (playerName: string, actId: string): { before: number; after: number } => {
     const entry = eloHist[playerName]?.find((h) => h.actId === actId);
     if (!entry) {
-      const fallback = eloFinal[playerName] ?? BASE_ELO;
+      const fallback = eloFinal[playerName] ?? STARTING_VR;
       return { before: fallback, after: fallback };
     }
     return { before: Math.round(entry.elo - entry.change), after: Math.round(entry.elo) };
