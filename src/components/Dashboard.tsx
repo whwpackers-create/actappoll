@@ -191,7 +191,10 @@ export function Dashboard({
   onTheme,
   menuImgs,
 }: DashboardProps) {
-  const stats = computeStats(data.players, data.acts, data.sats ?? [], data.seasons);
+  const stats = useMemo(
+    () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
+    [data.players, data.acts, data.sats, data.seasons]
+  );
   const activePlayers = data.players
     .filter((p) => p.active !== false)
     .map((p) => p.name);

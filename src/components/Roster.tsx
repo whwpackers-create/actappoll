@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { computeStats } from '../utils/elo';
 import { gid } from '../services/firestore';
 import {
@@ -41,7 +41,10 @@ export function Roster({
   const [newName, setNewName] = useState('');
   const [mergeConfirm, setMergeConfirm] = useState<{ from: string; to: string } | null>(null);
 
-  const stats = computeStats(data.players, data.acts, data.sats ?? [], data.seasons);
+  const stats = useMemo(
+    () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
+    [data.players, data.acts, data.sats, data.seasons]
+  );
   const sorted = [...stats].sort((a, b) => a.name.localeCompare(b.name));
 
   const getStatus = (name: string) => {
