@@ -1,8 +1,8 @@
 import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../types';
 
 // ─── VR System Constants ────────────────────────────────────────────────────
-export const BASE_ELO    = 5000;       // midpoint used for skill-modifier defaults
-export const STARTING_VR = 3500;       // new player starting VR (below established players)
+export const BASE_ELO    = 5000;       // starting VR for all players
+export const STARTING_VR = BASE_ELO;   // alias kept for display fallbacks
 export const VR_MAX      = 9999;       // hard ceiling
 export const VR_ELITE    = 9000;       // diminishing returns kick in above this
 
@@ -16,9 +16,9 @@ const VR_DIFF_CAP = 15;
 
 // Underdog protection thresholds
 // When a player is this many VR below room average, losses start being reduced
-const UNDERDOG_FLOOR  = 600;   // deficit at which protection starts
-const UNDERDOG_SCALE  = 1200;  // deficit at which protection is at max
-const UNDERDOG_MAX    = 0.80;  // maximum loss reduction (80%)
+const UNDERDOG_FLOOR  = 300;   // deficit at which protection starts
+const UNDERDOG_SCALE  = 900;   // deficit at which protection is at max
+const UNDERDOG_MAX    = 0.85;  // maximum loss reduction (85%)
 
 // SAT gain multipliers — gains only, losses are normal
 export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 2.0 };
