@@ -144,7 +144,7 @@ export function NavBar({
               </button>
             )}
             <button
-              onClick={(e) => { e.stopPropagation(); auth.req(() => {}); }}
+              onClick={(e) => { e.stopPropagation(); auth.unlocked ? auth.logout() : auth.req(() => {}); }}
               style={{
                 background: auth.unlocked ? 'rgba(40,80,40,0.18)' : 'rgba(0,0,0,0.1)',
                 border: auth.unlocked ? '1px solid rgba(60,120,60,0.35)' : '1px solid rgba(0,0,0,0.18)',
@@ -157,7 +157,7 @@ export function NavBar({
                 letterSpacing: 1,
               }}
             >
-              {auth.unlocked ? '🔓 Admin' : '🔒 Admin'}
+              {auth.unlocked ? '🔓 Logout' : '🔒 Admin'}
             </button>
           </div>
         </div>

@@ -1,5 +1,9 @@
 import { useState, useCallback } from 'react';
-import { getAdminConfig } from '../services/firestore';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth } from '../config/firebase';
+
+// Single admin account — create this user in Firebase Console → Authentication → Users
+const ADMIN_EMAIL = 'admin@actappoll.com';
 
 export interface AuthState {
   unlocked: boolean;
@@ -8,6 +12,7 @@ export interface AuthState {
   setPw: (pw: string) => void;
   submit: () => Promise<void>;
   cancel: () => void;
+  logout: () => void;
   err: string;
   checking: boolean;
   req: (fn: () => void) => void;
@@ -36,27 +41,25 @@ export function useAuth(): AuthState {
     setChecking(true);
     setErr('');
     try {
-      const data = await getAdminConfig();
-      if (data) {
-        const storedPw =
-          data.password ?? data.Password ?? data.pw ?? '';
-        if (pw === storedPw) {
-          setUnlocked(true);
-          setShow(false);
-          setErr('');
-          if (pending) {
-            pending();
-            setPending(null);
-          }
-        } else {
-          setErr('Wrong password');
-        }
-      } else {
-        setErr('Admin config not found in Firebase. Add config/admin doc.');
+      await signInWithEmailAndPassword(auth, ADMIN_EMAIL, pw);
+      setUnlocked(true);
+      setShow(false);
+      if (pending) {
+        pending();
+        setPending(null);
       }
-    } catch (e) {
-      console.error('Auth check failed:', e);
-      setErr('Cannot reach Firebase — check connection');
+    } catch (e: any) {
+      if (
+        e.code === 'auth/wrong-password' ||
+        e.code === 'auth/invalid-credential' ||
+        e.code === 'auth/invalid-login-credentials'
+      ) {
+        setErr('Wrong password');
+      } else if (e.code === 'auth/too-many-requests') {
+        setErr('Too many attempts — try again later');
+      } else {
+        setErr('Login failed — check connection');
+      }
     }
     setChecking(false);
   }, [pw, pending]);
@@ -68,15 +71,10 @@ export function useAuth(): AuthState {
     setErr('');
   }, []);
 
-  return {
-    unlocked,
-    req,
-    show,
-    pw,
-    setPw,
-    submit,
-    cancel,
-    err,
-    checking,
-  };
+  const logout = useCallback(() => {
+    signOut(auth);
+    setUnlocked(false);
+  }, []);
+
+  return { unlocked, req, show, pw, setPw, submit, cancel, logout, err, checking };
 }
