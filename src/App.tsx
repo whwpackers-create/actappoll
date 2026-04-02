@@ -178,10 +178,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Show cached data immediately so page renders without waiting for Firebase
+    const cached = loadLocal();
+    if (cached) {
+      setData(cached);
+      setSrc('local');
+      setLoading(false);
+    }
+
     loadAllData().then(async ({ data: d, source }) => {
       setData(d);
       setSrc(source);
-      setLoading(false);
+      if (!cached) setLoading(false);
       if (source === 'firebase') {
         let fx = 0;
         for (const act of d.acts) {
