@@ -3,7 +3,7 @@ import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '../config/firebase';
 
 // Single admin account — create this user in Firebase Console → Authentication → Users
-const ADMIN_EMAIL = 'admin@actappoll.com';
+const ADMIN_EMAIL = 'whwpackers@gmail.com';
 
 export interface AuthState {
   unlocked: boolean;
