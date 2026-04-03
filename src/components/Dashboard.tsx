@@ -151,29 +151,49 @@ function menuImgLayer(
   const py = parseInt(menuImgs['mp_' + key] ?? '50') || 50;
   const mc = parseInt(menuImgs['mc_' + key] ?? '0') || 0;
   const mb = parseInt(menuImgs['mb_' + key] ?? '0') || 0;
+  const isGif = img.startsWith('data:image/gif');
   return (
     <>
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundImage: `url(${img})`,
-          backgroundSize: zm + '%',
-          backgroundPosition: px + '% ' + py + '%',
-          backgroundRepeat: 'no-repeat',
+          top: 0, left: 0, right: 0, bottom: 0,
+          overflow: 'hidden',
           clipPath: `inset(${mc}% 0 ${mb}% 0)`,
         }}
-      />
+      >
+        {isGif ? (
+          /* <img> guarantees GIF animation on iOS Safari — background-image does not */
+          <img
+            src={img}
+            alt=""
+            style={{
+              position: 'absolute',
+              width: zm + '%',
+              height: 'auto',
+              top: py + '%',
+              left: px + '%',
+              transform: `translate(-${px}%, -${py}%)`,
+              pointerEvents: 'none',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url(${img})`,
+              backgroundSize: zm + '%',
+              backgroundPosition: px + '% ' + py + '%',
+              backgroundRepeat: 'no-repeat',
+            }}
+          />
+        )}
+      </div>
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.4)',
         }}
       />

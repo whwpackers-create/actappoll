@@ -386,14 +386,24 @@ export function Blackjack({ menuImgs = {} }: { menuImgs?: Record<string, string>
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 0 40px', position: 'relative' }}>
       {bgImg && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-          backgroundImage: `url(${bgImg})`,
-          backgroundSize: `${bgZoom}%`,
-          backgroundPosition: `${bgX}% ${bgY}%`,
-          backgroundRepeat: 'no-repeat',
-          opacity: 0.18,
-        }}/>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', opacity: 0.18 }}>
+          {bgImg.startsWith('data:image/gif') ? (
+            <img src={bgImg} alt="" style={{
+              position: 'absolute',
+              width: `${bgZoom}%`, height: 'auto',
+              top: `${bgY}%`, left: `${bgX}%`,
+              transform: `translate(-${bgX}%, -${bgY}%)`,
+            }}/>
+          ) : (
+            <div style={{
+              position: 'absolute', inset: 0,
+              backgroundImage: `url(${bgImg})`,
+              backgroundSize: `${bgZoom}%`,
+              backgroundPosition: `${bgX}% ${bgY}%`,
+              backgroundRepeat: 'no-repeat',
+            }}/>
+          )}
+        </div>
       )}
 
       {/* Header */}
