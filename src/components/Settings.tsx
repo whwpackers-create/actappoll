@@ -39,23 +39,47 @@ interface SettingsProps {
 
 function persistMenuImgs(imgs: Record<string, string>) {
   const fbImages: Record<string, string> = {};
+  const gifImages: Record<string, string> = {};
+
   MENU_KEYS.forEach((k) => {
-    if (imgs['mi_' + k]) fbImages['mi_' + k] = imgs['mi_' + k];
-    if (imgs['mz_' + k]) fbImages['mz_' + k] = imgs['mz_' + k];
-    if (imgs['mp_' + k]) fbImages['mp_' + k] = imgs['mp_' + k];
-    if (imgs['mc_' + k]) fbImages['mc_' + k] = imgs['mc_' + k];
-    if (imgs['mb_' + k]) fbImages['mb_' + k] = imgs['mb_' + k];
-    if (imgs['mx_' + k]) fbImages['mx_' + k] = imgs['mx_' + k];
+    const mi = imgs['mi_' + k];
+    if (mi) {
+      // GIFs are too large for Firestore (1MB doc limit) — store locally only
+      if (mi.startsWith('data:image/gif')) {
+        gifImages['mi_' + k] = mi;
+        // Store position/size settings in Firestore so they persist cross-device
+        if (imgs['mz_' + k]) fbImages['mz_' + k] = imgs['mz_' + k];
+        if (imgs['mp_' + k]) fbImages['mp_' + k] = imgs['mp_' + k];
+        if (imgs['mc_' + k]) fbImages['mc_' + k] = imgs['mc_' + k];
+        if (imgs['mb_' + k]) fbImages['mb_' + k] = imgs['mb_' + k];
+        if (imgs['mx_' + k]) fbImages['mx_' + k] = imgs['mx_' + k];
+        fbImages['gif_' + k] = '1'; // flag so load knows a GIF was set
+      } else {
+        fbImages['mi_' + k] = mi;
+        if (imgs['mz_' + k]) fbImages['mz_' + k] = imgs['mz_' + k];
+        if (imgs['mp_' + k]) fbImages['mp_' + k] = imgs['mp_' + k];
+        if (imgs['mc_' + k]) fbImages['mc_' + k] = imgs['mc_' + k];
+        if (imgs['mb_' + k]) fbImages['mb_' + k] = imgs['mb_' + k];
+        if (imgs['mx_' + k]) fbImages['mx_' + k] = imgs['mx_' + k];
+      }
+    }
   });
   SEASON_RANKS.forEach((r) => {
     if (imgs['ri_' + r.key]) fbImages['ri_' + r.key] = imgs['ri_' + r.key];
   });
   if (imgs['site_logo']) fbImages['site_logo'] = imgs['site_logo'];
+
   fsSet('config', 'menuImages', fbImages);
   try {
-    localStorage.setItem('actMenuImgCache', JSON.stringify(fbImages));
+    // Cache full image set (including GIFs) in localStorage
+    localStorage.setItem('actMenuImgCache', JSON.stringify({ ...fbImages, ...gifImages }));
+    // Also persist GIFs in a dedicated key so the Firestore overwrite on load can't wipe them
+    if (Object.keys(gifImages).length > 0) {
+      const existing = JSON.parse(localStorage.getItem('actMenuGifCache') ?? '{}');
+      localStorage.setItem('actMenuGifCache', JSON.stringify({ ...existing, ...gifImages }));
+    }
   } catch {
-    // ignore
+    // ignore storage errors
   }
 }
 
@@ -113,6 +137,12 @@ export function Settings({
   };
 
   const doRemove = (key: string) => {
+    // Also clear GIF from dedicated localStorage cache
+    try {
+      const gifCache = JSON.parse(localStorage.getItem('actMenuGifCache') ?? '{}');
+      delete gifCache['mi_' + key];
+      localStorage.setItem('actMenuGifCache', JSON.stringify(gifCache));
+    } catch { /* ignore */ }
     setMenuImgs((prev) => {
       const n = { ...prev };
       delete n['mi_' + key];
@@ -122,6 +152,7 @@ export function Settings({
       delete n['mb_' + key];
       delete n['mx_' + key];
       delete n['ed_' + key];
+      delete n['gif_' + key];
       persistMenuImgs(n);
       return n;
     });
