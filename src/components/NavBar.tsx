@@ -24,67 +24,42 @@ export function NavBar({
   const siteLogo = menuImgs?.['site_logo'] ?? '';
 
   return (
-    <header style={{ position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 3px 12px rgba(0,0,0,0.3)' }}>
-      <div style={{ position: 'relative', overflow: 'hidden', height: 52, background: '#e8ecf4' }}>
+    <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+      {/* Main bar */}
+      <div style={{
+        position: 'relative', overflow: 'hidden', height: 52,
+        /* White base with tiny grey horizontal lines */
+        background: 'repeating-linear-gradient(180deg, #ffffff 0px, #ffffff 3px, #ebebeb 3px, #ebebeb 4px)',
+      }}>
 
-        {/* Blue diagonal swoosh — sweeps from bottom-left across to right */}
-        <svg
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-          preserveAspectRatio="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <linearGradient id="swooshGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="#4a6ade" stopOpacity="0"/>
-              <stop offset="30%"  stopColor="#4a6ade" stopOpacity="0.6"/>
-              <stop offset="65%"  stopColor="#3a5acc" stopOpacity="1"/>
-              <stop offset="100%" stopColor="#2a3aaa" stopOpacity="1"/>
-            </linearGradient>
-            {/* Lighter inner highlight on swoosh */}
-            <linearGradient id="swooshHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%"   stopColor="rgba(255,255,255,0.35)"/>
-              <stop offset="50%"  stopColor="rgba(255,255,255,0.0)"/>
-            </linearGradient>
-
-            <pattern id="navChecker" width="18" height="18" patternUnits="userSpaceOnUse">
-              <rect width="9"  height="9"  fill="rgba(180,200,255,0.9)"/>
-              <rect x="9" width="9" height="9"  fill="rgba(255,255,255,0.55)"/>
-              <rect y="9" width="9" height="9"  fill="rgba(255,255,255,0.55)"/>
-              <rect x="9" y="9" width="9" height="9"  fill="rgba(180,200,255,0.9)"/>
-            </pattern>
-            <linearGradient id="checkerFade" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="black" stopOpacity="0"/>
-              <stop offset="35%"  stopColor="black" stopOpacity="1"/>
-            </linearGradient>
-            <mask id="checkerMask">
-              <rect width="220" height="52" fill="url(#checkerFade)"/>
-            </mask>
-          </defs>
-
-          {/* Swoosh shape — wide diagonal from lower-left, fills right 70% */}
-          <polygon
-            points="160,52 280,0 1000,0 1000,52"
-            fill="url(#swooshGrad)"
-          />
-          {/* Highlight stripe on top edge of swoosh */}
-          <polygon
-            points="160,52 280,0 1000,0 1000,10 295,10 175,52"
-            fill="url(#swooshHighlight)"
-          />
-          {/* Checker overlay on the far right */}
-          <g transform="translate(780,0)">
-            <rect width="220" height="52" fill="url(#navChecker)" mask="url(#checkerMask)"/>
-          </g>
-          {/* Thin bright line along top of swoosh edge */}
-          <line x1="280" y1="0" x2="160" y2="52" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5"/>
-        </svg>
+        {/* Light blue big checkers — right side, fading in */}
+        <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 240, overflow: 'hidden' }}>
+          <svg width="240" height="52" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="navChecker" width="26" height="26" patternUnits="userSpaceOnUse">
+                <rect width="13" height="13" fill="rgba(180,210,255,0.85)"/>
+                <rect x="13" width="13" height="13" fill="rgba(235,245,255,0.85)"/>
+                <rect y="13" width="13" height="13" fill="rgba(235,245,255,0.85)"/>
+                <rect x="13" y="13" width="13" height="13" fill="rgba(180,210,255,0.85)"/>
+              </pattern>
+              <linearGradient id="navFade" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"  stopColor="white" stopOpacity="0"/>
+                <stop offset="45%" stopColor="white" stopOpacity="1"/>
+              </linearGradient>
+              <mask id="navMask">
+                <rect width="240" height="52" fill="url(#navFade)"/>
+              </mask>
+            </defs>
+            <rect width="240" height="52" fill="url(#navChecker)" mask="url(#navMask)"/>
+          </svg>
+        </div>
 
         {/* Content */}
         <div style={{
           position: 'absolute', inset: 0,
           display: 'flex', alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 14px 0 20px',
+          padding: '0 16px 0 20px',
         }}>
           {/* Left: site name */}
           <div
@@ -111,14 +86,14 @@ export function NavBar({
               fontSize: 10,
               padding: '2px 6px',
               borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
             }}>
               {ct}
             </span>
             <button
               onClick={(e) => { e.stopPropagation(); onSync(); }}
               style={{
-                background: 'rgba(255,255,255,0.45)',
+                background: 'rgba(255,255,255,0.7)',
                 border: '1px solid rgba(0,0,0,0.15)',
                 borderRadius: 3,
                 padding: '1px 7px',
@@ -132,46 +107,37 @@ export function NavBar({
             </button>
           </div>
 
-          {/* Right: admin badge — styled like MK Wii Licence Settings pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative', zIndex: 2 }}>
+          {/* Right: admin */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 150 }}>
             {auth.unlocked && (
               <button
                 onClick={(e) => { e.stopPropagation(); onMigrate(); }}
                 style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: '1px solid rgba(255,255,255,0.35)',
+                  background: 'rgba(255,255,255,0.7)',
+                  border: '1px solid rgba(0,0,0,0.12)',
                   borderRadius: 3,
                   padding: '2px 7px',
                   fontSize: 7,
                   fontFamily: FONT_MONO,
-                  color: '#ddeeff',
+                  color: '#5a3a7a',
                   cursor: 'pointer',
                 }}
               >
                 ↑Push
               </button>
             )}
-            {/* Pill badge */}
             <button
               onClick={(e) => { e.stopPropagation(); auth.unlocked ? auth.logout() : auth.req(() => {}); }}
               style={{
-                background: auth.unlocked
-                  ? 'linear-gradient(180deg,#5aaa6a 0%,#3a8a4a 100%)'
-                  : 'linear-gradient(180deg,#6a7aee 0%,#3a4acc 100%)',
-                border: 'none',
-                outline: auth.unlocked ? '2px solid #2a6a3a' : '2px solid #2a3aaa',
-                outlineOffset: 1,
-                borderRadius: 20,
-                padding: '5px 14px',
-                fontSize: 10,
-                fontFamily: FONT_HEADER,
-                fontWeight: 900,
-                letterSpacing: 1,
-                color: '#fff',
+                background: auth.unlocked ? 'rgba(40,160,80,0.12)' : 'rgba(255,255,255,0.7)',
+                border: auth.unlocked ? '1px solid rgba(40,140,70,0.5)' : '1px solid rgba(0,0,0,0.18)',
+                borderRadius: 4,
+                padding: '3px 10px',
+                fontSize: 9,
+                fontFamily: FONT_MONO,
+                color: auth.unlocked ? '#1a6a30' : '#3a3a4a',
                 cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                textShadow: '0 1px 2px rgba(0,0,0,0.4)',
-                whiteSpace: 'nowrap',
+                letterSpacing: 1,
               }}
             >
               {auth.unlocked ? '🔓 Logout' : '🔒 Admin'}
@@ -179,6 +145,10 @@ export function NavBar({
           </div>
         </div>
       </div>
+
+      {/* Blue border underneath */}
+      <div style={{ height: 3, background: '#4a6ade' }}/>
+      <div style={{ height: 1, background: '#2a3aaa' }}/>
     </header>
   );
 }
