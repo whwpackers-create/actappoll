@@ -24,25 +24,15 @@ export function NavBar({
   const siteLogo = menuImgs?.['site_logo'] ?? '';
 
   return (
-    <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+    <header style={{ position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 10px rgba(0,0,0,0.6)' }}>
       {/* Main bar */}
-      <div style={{ position: 'relative', overflow: 'hidden', height: 56 }}>
+      <div style={{ position: 'relative', overflow: 'hidden', height: 56, background: '#1e2232' }}>
 
-        {/* Background — silver/grey gradient with diagonal dip on bottom-left */}
+        {/* Silver tab — left content area, diagonal right edge after SYNC */}
         <div style={{
           position: 'absolute', inset: 0,
           background: 'linear-gradient(180deg,#dde0e8 0%,#b8bcc8 40%,#9ca0ae 70%,#888c9a 100%)',
-          clipPath: 'polygon(0 0, 100% 0, 100% 100%, 52px 100%, 0 52%)',
-          boxShadow: '0 3px 10px rgba(0,0,0,0.5)',
-        }}/>
-
-        {/* Diagonal blue accent line along the dip edge */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'transparent',
-          clipPath: 'polygon(0 50%, 52px 100%, 64px 100%, 10px 50%)',
-          backgroundColor: '#4a6aaa',
-          opacity: 0.7,
+          clipPath: 'polygon(0 0, 265px 0, 305px 100%, 0 100%)',
         }}/>
 
         {/* Checker strip — right side, light grey/white squares */}
@@ -163,11 +153,6 @@ export function NavBar({
         </div>
       </div>
 
-      {/* Blue accent border under the bar */}
-      <div style={{
-        height: 3,
-        background: 'linear-gradient(90deg, #3a5aaa 0%, #5a7acc 40%, #3a5aaa 100%)',
-      }}/>
     </header>
   );
 }
