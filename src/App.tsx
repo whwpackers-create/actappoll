@@ -23,6 +23,7 @@ import { ActDetail } from './components/ActDetail';
 import { Chooser } from './components/Chooser';
 import { Settings } from './components/Settings';
 import { SAT } from './components/SAT';
+import { Blackjack } from './components/Blackjack';
 import { defaultTheme } from './styles/theme';
 import type { AppData, Act, Player } from './types';
 import { FONT_HEADER, FONT_BODY } from './styles/theme';
@@ -36,7 +37,8 @@ type View =
   | 'chooser'
   | 'analytics'
   | 'sat'
-  | 'seasons';
+  | 'seasons'
+  | 'blackjack';
 
 export default function App() {
   const [showSettings, setShowSettings] = useState(false);
@@ -1305,6 +1307,7 @@ export default function App() {
             menuImgs={menuImgs}
           />
         )}
+        {view === 'blackjack' && <Blackjack />}
       </main>
 
       {/* MK Wii-style footer bar */}

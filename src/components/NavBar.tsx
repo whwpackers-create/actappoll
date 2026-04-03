@@ -114,6 +114,30 @@ export function NavBar({
             </button>
           </div>
 
+          {/* Blackjack tab — sits in the dark zone right of the silver tab */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setView('blackjack'); }}
+            style={{
+              position: 'absolute', left: 288, top: 0, bottom: 0,
+              background: 'linear-gradient(180deg,#2a1a3a 0%,#1a1028 100%)',
+              border: 'none',
+              borderLeft: '1px solid #3a2a4a',
+              borderRight: '1px solid #3a2a4a',
+              padding: '0 14px',
+              fontFamily: FONT_HEADER,
+              fontSize: 11,
+              fontWeight: 900,
+              letterSpacing: 1,
+              color: '#c090e0',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+              clipPath: 'polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            🃏 BLACKJACK
+          </button>
+
           {/* Right: admin */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 148 }}>
             {auth.unlocked && (
