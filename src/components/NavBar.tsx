@@ -24,39 +24,31 @@ export function NavBar({
   const siteLogo = menuImgs?.['site_logo'] ?? '';
 
   return (
-    <header style={{ position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 10px rgba(0,0,0,0.6)' }}>
+    <header style={{ position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
       {/* Main bar */}
-      <div style={{ position: 'relative', overflow: 'hidden', height: 56, background: '#1e2232' }}>
+      <div style={{ position: 'relative', overflow: 'hidden', height: 56, background: '#ffffff' }}>
 
-        {/* Silver tab — left content area, diagonal right edge after SYNC */}
+        {/* Checker strip — right side */}
         <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(180deg,#dde0e8 0%,#b8bcc8 40%,#9ca0ae 70%,#888c9a 100%)',
-          clipPath: 'polygon(0 0, 265px 0, 305px 100%, 0 100%)',
-        }}/>
-
-        {/* Checker strip — right side, light grey/white squares */}
-        <div style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, width: 140, overflow: 'hidden',
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 200, overflow: 'hidden',
         }}>
-          <svg width="140" height="56" xmlns="http://www.w3.org/2000/svg">
+          <svg width="200" height="56" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <pattern id="navChecker" width="14" height="14" patternUnits="userSpaceOnUse">
-                <rect width="7" height="7" fill="rgba(255,255,255,0.55)"/>
-                <rect x="7" width="7" height="7" fill="rgba(160,168,185,0.35)"/>
-                <rect y="7" width="7" height="7" fill="rgba(160,168,185,0.35)"/>
-                <rect x="7" y="7" width="7" height="7" fill="rgba(255,255,255,0.55)"/>
+              <pattern id="navChecker" width="20" height="20" patternUnits="userSpaceOnUse">
+                <rect width="10" height="10" fill="rgba(220,228,255,0.9)"/>
+                <rect x="10" width="10" height="10" fill="rgba(255,255,255,1)"/>
+                <rect y="10" width="10" height="10" fill="rgba(255,255,255,1)"/>
+                <rect x="10" y="10" width="10" height="10" fill="rgba(220,228,255,0.9)"/>
               </pattern>
-              {/* Fade mask: transparent on left, opaque on right */}
               <linearGradient id="navFade" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="white" stopOpacity="0"/>
-                <stop offset="50%" stopColor="white" stopOpacity="1"/>
+                <stop offset="40%" stopColor="white" stopOpacity="1"/>
               </linearGradient>
               <mask id="navMask">
-                <rect width="140" height="56" fill="url(#navFade)"/>
+                <rect width="200" height="56" fill="url(#navFade)"/>
               </mask>
             </defs>
-            <rect width="140" height="56" fill="url(#navChecker)" mask="url(#navMask)"/>
+            <rect width="200" height="56" fill="url(#navChecker)" mask="url(#navMask)"/>
           </svg>
         </div>
 
@@ -81,7 +73,6 @@ export function NavBar({
               fontWeight: 900,
               letterSpacing: 3,
               color: '#1e2230',
-              textShadow: '0 1px 0 rgba(255,255,255,0.5)',
               whiteSpace: 'nowrap',
             }}>
               ACT AP POLL
@@ -153,6 +144,8 @@ export function NavBar({
         </div>
       </div>
 
+      {/* Blue line */}
+      <div style={{ height: 4, background: 'linear-gradient(90deg,#3a5acc 0%,#5a7aee 50%,#3a5acc 100%)' }}/>
     </header>
   );
 }
