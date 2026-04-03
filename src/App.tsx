@@ -994,12 +994,30 @@ export default function App() {
         position: 'relative',
       }}
     >
-      {/* MK Wii trophy — fixed center, 3D spin, same opacity/positioning as flag */}
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      {/* Animated checkered flag background */}
+      <div className="checker-bg" style={{
+        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden',
       }}>
-        <div className="trophy-static" style={{ opacity: 0.36, marginTop: 60 }}>
+        <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+          <defs>
+            <pattern id="bgChecker" width="80" height="80" patternUnits="userSpaceOnUse">
+              <rect width="40" height="40" fill="rgba(255,255,255,0.045)"/>
+              <rect x="40" width="40" height="40" fill="rgba(255,255,255,0)"/>
+              <rect y="40" width="40" height="40" fill="rgba(255,255,255,0)"/>
+              <rect x="40" y="40" width="40" height="40" fill="rgba(255,255,255,0.045)"/>
+            </pattern>
+          </defs>
+        </svg>
+        <div className="checker-scroll" style={{
+          position: 'absolute', top: 0, bottom: 0,
+          left: '-80px', width: 'calc(100% + 160px)',
+          background: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'80\' height=\'80\'%3E%3Crect width=\'40\' height=\'40\' fill=\'rgba(255,255,255,0.045)\'/%3E%3Crect x=\'40\' width=\'40\' height=\'40\' fill=\'transparent\'/%3E%3Crect y=\'40\' width=\'40\' height=\'40\' fill=\'transparent\'/%3E%3Crect x=\'40\' y=\'40\' width=\'40\' height=\'40\' fill=\'rgba(255,255,255,0.045)\'/%3E%3C/svg%3E")',
+        }}/>
+      </div>
+
+      {/* hidden placeholder (trophy removed) */}
+      <div style={{ display: 'none' }}>
+        <div>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 390" width="490" height="670">
             <defs>
               {/* Cup body — off-center radial for 3D depth */}

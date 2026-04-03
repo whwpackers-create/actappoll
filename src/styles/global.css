@@ -19,9 +19,13 @@ body::before {
   pointer-events: none;
 }
 
-/* MK Wii trophy — no rotation, shading sweep handles the animation */
-.trophy-static {
-  /* shine sweep handled by SVG animateTransform inside the SVG */
+/* Animated checker flag background */
+@keyframes checkerSlide {
+  from { transform: translateX(0); }
+  to   { transform: translateX(80px); }
+}
+.checker-scroll {
+  animation: checkerSlide 4s linear infinite;
 }
 
 /* Mobile responsive utilities */

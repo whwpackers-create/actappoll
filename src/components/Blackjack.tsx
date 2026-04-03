@@ -185,13 +185,35 @@ const RESULT_CFG: Record<NonNullable<Result>, { label: string; sub: string; colo
   lose:      { label: '💥 BUST / LOSE',   sub: 'Better luck next!', color: '#c03040' },
 };
 
+// ─── Settings types ──────────────────────────────────────────────────────────
+interface BjSettings {
+  startCoins: number;
+  deckCount: number;
+  minBet: number;
+  maxBet: number;
+  bjPayout: '3:2' | '6:5';
+}
+const DEFAULT_SETTINGS: BjSettings = {
+  startCoins: 500, deckCount: 2, minBet: 5, maxBet: 500, bjPayout: '3:2',
+};
+
 // ─── Main component ──────────────────────────────────────────────────────────
 export function Blackjack() {
-  const [deck, setDeck]         = useState<Card[]>(() => shuffle([...makeDeck(), ...makeDeck()]));
+  const [settings, setSettings] = useState<BjSettings>(DEFAULT_SETTINGS);
+  const [showSettings, setShowSettings] = useState(false);
+  const [pendingSettings, setPendingSettings] = useState<BjSettings>(DEFAULT_SETTINGS);
+
+  const buildDeck = (count: number) => {
+    const decks: Card[] = [];
+    for (let i = 0; i < count; i++) decks.push(...makeDeck());
+    return shuffle(decks);
+  };
+
+  const [deck, setDeck]         = useState<Card[]>(() => buildDeck(DEFAULT_SETTINGS.deckCount));
   const [player, setPlayer]     = useState<Card[]>([]);
   const [dealer, setDealer]     = useState<Card[]>([]);
   const [phase, setPhase]       = useState<Phase>('bet');
-  const [coins, setCoins]       = useState(500);
+  const [coins, setCoins]       = useState(DEFAULT_SETTINGS.startCoins);
   const [bet, setBet]           = useState(0);
   const [result, setResult]     = useState<Result>(null);
   const [msg, setMsg]           = useState('');
@@ -200,13 +222,15 @@ export function Blackjack() {
 
   // Reshuffle when deck runs low
   const ensureDeck = useCallback((d: Card[]) => {
-    if (d.length < 15) return shuffle([...makeDeck(), ...makeDeck()]);
+    if (d.length < 15) return buildDeck(settings.deckCount);
     return d;
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.deckCount]);
 
   const addBet = (v: number) => {
     if (phase !== 'bet') return;
     if (bet + v > coins) return;
+    if (bet + v > settings.maxBet) return;
     setBet(b => b + v);
   };
   const clearBet = () => { if (phase === 'bet') setBet(0); };
@@ -239,10 +263,11 @@ export function Blackjack() {
         setDealer(revealed);
         setPhase('done');
         setResult('blackjack');
-        const win = Math.floor(bet * 1.5);
+        const bjMult = settings.bjPayout === '3:2' ? 1.5 : 1.2;
+        const win = Math.floor(bet * bjMult);
         setCoins(c => c + win);
         setHistory(h => [...h, { result: 'blackjack', amount: win }]);
-        setMsg(`Blackjack! +${win} coins`);
+        setMsg(`Blackjack! +${win} coins (${settings.bjPayout})`);
       }
     } else {
       setPhase('player');
@@ -338,7 +363,7 @@ export function Blackjack() {
     setResult(null);
     setMsg('');
     setDoubled(false);
-    if (coins <= 0) setCoins(500); // rebuy
+    if (coins <= 0) setCoins(settings.startCoins); // rebuy
     setPhase('bet');
   };
 
@@ -349,7 +374,7 @@ export function Blackjack() {
   const canHit    = phase === 'player' && !isBust(player);
   const canStand  = phase === 'player';
   const canDouble = phase === 'player' && player.length === 2 && bet <= coins - bet;
-  const canDeal   = phase === 'bet' && bet > 0;
+  const canDeal   = phase === 'bet' && bet >= settings.minBet;
 
   const recentHistory = history.slice(-8).reverse();
 
@@ -378,15 +403,86 @@ export function Blackjack() {
             <rect width="120" height="100" fill="url(#bjChecker)"/>
           </svg>
         </div>
-        <div style={{ position: 'relative' }}>
-          <div style={{ fontFamily: FONT_HEADER, fontSize: 22, fontWeight: 900, letterSpacing: 3, color: '#e2e8f0' }}>
-            🃏 BLACKJACK
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontFamily: FONT_HEADER, fontSize: 22, fontWeight: 900, letterSpacing: 3, color: '#e2e8f0' }}>
+              🃏 BLACKJACK
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#5a6a8a', letterSpacing: 2, marginTop: 2 }}>
+              MARIO KART WII EDITION · DEALER STANDS ON SOFT 17 · BJ PAYS {settings.bjPayout}
+            </div>
           </div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#5a6a8a', letterSpacing: 2, marginTop: 2 }}>
-            MARIO KART WII EDITION · DEALER STANDS ON SOFT 17
-          </div>
+          <button
+            onClick={() => { setPendingSettings(settings); setShowSettings(s => !s); }}
+            style={{
+              background: 'rgba(255,255,255,0.07)', border: '1px solid #3a4060',
+              borderRadius: 6, padding: '6px 12px', cursor: 'pointer',
+              fontFamily: FONT_MONO, fontSize: 11, color: '#8090b0',
+            }}
+          >
+            ⚙ SETTINGS
+          </button>
         </div>
       </div>
+
+      {/* Settings panel */}
+      {showSettings && (
+        <div style={{
+          background: '#0e1020', border: '1px solid #2a3060', borderRadius: 8,
+          padding: '20px 24px', marginBottom: 16,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+        }}>
+          <div style={{ fontFamily: FONT_HEADER, fontSize: 13, letterSpacing: 2, color: '#a0b0d0', marginBottom: 16 }}>
+            GAME SETTINGS
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            {[
+              { label: 'Starting Coins', key: 'startCoins', min: 100, max: 10000, step: 100 },
+              { label: 'Min Bet',        key: 'minBet',     min: 1,   max: 500,   step: 1   },
+              { label: 'Max Bet',        key: 'maxBet',     min: 10,  max: 10000, step: 10  },
+              { label: 'Decks',          key: 'deckCount',  min: 1,   max: 8,     step: 1   },
+            ].map(({ label, key, min, max, step }) => (
+              <div key={key}>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#5a6a8a', letterSpacing: 1, marginBottom: 4 }}>
+                  {label}: <span style={{ color: '#a0c4ff' }}>{pendingSettings[key as keyof BjSettings]}</span>
+                </div>
+                <input
+                  type="range" min={min} max={max} step={step}
+                  value={pendingSettings[key as keyof BjSettings] as number}
+                  onChange={e => setPendingSettings(s => ({ ...s, [key]: Number(e.target.value) }))}
+                  style={{ width: '100%', accentColor: '#4a6ade' }}
+                />
+              </div>
+            ))}
+            <div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#5a6a8a', letterSpacing: 1, marginBottom: 6 }}>
+                BLACKJACK PAYOUT
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(['3:2', '6:5'] as const).map(v => (
+                  <button key={v} onClick={() => setPendingSettings(s => ({ ...s, bjPayout: v }))} style={{
+                    fontFamily: FONT_MONO, fontSize: 11, padding: '4px 12px', borderRadius: 4, cursor: 'pointer',
+                    background: pendingSettings.bjPayout === v ? '#4a6ade' : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${pendingSettings.bjPayout === v ? '#6a8aee' : '#2a3060'}`,
+                    color: pendingSettings.bjPayout === v ? '#fff' : '#6a7a9a',
+                  }}>{v}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+            <Btn label="APPLY & RESET" onClick={() => {
+              setSettings(pendingSettings);
+              setDeck(buildDeck(pendingSettings.deckCount));
+              setCoins(pendingSettings.startCoins);
+              setPlayer([]); setDealer([]); setBet(0);
+              setResult(null); setMsg(''); setHistory([]);
+              setPhase('bet'); setShowSettings(false);
+            }} />
+            <Btn label="CANCEL" onClick={() => setShowSettings(false)} color="180,60,60" />
+          </div>
+        </div>
+      )}
 
       {/* Stats row */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
@@ -475,7 +571,7 @@ export function Blackjack() {
           </div>
           {coins <= 0 && (
             <div style={{ textAlign: 'center', fontFamily: FONT_MONO, fontSize: 10, color: '#c03040' }}>
-              Out of coins — dealing you 500 on the house!
+              Out of coins — dealing you {settings.startCoins} on the house!
             </div>
           )}
         </div>
