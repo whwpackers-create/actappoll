@@ -12,6 +12,7 @@ const MENU_KEYS = [
   'sat',
   'chooser',
   'analytics',
+  'blackjack',
   'trophy',
 ] as const;
 
@@ -23,6 +24,7 @@ const MENU_LABELS: Record<string, string> = {
   sat: 'SAT',
   chooser: 'Chooser',
   analytics: 'VR Analytics',
+  blackjack: 'Blackjack',
   trophy: 'Trophy Icon',
 };
 
@@ -68,6 +70,16 @@ export function Settings({
   const compressAndSet = (key: string, file: File) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
+      const dataUrl = (ev.target?.result as string) ?? '';
+      // GIFs must be stored raw — canvas would strip animation
+      if (file.type === 'image/gif') {
+        setMenuImgs((prev) => ({
+          ...prev,
+          ['mi_' + key]: dataUrl,
+          ['ed_' + key]: 'true',
+        }));
+        return;
+      }
       const img2 = new Image();
       img2.onload = () => {
         const canvas = document.createElement('canvas');
@@ -86,7 +98,7 @@ export function Settings({
           }));
         }
       };
-      img2.src = (ev.target?.result as string) ?? '';
+      img2.src = dataUrl;
     };
     reader.readAsDataURL(file);
   };

@@ -998,11 +998,9 @@ export default function App() {
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
         <svg style={{ position: 'absolute', width: 0, height: 0 }}>
           <defs>
-            <filter id="waveFilter" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
-              <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="3" result="noise">
-                <animate attributeName="baseFrequency" values="0.012 0.018;0.014 0.016;0.012 0.018" dur="8s" repeatCount="indefinite"/>
-              </feTurbulence>
-              <feDisplacementMap in="SourceGraphic" in2="noise" scale="55" xChannelSelector="R" yChannelSelector="G"/>
+            <filter id="waveFilter" x="-10%" y="-10%" width="120%" height="120%" colorInterpolationFilters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.008 0.006" numOctaves="1" seed="5" result="noise"/>
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="22" xChannelSelector="R" yChannelSelector="G"/>
             </filter>
           </defs>
         </svg>
