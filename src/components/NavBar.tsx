@@ -40,36 +40,38 @@ export function NavBar({
   }, []);
 
   return (
-    <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+    <header style={{ position: 'sticky', top: 0, zIndex: 200 }}>
       {/* Main bar */}
       <div style={{
-        position: 'relative', overflow: 'hidden', height: 52,
+        position: 'relative', overflow: 'visible', height: 52,
         background: 'repeating-linear-gradient(180deg, #ffffff 0px, #ffffff 3px, #ebebeb 3px, #ebebeb 4px)',
       }}>
 
-        {/* Light blue big checkers — right side, fading in */}
-        <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 240, overflow: 'hidden' }}>
-          <svg width="240" height="52" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="navChecker" width="26" height="26" patternUnits="userSpaceOnUse">
-                <rect width="13" height="13" fill="rgba(180,210,255,0.85)"/>
-                <rect x="13" width="13" height="13" fill="rgba(235,245,255,0.85)"/>
-                <rect y="13" width="13" height="13" fill="rgba(235,245,255,0.85)"/>
-                <rect x="13" y="13" width="13" height="13" fill="rgba(180,210,255,0.85)"/>
-              </pattern>
-              <linearGradient id="navFade" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%"  stopColor="white" stopOpacity="0"/>
-                <stop offset="45%" stopColor="white" stopOpacity="1"/>
-              </linearGradient>
-              <mask id="navMask">
-                <rect width="240" height="52" fill="url(#navFade)"/>
-              </mask>
-            </defs>
-            <rect width="240" height="52" fill="url(#navChecker)" mask="url(#navMask)"/>
-          </svg>
+        {/* Clip mask for checkers only — does not clip the dropdown */}
+        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 240, overflow: 'hidden' }}>
+            <svg width="240" height="52" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="navChecker" width="26" height="26" patternUnits="userSpaceOnUse">
+                  <rect width="13" height="13" fill="rgba(180,210,255,0.85)"/>
+                  <rect x="13" width="13" height="13" fill="rgba(235,245,255,0.85)"/>
+                  <rect y="13" width="13" height="13" fill="rgba(235,245,255,0.85)"/>
+                  <rect x="13" y="13" width="13" height="13" fill="rgba(180,210,255,0.85)"/>
+                </pattern>
+                <linearGradient id="navFade" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%"  stopColor="white" stopOpacity="0"/>
+                  <stop offset="45%" stopColor="white" stopOpacity="1"/>
+                </linearGradient>
+                <mask id="navMask">
+                  <rect width="240" height="52" fill="url(#navFade)"/>
+                </mask>
+              </defs>
+              <rect width="240" height="52" fill="url(#navChecker)" mask="url(#navMask)"/>
+            </svg>
+          </div>
         </div>
 
-        {/* Content */}
+        {/* Content — outside clip div so dropdown overflows freely */}
         <div style={{
           position: 'absolute', inset: 0,
           display: 'flex', alignItems: 'center',
