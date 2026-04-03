@@ -994,12 +994,23 @@ export default function App() {
         position: 'relative',
       }}
     >
-      {/* Animated checkered flag background — big bold B&W like a real race flag */}
+      {/* Animated wavy checkered flag background */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+          <defs>
+            <filter id="waveFilter" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="3" result="noise">
+                <animate attributeName="baseFrequency" values="0.012 0.018;0.014 0.016;0.012 0.018" dur="8s" repeatCount="indefinite"/>
+              </feTurbulence>
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="55" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+          </defs>
+        </svg>
         <div className="checker-scroll" style={{
-          position: 'absolute', top: 0, bottom: 0,
-          left: '-120px', width: 'calc(100% + 240px)',
-          background: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'120\' height=\'120\'%3E%3Crect width=\'60\' height=\'60\' fill=\'rgba(255,255,255,0.07)\'/%3E%3Crect x=\'60\' width=\'60\' height=\'60\' fill=\'rgba(0,0,0,0)\'/%3E%3Crect y=\'60\' width=\'60\' height=\'60\' fill=\'rgba(0,0,0,0)\'/%3E%3Crect x=\'60\' y=\'60\' width=\'60\' height=\'60\' fill=\'rgba(255,255,255,0.07)\'/%3E%3C/svg%3E")',
+          position: 'absolute', top: '-10%', bottom: '-10%',
+          left: '-160px', width: 'calc(100% + 320px)',
+          filter: 'url(#waveFilter)',
+          background: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'140\' height=\'140\'%3E%3Crect width=\'70\' height=\'70\' fill=\'rgba(255,255,255,0.09)\'/%3E%3Crect x=\'70\' width=\'70\' height=\'70\' fill=\'rgba(0,0,0,0)\'/%3E%3Crect y=\'70\' width=\'70\' height=\'70\' fill=\'rgba(0,0,0,0)\'/%3E%3Crect x=\'70\' y=\'70\' width=\'70\' height=\'70\' fill=\'rgba(255,255,255,0.09)\'/%3E%3C/svg%3E")',
         }}/>
       </div>
 
@@ -1203,6 +1214,7 @@ export default function App() {
         src={src}
         onSync={refreshData}
         onMigrate={migrateToFirebase}
+        onTheme={() => setShowSettings(s => !s)}
         menuImgs={menuImgs}
       />
       <main
@@ -1230,8 +1242,6 @@ export default function App() {
             setView={(v) => setView(v as View)}
             setSelAct={setSelAct}
             setSelSat={setSelSat}
-            auth={auth}
-            onTheme={() => setShowSettings(!showSettings)}
             menuImgs={menuImgs}
           />
         )}

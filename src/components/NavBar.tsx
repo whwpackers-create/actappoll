@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import type { AuthState } from '../hooks/useAuth';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 
@@ -9,6 +10,7 @@ interface NavBarProps {
   src: 'firebase' | 'local' | 'loading';
   onSync: () => void;
   onMigrate: () => void;
+  onTheme: () => void;
   menuImgs?: Record<string, string>;
 }
 
@@ -19,16 +21,29 @@ export function NavBar({
   src,
   onSync,
   onMigrate,
+  onTheme,
   menuImgs,
 }: NavBarProps) {
   const siteLogo = menuImgs?.['site_logo'] ?? '';
+  const [dropOpen, setDropOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
+        setDropOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
 
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
       {/* Main bar */}
       <div style={{
         position: 'relative', overflow: 'hidden', height: 52,
-        /* White base with tiny grey horizontal lines */
         background: 'repeating-linear-gradient(180deg, #ffffff 0px, #ffffff 3px, #ebebeb 3px, #ebebeb 4px)',
       }}>
 
@@ -107,8 +122,10 @@ export function NavBar({
             </button>
           </div>
 
-          {/* Right: admin */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 150 }}>
+          {/* Right: admin area */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 150, position: 'relative' }} ref={dropRef}>
+
+            {/* Push button — only when unlocked */}
             {auth.unlocked && (
               <button
                 onClick={(e) => { e.stopPropagation(); onMigrate(); }}
@@ -126,8 +143,17 @@ export function NavBar({
                 ↑Push
               </button>
             )}
+
+            {/* Admin / Logout button */}
             <button
-              onClick={(e) => { e.stopPropagation(); auth.unlocked ? auth.logout() : auth.req(() => {}); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (auth.unlocked) {
+                  setDropOpen(o => !o);
+                } else {
+                  auth.req(() => {});
+                }
+              }}
               style={{
                 background: auth.unlocked ? 'rgba(40,160,80,0.12)' : 'rgba(255,255,255,0.7)',
                 border: auth.unlocked ? '1px solid rgba(40,140,70,0.5)' : '1px solid rgba(0,0,0,0.18)',
@@ -140,8 +166,48 @@ export function NavBar({
                 letterSpacing: 1,
               }}
             >
-              {auth.unlocked ? '🔓 Logout' : '🔒 Admin'}
+              {auth.unlocked ? `🔓 Admin ${dropOpen ? '▲' : '▼'}` : '🔒 Admin'}
             </button>
+
+            {/* Dropdown */}
+            {auth.unlocked && dropOpen && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 6,
+                background: '#fff',
+                border: '1px solid #d0d8e8',
+                borderRadius: 6,
+                boxShadow: '0 6px 20px rgba(0,0,0,0.15)',
+                overflow: 'hidden',
+                minWidth: 150,
+                zIndex: 200,
+              }}>
+                {[
+                  { label: '➕ New ACT', action: () => { setView('newact'); setDropOpen(false); } },
+                  { label: '🎨 Customize', action: () => { onTheme(); setDropOpen(false); } },
+                  { label: '🔓 Logout', action: () => { auth.logout(); setDropOpen(false); }, danger: true },
+                ].map(({ label, action, danger }) => (
+                  <button
+                    key={label}
+                    onClick={(e) => { e.stopPropagation(); action(); }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      background: 'none', border: 'none',
+                      borderBottom: '1px solid #f0f0f0',
+                      padding: '10px 16px',
+                      fontFamily: FONT_MONO,
+                      fontSize: 11,
+                      color: danger ? '#c03040' : '#2a2e40',
+                      cursor: 'pointer',
+                      letterSpacing: 0.5,
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = danger ? '#fff0f2' : '#f0f4ff'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

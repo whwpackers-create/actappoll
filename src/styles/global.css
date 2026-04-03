@@ -6,10 +6,10 @@ input, select, textarea { font-family: inherit; }
 /* Animated checker flag background */
 @keyframes checkerSlide {
   from { transform: translateX(0); }
-  to   { transform: translateX(120px); }
+  to   { transform: translateX(140px); }
 }
 .checker-scroll {
-  animation: checkerSlide 6s linear infinite;
+  animation: checkerSlide 7s linear infinite;
 }
 
 /* Mobile responsive utilities */

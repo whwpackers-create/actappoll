@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats } from '../utils/elo';
 import type { AppData, Act, Sat } from '../types';
-import type { AuthState } from '../hooks/useAuth';
 import type { PlayerStats } from '../types';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 
@@ -56,8 +55,6 @@ interface DashboardProps {
   setView: (v: string) => void;
   setSelAct?: (id: string | null) => void;
   setSelSat?: (id: string | null) => void;
-  auth: AuthState;
-  onTheme: () => void;
   menuImgs: Record<string, string>;
 }
 
@@ -187,8 +184,6 @@ function menuImgLayer(
 export function Dashboard({
   data,
   setView,
-  auth,
-  onTheme,
   menuImgs,
 }: DashboardProps) {
   const stats = useMemo(
@@ -721,19 +716,6 @@ export function Dashboard({
           className="dash-menu"
           style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
         >
-          <div
-            style={{
-              position: 'relative',
-              borderRadius: 4,
-              overflow: 'hidden',
-              minHeight: 0,
-            }}
-          >
-            {menuImgLayer('newact', menuImgs)}
-            {auth.unlocked &&
-              mkBar('New ACT', () => setView('newact'), true, FONT_HEADER)}
-          </div>
-          {auth.unlocked && mkBar('Customize 🎨', onTheme, false, FONT_HEADER)}
           {['history', 'roster', 'seasons', 'sat', 'chooser', 'analytics', 'blackjack'].map(
             (key) => (
               <div
