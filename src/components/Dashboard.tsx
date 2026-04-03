@@ -734,7 +734,7 @@ export function Dashboard({
               mkBar('New ACT', () => setView('newact'), true, FONT_HEADER)}
           </div>
           {auth.unlocked && mkBar('Customize 🎨', onTheme, false, FONT_HEADER)}
-          {['history', 'roster', 'seasons', 'sat', 'chooser', 'analytics'].map(
+          {['history', 'roster', 'seasons', 'sat', 'chooser', 'analytics', 'blackjack'].map(
             (key) => (
               <div
                 key={key}
@@ -747,7 +747,7 @@ export function Dashboard({
               >
                 {menuImgLayer(key, menuImgs)}
                 {mkBar(
-                  key === 'roster' ? 'Roster' : key === 'analytics' ? 'Analytics' : key.charAt(0).toUpperCase() + key.slice(1),
+                  key === 'roster' ? 'Roster' : key === 'analytics' ? 'Analytics' : key === 'blackjack' ? '🃏 Blackjack' : key.charAt(0).toUpperCase() + key.slice(1),
                   () =>
                     setView(
                       key === 'roster' ? 'players' : key === 'analytics' ? 'analytics' : key
