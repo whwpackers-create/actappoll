@@ -198,7 +198,7 @@ const DEFAULT_SETTINGS: BjSettings = {
 };
 
 // ─── Main component ──────────────────────────────────────────────────────────
-export function Blackjack() {
+export function Blackjack({ menuImgs = {} }: { menuImgs?: Record<string, string> }) {
   const [settings, setSettings] = useState<BjSettings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const [pendingSettings, setPendingSettings] = useState<BjSettings>(DEFAULT_SETTINGS);
@@ -378,8 +378,23 @@ export function Blackjack() {
 
   const recentHistory = history.slice(-8).reverse();
 
+  const bgImg = menuImgs['mi_blackjack'];
+  const bgZoom = parseInt(menuImgs['mz_blackjack'] ?? '100') || 100;
+  const bgX = parseInt(menuImgs['mx_blackjack'] ?? '50') || 50;
+  const bgY = parseInt(menuImgs['mp_blackjack'] ?? '50') || 50;
+
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 0 40px' }}>
+    <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 0 40px', position: 'relative' }}>
+      {bgImg && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+          backgroundImage: `url(${bgImg})`,
+          backgroundSize: `${bgZoom}%`,
+          backgroundPosition: `${bgX}% ${bgY}%`,
+          backgroundRepeat: 'no-repeat',
+          opacity: 0.18,
+        }}/>
+      )}
 
       {/* Header */}
       <div style={{

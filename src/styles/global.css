@@ -1,31 +1,15 @@
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: #08090e; color: #f0e6d3; }
+html, body { margin: 0; padding: 0; background: #0a0b10; color: #f0e6d3; }
 button { cursor: pointer; }
 input, select, textarea { font-family: inherit; }
-
-/* MK Wii scanline backdrop — site-wide */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(
-    180deg,
-    #0a0b10 0px,
-    #0a0b10 3px,
-    #111318 3px,
-    #111318 6px
-  );
-  z-index: 0;
-  pointer-events: none;
-}
 
 /* Animated checker flag background */
 @keyframes checkerSlide {
   from { transform: translateX(0); }
-  to   { transform: translateX(80px); }
+  to   { transform: translateX(120px); }
 }
 .checker-scroll {
-  animation: checkerSlide 4s linear infinite;
+  animation: checkerSlide 6s linear infinite;
 }
 
 /* Mobile responsive utilities */

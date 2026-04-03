@@ -994,24 +994,12 @@ export default function App() {
         position: 'relative',
       }}
     >
-      {/* Animated checkered flag background */}
-      <div className="checker-bg" style={{
-        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden',
-      }}>
-        <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-          <defs>
-            <pattern id="bgChecker" width="80" height="80" patternUnits="userSpaceOnUse">
-              <rect width="40" height="40" fill="rgba(255,255,255,0.045)"/>
-              <rect x="40" width="40" height="40" fill="rgba(255,255,255,0)"/>
-              <rect y="40" width="40" height="40" fill="rgba(255,255,255,0)"/>
-              <rect x="40" y="40" width="40" height="40" fill="rgba(255,255,255,0.045)"/>
-            </pattern>
-          </defs>
-        </svg>
+      {/* Animated checkered flag background — big bold B&W like a real race flag */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
         <div className="checker-scroll" style={{
           position: 'absolute', top: 0, bottom: 0,
-          left: '-80px', width: 'calc(100% + 160px)',
-          background: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'80\' height=\'80\'%3E%3Crect width=\'40\' height=\'40\' fill=\'rgba(255,255,255,0.045)\'/%3E%3Crect x=\'40\' width=\'40\' height=\'40\' fill=\'transparent\'/%3E%3Crect y=\'40\' width=\'40\' height=\'40\' fill=\'transparent\'/%3E%3Crect x=\'40\' y=\'40\' width=\'40\' height=\'40\' fill=\'rgba(255,255,255,0.045)\'/%3E%3C/svg%3E")',
+          left: '-120px', width: 'calc(100% + 240px)',
+          background: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'120\' height=\'120\'%3E%3Crect width=\'60\' height=\'60\' fill=\'rgba(255,255,255,0.07)\'/%3E%3Crect x=\'60\' width=\'60\' height=\'60\' fill=\'rgba(0,0,0,0)\'/%3E%3Crect y=\'60\' width=\'60\' height=\'60\' fill=\'rgba(0,0,0,0)\'/%3E%3Crect x=\'60\' y=\'60\' width=\'60\' height=\'60\' fill=\'rgba(255,255,255,0.07)\'/%3E%3C/svg%3E")',
         }}/>
       </div>
 
@@ -1325,38 +1313,37 @@ export default function App() {
             menuImgs={menuImgs}
           />
         )}
-        {view === 'blackjack' && <Blackjack />}
+        {view === 'blackjack' && <Blackjack menuImgs={menuImgs} />}
       </main>
 
-      {/* MK Wii-style footer bar */}
+      {/* Footer — mirrors navbar style: white + blue line + light blue checkers */}
       <div style={{ position: 'relative', zIndex: 100 }}>
-        {/* Top accent line */}
-        <div style={{ height: 3, background: 'linear-gradient(90deg,#1a2a5a 0%,#3a5aaa 40%,#1a2a5a 100%)' }}/>
+        {/* Blue border on top */}
+        <div style={{ height: 3, background: '#4a6ade' }}/>
+        <div style={{ height: 1, background: '#2a3aaa' }}/>
         <div style={{
-          position: 'relative',
-          height: 40,
-          background: 'linear-gradient(180deg,#12141e 0%,#0a0c14 100%)',
-          overflow: 'hidden',
+          position: 'relative', height: 40, overflow: 'hidden',
+          background: 'repeating-linear-gradient(180deg,#ffffff 0px,#ffffff 3px,#ebebeb 3px,#ebebeb 4px)',
         }}>
-          {/* Checker strip — right side, dark blue-grey squares */}
-          <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 180 }}>
-            <svg width="180" height="40" xmlns="http://www.w3.org/2000/svg">
+          {/* Light blue big checkers — right side, fading in (matches navbar) */}
+          <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 240, overflow: 'hidden' }}>
+            <svg width="240" height="40" xmlns="http://www.w3.org/2000/svg">
               <defs>
-                <pattern id="footChecker" width="13" height="13" patternUnits="userSpaceOnUse">
-                  <rect width="6" height="6" fill="rgba(60,80,140,0.55)"/>
-                  <rect x="6" width="7" height="6" fill="rgba(20,24,40,0.7)"/>
-                  <rect y="6" width="6" height="7" fill="rgba(20,24,40,0.7)"/>
-                  <rect x="6" y="6" width="7" height="7" fill="rgba(60,80,140,0.55)"/>
+                <pattern id="footChecker" width="26" height="26" patternUnits="userSpaceOnUse">
+                  <rect width="13" height="13" fill="rgba(180,210,255,0.85)"/>
+                  <rect x="13" width="13" height="13" fill="rgba(235,245,255,0.85)"/>
+                  <rect y="13" width="13" height="13" fill="rgba(235,245,255,0.85)"/>
+                  <rect x="13" y="13" width="13" height="13" fill="rgba(180,210,255,0.85)"/>
                 </pattern>
                 <linearGradient id="footFade" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="white" stopOpacity="0"/>
+                  <stop offset="0%"  stopColor="white" stopOpacity="0"/>
                   <stop offset="45%" stopColor="white" stopOpacity="1"/>
                 </linearGradient>
                 <mask id="footMask">
-                  <rect width="180" height="40" fill="url(#footFade)"/>
+                  <rect width="240" height="40" fill="url(#footFade)"/>
                 </mask>
               </defs>
-              <rect width="180" height="40" fill="url(#footChecker)" mask="url(#footMask)"/>
+              <rect width="240" height="40" fill="url(#footChecker)" mask="url(#footMask)"/>
             </svg>
           </div>
         </div>
