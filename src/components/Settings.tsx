@@ -1,4 +1,4 @@
-import { fsSet } from '../services/firestore';
+import { fsSet, uploadMenuImage, deleteMenuImage } from '../services/firestore';
 import { inp } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import { SEASON_RANKS } from '../utils/elo';
@@ -37,50 +37,25 @@ interface SettingsProps {
   onClose: () => void;
 }
 
+// Images are now URLs from Firebase Storage — small strings safe to store in Firestore
 function persistMenuImgs(imgs: Record<string, string>) {
   const fbImages: Record<string, string> = {};
-  const gifImages: Record<string, string> = {};
-
   MENU_KEYS.forEach((k) => {
-    const mi = imgs['mi_' + k];
-    if (mi) {
-      // GIFs are too large for Firestore (1MB doc limit) — store locally only
-      if (mi.startsWith('data:image/gif')) {
-        gifImages['mi_' + k] = mi;
-        // Store position/size settings in Firestore so they persist cross-device
-        if (imgs['mz_' + k]) fbImages['mz_' + k] = imgs['mz_' + k];
-        if (imgs['mp_' + k]) fbImages['mp_' + k] = imgs['mp_' + k];
-        if (imgs['mc_' + k]) fbImages['mc_' + k] = imgs['mc_' + k];
-        if (imgs['mb_' + k]) fbImages['mb_' + k] = imgs['mb_' + k];
-        if (imgs['mx_' + k]) fbImages['mx_' + k] = imgs['mx_' + k];
-        fbImages['gif_' + k] = '1'; // flag so load knows a GIF was set
-      } else {
-        fbImages['mi_' + k] = mi;
-        if (imgs['mz_' + k]) fbImages['mz_' + k] = imgs['mz_' + k];
-        if (imgs['mp_' + k]) fbImages['mp_' + k] = imgs['mp_' + k];
-        if (imgs['mc_' + k]) fbImages['mc_' + k] = imgs['mc_' + k];
-        if (imgs['mb_' + k]) fbImages['mb_' + k] = imgs['mb_' + k];
-        if (imgs['mx_' + k]) fbImages['mx_' + k] = imgs['mx_' + k];
-      }
-    }
+    if (imgs['mi_' + k]) fbImages['mi_' + k] = imgs['mi_' + k];
+    if (imgs['mz_' + k]) fbImages['mz_' + k] = imgs['mz_' + k];
+    if (imgs['mp_' + k]) fbImages['mp_' + k] = imgs['mp_' + k];
+    if (imgs['mc_' + k]) fbImages['mc_' + k] = imgs['mc_' + k];
+    if (imgs['mb_' + k]) fbImages['mb_' + k] = imgs['mb_' + k];
+    if (imgs['mx_' + k]) fbImages['mx_' + k] = imgs['mx_' + k];
   });
   SEASON_RANKS.forEach((r) => {
     if (imgs['ri_' + r.key]) fbImages['ri_' + r.key] = imgs['ri_' + r.key];
   });
   if (imgs['site_logo']) fbImages['site_logo'] = imgs['site_logo'];
-
   fsSet('config', 'menuImages', fbImages);
   try {
-    // Cache full image set (including GIFs) in localStorage
-    localStorage.setItem('actMenuImgCache', JSON.stringify({ ...fbImages, ...gifImages }));
-    // Also persist GIFs in a dedicated key so the Firestore overwrite on load can't wipe them
-    if (Object.keys(gifImages).length > 0) {
-      const existing = JSON.parse(localStorage.getItem('actMenuGifCache') ?? '{}');
-      localStorage.setItem('actMenuGifCache', JSON.stringify({ ...existing, ...gifImages }));
-    }
-  } catch {
-    // ignore storage errors
-  }
+    localStorage.setItem('actMenuImgCache', JSON.stringify(fbImages));
+  } catch { /* ignore */ }
 }
 
 export function Settings({
@@ -91,40 +66,17 @@ export function Settings({
   setMenuImgs,
   onClose,
 }: SettingsProps) {
-  const compressAndSet = (key: string, file: File) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = (ev.target?.result as string) ?? '';
-      // GIFs must be stored raw — canvas would strip animation
-      if (file.type === 'image/gif') {
-        setMenuImgs((prev) => ({
-          ...prev,
-          ['mi_' + key]: dataUrl,
-          ['ed_' + key]: 'true',
-        }));
-        return;
-      }
-      const img2 = new Image();
-      img2.onload = () => {
-        const canvas = document.createElement('canvas');
-        const maxW = 400;
-        const scale = Math.min(maxW / img2.width, 1);
-        canvas.width = img2.width * scale;
-        canvas.height = img2.height * scale;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img2, 0, 0, canvas.width, canvas.height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.7);
-          setMenuImgs((prev) => ({
-            ...prev,
-            ['mi_' + key]: compressed,
-            ['ed_' + key]: 'true',
-          }));
-        }
-      };
-      img2.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
+  // Upload file to Firebase Storage, store the returned HTTPS URL (works for all types incl. GIFs)
+  const uploadAndSet = (key: string, file: File) => {
+    // Show a local preview immediately while uploading
+    const localUrl = URL.createObjectURL(file);
+    setMenuImgs((prev) => ({ ...prev, ['mi_' + key]: localUrl, ['ed_' + key]: 'true' }));
+
+    uploadMenuImage(key, file)
+      .then((downloadUrl) => {
+        setMenuImgs((prev) => ({ ...prev, ['mi_' + key]: downloadUrl, ['ed_' + key]: 'true' }));
+      })
+      .catch((err) => console.error('Upload failed:', err));
   };
 
   const doSave = (key: string) => {
@@ -137,12 +89,7 @@ export function Settings({
   };
 
   const doRemove = (key: string) => {
-    // Also clear GIF from dedicated localStorage cache
-    try {
-      const gifCache = JSON.parse(localStorage.getItem('actMenuGifCache') ?? '{}');
-      delete gifCache['mi_' + key];
-      localStorage.setItem('actMenuGifCache', JSON.stringify(gifCache));
-    } catch { /* ignore */ }
+    deleteMenuImage(key); // best-effort delete from Storage
     setMenuImgs((prev) => {
       const n = { ...prev };
       delete n['mi_' + key];
@@ -152,7 +99,6 @@ export function Settings({
       delete n['mb_' + key];
       delete n['mx_' + key];
       delete n['ed_' + key];
-      delete n['gif_' + key];
       persistMenuImgs(n);
       return n;
     });
@@ -488,7 +434,7 @@ export function Settings({
                 (e.currentTarget as HTMLElement).style.borderColor =
                   'rgba(255,255,255,0.06)';
                 const f = e.dataTransfer.files[0];
-                if (f?.type.startsWith('image/')) compressAndSet(key, f);
+                if (f?.type.startsWith('image/')) uploadAndSet(key, f);
               }}
             >
               <div
@@ -581,7 +527,7 @@ export function Settings({
                         style={{ display: 'none' }}
                         onChange={(e) => {
                           const f = e.target.files?.[0];
-                          if (f) compressAndSet(key, f);
+                          if (f) uploadAndSet(key, f);
                         }}
                       />
                     </label>
@@ -808,7 +754,7 @@ export function Settings({
                         style={{ display: 'none' }}
                         onChange={(e) => {
                           const f = e.target.files?.[0];
-                          if (f) compressAndSet(key, f);
+                          if (f) uploadAndSet(key, f);
                         }}
                       />
                     </label>

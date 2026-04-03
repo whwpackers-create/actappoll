@@ -1,4 +1,5 @@
-import { db } from '../config/firebase';
+import { db, storage } from '../config/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   collection,
   doc,
@@ -92,4 +93,20 @@ export async function getAdminConfig(): Promise<{
 export async function getMenuImages(): Promise<Record<string, string>> {
   const snap = await getDoc(doc(db, 'config', 'menuImages'));
   return snap.exists() ? (snap.data() as Record<string, string>) : {};
+}
+
+// Upload a file to Firebase Storage and return its public download URL
+export async function uploadMenuImage(key: string, file: File): Promise<string> {
+  const storageRef = ref(storage, `menuImages/${key}`);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
+
+// Delete a file from Firebase Storage (best-effort, ignores missing-file errors)
+export async function deleteMenuImage(key: string): Promise<void> {
+  try {
+    await deleteObject(ref(storage, `menuImages/${key}`));
+  } catch {
+    // file may not exist — ignore
+  }
 }

@@ -54,27 +54,13 @@ export default function App() {
   useEffect(() => {
     getMenuImages()
       .then((d) => {
-        // Merge GIFs stored locally (too large for Firestore) back in
-        let gifCache: Record<string, string> = {};
+        setMenuImgs(d);
         try {
-          gifCache = JSON.parse(localStorage.getItem('actMenuGifCache') ?? '{}');
+          localStorage.setItem('actMenuImgCache', JSON.stringify(d));
         } catch { /* ignore */ }
-        // Only restore GIF entries whose gif_ flag exists in Firestore data
-        const merged: Record<string, string> = { ...d };
-        Object.keys(gifCache).forEach((k) => {
-          // k is like 'mi_history' — check if Firestore still has the flag
-          const flagKey = k.replace('mi_', 'gif_');
-          if (d[flagKey]) merged[k] = gifCache[k];
-        });
-        setMenuImgs(merged);
-        try {
-          localStorage.setItem('actMenuImgCache', JSON.stringify(merged));
-        } catch {
-          // ignore
-        }
-        if (merged['site_logo']) {
+        if (d['site_logo']) {
           const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-          if (link) link.href = merged['site_logo'];
+          if (link) link.href = d['site_logo'];
         }
       })
       .catch(() => {});
