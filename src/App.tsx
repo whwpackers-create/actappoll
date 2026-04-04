@@ -11,6 +11,7 @@ import {
   getMenuImages,
   loadChunkedImage,
 } from './services/firestore';
+import { imgCacheGetAll, imgCacheGet, imgCacheSet } from './services/imageCache';
 import { useAuth } from './hooks/useAuth';
 import { Login } from './components/Login';
 import { NavBar } from './components/NavBar';
@@ -43,33 +44,47 @@ type View =
 
 export default function App() {
   const [showSettings, setShowSettings] = useState(false);
-  const [menuImgs, setMenuImgs] = useState<Record<string, string>>(() => {
-    try {
-      const c = localStorage.getItem('actMenuImgCache');
-      return c ? JSON.parse(c) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [menuImgs, setMenuImgs] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    // Step 1: load IndexedDB cache immediately — no network, instant on mobile
+    imgCacheGetAll().then((cached) => {
+      if (Object.keys(cached).length > 0) setMenuImgs(cached);
+    });
+
+    // Step 2: fetch Firestore metadata + reassemble any chunked images
     getMenuImages().then(async (d) => {
       const merged: Record<string, string> = { ...d };
-      // Find all keys flagged as chunked and reassemble them from chunk docs
       const chunkedKeys = Object.keys(d)
         .filter(k => k.startsWith('chunked_') && d[k] === '1')
         .map(k => k.replace('chunked_', ''));
+
       await Promise.all(
         chunkedKeys.map(async (k) => {
           const miKey = k === 'site_logo' ? 'site_logo' : 'mi_' + k;
-          const data = await loadChunkedImage(k).catch(() => null);
-          if (data) merged[miKey] = data;
+          // Check IndexedDB first before hitting Firestore chunks
+          const cached = await imgCacheGet(miKey);
+          if (cached) {
+            merged[miKey] = cached;
+          } else {
+            const data = await loadChunkedImage(k).catch(() => null);
+            if (data) {
+              merged[miKey] = data;
+              imgCacheSet(miKey, data); // warm the cache
+            }
+          }
         })
       );
+
       setMenuImgs(merged);
-      try {
-        localStorage.setItem('actMenuImgCache', JSON.stringify(merged));
-      } catch { /* ignore */ }
+      // Persist non-image metadata to localStorage, full images to IndexedDB
+      const meta: Record<string, string> = {};
+      Object.entries(merged).forEach(([k, v]) => {
+        if (v.startsWith('data:')) imgCacheSet(k, v);
+        else meta[k] = v;
+      });
+      try { localStorage.setItem('actMenuImgCache', JSON.stringify(meta)); } catch { /* ignore */ }
+
       if (merged['site_logo']) {
         const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
         if (link) link.href = merged['site_logo'];

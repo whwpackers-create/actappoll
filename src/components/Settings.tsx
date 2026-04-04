@@ -1,4 +1,5 @@
 import { fsSet, uploadMenuImage, deleteMenuImage } from '../services/firestore';
+import { imgCacheSet, imgCacheDel } from '../services/imageCache';
 import { inp } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import { SEASON_RANKS } from '../utils/elo';
@@ -91,6 +92,8 @@ export function Settings({
       // Write chunks first, THEN write the flag so load can find them
       uploadMenuImage(key, dataUrl)
         .then(() => {
+          // Cache in IndexedDB so next load is instant
+          imgCacheSet('mi_' + key, dataUrl);
           setMenuImgs((prev) => {
             const n = { ...prev };
             delete n['ed_' + key];
@@ -114,7 +117,8 @@ export function Settings({
   };
 
   const doRemove = (key: string) => {
-    deleteMenuImage(key); // best-effort delete from Storage
+    deleteMenuImage(key);
+    imgCacheDel('mi_' + key);
     setMenuImgs((prev) => {
       const n = { ...prev };
       delete n['mi_' + key];
