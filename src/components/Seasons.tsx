@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { computeSeasonElos, computeAllElos, teamScores, BASE_ELO, getSeasonRank } from '../utils/elo';
+import { computeSeasonElos, computeAllElos, teamScores, BASE_ELO, getSeasonRank, SEASON_RANKED_THRESHOLD } from '../utils/elo';
 import { gid } from '../services/firestore';
 import { PRESETS } from '../constants';
 import {
@@ -519,163 +519,152 @@ export function Seasons({
                   .filter((p) => p.ac > 0)
                   .sort((a, b) => b.elo - a.elo);
 
-                return (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 5,
-                    }}
-                  >
-                    {pl.map((p, i) => {
-                      const medal =
-                        i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
-                      const pp = data.players.find((x) => x.name === p.name);
-                      const showRetired =
-                        pp?.active === false &&
-                        pp?.retiredDate &&
-                        (!vs.endDate ||
-                          new Date(pp.retiredDate) <= new Date(vs.endDate));
-                      const rank = getSeasonRank(p.elo);
-                      const rankImg = menuImgs['ri_' + rank.key] ?? '';
-                      return (
+                const ranked   = pl.filter((p) => p.ac >= SEASON_RANKED_THRESHOLD);
+                const unranked = pl.filter((p) => p.ac <  SEASON_RANKED_THRESHOLD);
+
+                const renderRow = (p: typeof pl[0], i: number, isUnranked = false) => {
+                  const medal = !isUnranked && (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null);
+                  const pp = data.players.find((x) => x.name === p.name);
+                  const showRetired =
+                    pp?.active === false &&
+                    pp?.retiredDate &&
+                    (!vs.endDate || new Date(pp.retiredDate) <= new Date(vs.endDate));
+                  const rank = getSeasonRank(p.elo);
+                  const rankImg = menuImgs['ri_' + rank.key] ?? '';
+                  return (
+                    <div
+                      key={p.name}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '40px 36px 1fr auto',
+                        gap: 8,
+                        alignItems: 'center',
+                        padding: '10px 14px',
+                        background: isUnranked ? 'rgba(255,255,255,0.02)' : rank.bg,
+                        border: isUnranked ? '1px solid rgba(255,255,255,0.06)' : `1px solid ${rank.color}33`,
+                        borderRadius: 8,
+                        opacity: isUnranked ? 0.7 : 1,
+                      }}
+                    >
+                      <div style={{ textAlign: 'center' }}>
+                        {isUnranked ? (
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1 }}>–</div>
+                        ) : medal ? (
+                          <div style={{ fontSize: 20 }}>{medal}</div>
+                        ) : (
+                          <div style={{ fontFamily: FONT_HEADER, fontSize: 15, color: '#4a5a6a' }}>#{i + 1}</div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {isUnranked ? (
+                          <span style={{ fontSize: 18, opacity: 0.4 }}>?</span>
+                        ) : rankImg ? (
+                          <img src={rankImg} style={{ width: 30, height: 30, objectFit: 'contain' }} alt={rank.name} />
+                        ) : (
+                          <span style={{ fontSize: 22 }}>{rank.icon}</span>
+                        )}
+                      </div>
+                      <div>
                         <div
-                          key={p.name}
                           style={{
-                            display: 'grid',
-                            gridTemplateColumns: '40px 36px 1fr auto',
-                            gap: 8,
+                            fontFamily: FONT_HEADER,
+                            fontSize: 16,
+                            color: '#e0e4ea',
+                            display: 'flex',
                             alignItems: 'center',
-                            padding: '10px 14px',
-                            background: rank.bg,
-                            border: `1px solid ${rank.color}33`,
-                            borderRadius: 8,
+                            gap: 6,
+                            flexWrap: 'wrap',
                           }}
                         >
-                          <div style={{ textAlign: 'center' }}>
-                            {medal ? (
-                              <div style={{ fontSize: 20 }}>{medal}</div>
-                            ) : (
-                              <div
-                                style={{
-                                  fontFamily: FONT_HEADER,
-                                  fontSize: 15,
-                                  color: '#4a5a6a',
-                                }}
-                              >
-                                #{i + 1}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {rankImg ? (
-                              <img src={rankImg} style={{ width: 30, height: 30, objectFit: 'contain' }} alt={rank.name} />
-                            ) : (
-                              <span style={{ fontSize: 22 }}>{rank.icon}</span>
-                            )}
-                          </div>
-                          <div>
-                            <div
-                              style={{
-                                fontFamily: FONT_HEADER,
-                                fontSize: 16,
-                                color: '#e0e4ea',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                flexWrap: 'wrap',
-                              }}
-                            >
-                              {p.name}
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  color: rank.color,
-                                  ...(rankImg ? {} : { background: rank.bg, border: `1px solid ${rank.color}55` }),
-                                  borderRadius: 4,
-                                  padding: rankImg ? '0' : '1px 6px',
-                                  letterSpacing: 0.5,
-                                  fontFamily: FONT_MONO,
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {rankImg ? rank.name.toUpperCase() : `${rank.icon} ${rank.name.toUpperCase()}`}
-                              </span>
-                              {showRetired && (
-                                <span
-                                  style={{
-                                    marginLeft: 6,
-                                    fontSize: 9,
-                                    color: '#888',
-                                    background: 'rgba(255,255,255,0.06)',
-                                    border: '1px solid rgba(255,255,255,0.08)',
-                                    borderRadius: 4,
-                                    padding: '1px 5px',
-                                  }}
-                                >
-                                  Retired
-                                </span>
-                              )}
-                            </div>
-                            <div
-                              style={{
-                                fontFamily: FONT_MONO,
-                                fontSize: 9,
-                                color: '#556',
-                                display: 'flex',
-                                gap: 8,
-                                flexWrap: 'wrap',
-                              }}
-                            >
-                              <span>{p.ac} ACTs</span>
-                              <span>{p.races} races</span>
-                              <span>{p.avg} avg pts/ACT</span>
-                              <span>{p.wr}% win rate</span>
-                              <span>{p.jsr}% Jersey Swap</span>
-                            </div>
-                          </div>
-                          <div
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(5, auto)',
-                              gap: 20,
-                              textAlign: 'right',
-                            }}
-                          >
-                            {[
-                              { l: 'VR', v: p.elo, c: '#93c5fd' },
-                              { l: 'LAST', v: (p.lc > 0 ? '+' : '') + p.lc.toFixed(1), c: p.lc > 0 ? '#86efac' : p.lc < 0 ? '#fca5a5' : '#556' },
-                              { l: 'POINTS', v: p.pts, c: '#fde68a' },
-                              { l: 'WINS', v: p.wins, c: '#86efac' },
-                              { l: 'JERSEY SWAPS', v: p.js, c: '#f9a8d4' },
-                            ].map((c, ci) => (
-                              <div key={ci}>
-                                <div
-                                  style={{
-                                    fontFamily: FONT_MONO,
-                                    fontSize: 9,
-                                    color: '#445',
-                                    letterSpacing: 1,
-                                    marginBottom: 3,
-                                  }}
-                                >
-                                  {c.l}
-                                </div>
-                                <div
-                                  style={{
-                                    fontFamily: FONT_HEADER,
-                                    fontSize: 20,
-                                    color: c.c,
-                                  }}
-                                >
-                                  {c.v}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                          {p.name}
+                          {isUnranked ? (
+                            <span style={{
+                              fontSize: 10,
+                              color: '#556',
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              borderRadius: 4,
+                              padding: '1px 6px',
+                              letterSpacing: 0.5,
+                              fontFamily: FONT_MONO,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              UNRANKED
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: 10,
+                              color: rank.color,
+                              ...(rankImg ? {} : { background: rank.bg, border: `1px solid ${rank.color}55` }),
+                              borderRadius: 4,
+                              padding: rankImg ? '0' : '1px 6px',
+                              letterSpacing: 0.5,
+                              fontFamily: FONT_MONO,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {rankImg ? rank.name.toUpperCase() : `${rank.icon} ${rank.name.toUpperCase()}`}
+                            </span>
+                          )}
+                          {showRetired && (
+                            <span style={{
+                              marginLeft: 6,
+                              fontSize: 9,
+                              color: '#888',
+                              background: 'rgba(255,255,255,0.06)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              borderRadius: 4,
+                              padding: '1px 5px',
+                            }}>
+                              Retired
+                            </span>
+                          )}
                         </div>
-                      );
-                    })}
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <span>{p.ac}/{SEASON_RANKED_THRESHOLD} ACTs{isUnranked ? ' (placement)' : ''}</span>
+                          <span>{p.races} races</span>
+                          <span>{p.avg} avg pts/ACT</span>
+                          <span>{p.wr}% win rate</span>
+                          <span>{p.jsr}% Jersey Swap</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, auto)', gap: 20, textAlign: 'right' }}>
+                        {[
+                          { l: 'VR', v: p.elo, c: isUnranked ? '#445' : '#93c5fd' },
+                          { l: 'LAST', v: (p.lc > 0 ? '+' : '') + p.lc.toFixed(1), c: p.lc > 0 ? '#86efac' : p.lc < 0 ? '#fca5a5' : '#556' },
+                          { l: 'POINTS', v: p.pts, c: '#fde68a' },
+                          { l: 'WINS', v: p.wins, c: '#86efac' },
+                          { l: 'JERSEY SWAPS', v: p.js, c: '#f9a8d4' },
+                        ].map((c, ci) => (
+                          <div key={ci}>
+                            <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1, marginBottom: 3 }}>{c.l}</div>
+                            <div style={{ fontFamily: FONT_HEADER, fontSize: 20, color: c.c }}>{c.v}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {ranked.map((p, i) => renderRow(p, i, false))}
+                    {unranked.length > 0 && (
+                      <>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          margin: '8px 0 4px',
+                        }}>
+                          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 2 }}>
+                            UNRANKED — {SEASON_RANKED_THRESHOLD} ACTs REQUIRED
+                          </span>
+                          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+                        </div>
+                        {unranked.map((p, i) => renderRow(p, i, true))}
+                      </>
+                    )}
                   </div>
                 );
               })()
@@ -699,8 +688,9 @@ export function Seasons({
             fontFamily: FONT_MONO,
           }}
         >
-          Everyone starts each season at{' '}
-          <strong style={{ color: '#c084fc' }}>5000</strong> VR — no carryover.
+          You start each season at the <strong style={{ color: '#c084fc' }}>midpoint</strong> between 5000 and your all-time VR, pulling you toward the average.
+          <br />
+          Your first <strong style={{ color: '#c084fc' }}>{SEASON_RANKED_THRESHOLD} ACTs</strong> are placements (2× VR gains). You need {SEASON_RANKED_THRESHOLD} ACTs to earn a rank.
           <br />
           <br />
           <strong style={{ color: '#f5a623' }}>Finish position</strong> determines your base VR change each race.

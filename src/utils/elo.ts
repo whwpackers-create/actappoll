@@ -27,17 +27,20 @@ export const SAT_ROUND_MULTI_DEFAULT = 1.1;
 // Season base floor (no one starts below this)
 export const SEASON_BASE_ELO = 5000;
 
-// Number of races that count as placement (boosted gains)
-export const SEASON_PLACEMENT_RACES = 5;
-export const SEASON_PLACEMENT_MULT  = 2.0;
+// Number of ACTs that count as placements (boosted gains)
+export const SEASON_PLACEMENT_ACTS = 4;
+export const SEASON_PLACEMENT_MULT = 2.0;
+
+// Minimum ACTs to be ranked; below this shows as Unranked
+export const SEASON_RANKED_THRESHOLD = 4;
 
 // Season ranks — compressed scale so Diamond/Platinum are achievable within a season
 export const SEASON_RANKS = [
-  { key: 'diamond',  name: 'Diamond',  min: 6500, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
-  { key: 'platinum', name: 'Platinum', min: 6000, color: '#e2e8f0', bg: 'rgba(226,232,240,0.10)', icon: '🔹' },
-  { key: 'gold',     name: 'Gold',     min: 5600, color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: '🥇' },
-  { key: 'silver',   name: 'Silver',   min: 5300, color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', icon: '🥈' },
-  { key: 'bronze',   name: 'Bronze',   min: 5000, color: '#cd7f32', bg: 'rgba(205,127,50,0.10)',  icon: '🥉' },
+  { key: 'diamond',  name: 'Diamond',  min: 6000, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
+  { key: 'platinum', name: 'Platinum', min: 5750, color: '#e2e8f0', bg: 'rgba(226,232,240,0.10)', icon: '🔹' },
+  { key: 'gold',     name: 'Gold',     min: 5250, color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: '🥇' },
+  { key: 'silver',   name: 'Silver',   min: 5000, color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', icon: '🥈' },
+  { key: 'bronze',   name: 'Bronze',   min: 4750, color: '#cd7f32', bg: 'rgba(205,127,50,0.10)',  icon: '🥉' },
   { key: 'copper',   name: 'Copper',   min: 0,    color: '#b45309', bg: 'rgba(180,83,9,0.10)',    icon: '🪙' },
 ] as const;
 
@@ -190,8 +193,8 @@ export function computeSeasonElos(
 
   const sVRs: Record<string, number>            = {};
   const sH:   Record<string, EloHistoryEntry[]> = {};
-  const raceCount: Record<string, number>        = {}; // total races played in season per player
-  players.forEach((p) => { sVRs[p.name] = seasonStart(p.name); sH[p.name] = []; raceCount[p.name] = 0; });
+  const actCount: Record<string, number>         = {}; // ACTs played in season per player (for placement)
+  players.forEach((p) => { sVRs[p.name] = seasonStart(p.name); sH[p.name] = []; actCount[p.name] = 0; });
 
   sActs.forEach((act) => {
     const subMap: Record<string, string> = {};
@@ -210,7 +213,7 @@ export function computeSeasonElos(
     const startVR:  Record<string, number> = {};
     const totalPts: Record<string, number> = {};
     actPlayers.forEach((name) => {
-      if (!(name in sVRs)) { sVRs[name] = seasonStart(name); sH[name] = []; raceCount[name] = 0; }
+      if (!(name in sVRs)) { sVRs[name] = seasonStart(name); sH[name] = []; actCount[name] = 0; }
       startVR[name]  = sVRs[name];
       totalPts[name] = 0;
     });
@@ -225,18 +228,20 @@ export function computeSeasonElos(
 
       const sorted = [...raceResults].sort((a, b) => b.pts - a.pts);
       sorted.forEach(({ name }, pos) => {
-        if (!(name in sVRs)) { sVRs[name] = seasonStart(name); sH[name] = []; startVR[name] = seasonStart(name); totalPts[name] = 0; raceCount[name] = 0; }
+        if (!(name in sVRs)) { sVRs[name] = seasonStart(name); sH[name] = []; startVR[name] = seasonStart(name); totalPts[name] = 0; actCount[name] = 0; }
 
         // Placement boost: first N races get a gain multiplier
-        const isPlacement = (raceCount[name] ?? 0) < SEASON_PLACEMENT_RACES;
+        const isPlacement = (actCount[name] ?? 0) < SEASON_PLACEMENT_ACTS;
         const placementMult = isPlacement ? SEASON_PLACEMENT_MULT : 1;
 
         const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => sVRs[opp] ?? seasonStart(opp));
         const change = vrChange(sVRs[name], oppVRs, pos, satGainMult * placementMult);
         sVRs[name] = Math.max(1, Math.min(VR_MAX, sVRs[name] + change));
-        raceCount[name] = (raceCount[name] ?? 0) + 1;
       });
     });
+
+    // Increment ACT count once per ACT (not per race)
+    actPlayers.forEach((name) => { actCount[name] = (actCount[name] ?? 0) + 1; });
 
     actPlayers.forEach((name) => {
       if (!sH[name]) sH[name] = [];
