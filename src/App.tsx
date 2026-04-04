@@ -9,6 +9,7 @@ import {
   loadLocal,
   gid,
   getMenuImages,
+  loadChunkedImage,
 } from './services/firestore';
 import { useAuth } from './hooks/useAuth';
 import { Login } from './components/Login';
@@ -52,18 +53,30 @@ export default function App() {
   });
 
   useEffect(() => {
-    getMenuImages()
-      .then((d) => {
-        setMenuImgs(d);
-        try {
-          localStorage.setItem('actMenuImgCache', JSON.stringify(d));
-        } catch { /* ignore */ }
-        if (d['site_logo']) {
-          const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-          if (link) link.href = d['site_logo'];
-        }
-      })
-      .catch(() => {});
+    getMenuImages().then(async (d) => {
+      // For each mi_ key that looks like a data URL stored in chunks, reload from chunk docs
+      const CHUNK_KEYS = ['newact','history','roster','seasons','sat','chooser','analytics','blackjack','trophy','site_logo'];
+      const merged: Record<string, string> = { ...d };
+      await Promise.all(
+        CHUNK_KEYS.map(async (k) => {
+          const miKey = k === 'site_logo' ? 'site_logo' : 'mi_' + k;
+          // If the stored value is missing or is a leftover https:// Storage URL, try chunks
+          const current = d[miKey];
+          if (!current || current.startsWith('https://')) {
+            const chunked = await loadChunkedImage(k === 'site_logo' ? 'site_logo' : k).catch(() => null);
+            if (chunked) merged[miKey] = chunked;
+          }
+        })
+      );
+      setMenuImgs(merged);
+      try {
+        localStorage.setItem('actMenuImgCache', JSON.stringify(merged));
+      } catch { /* ignore */ }
+      if (merged['site_logo']) {
+        const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+        if (link) link.href = merged['site_logo'];
+      }
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

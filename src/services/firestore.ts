@@ -1,5 +1,4 @@
-import { db, storage } from '../config/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db } from '../config/firebase';
 import {
   collection,
   doc,
@@ -95,18 +94,37 @@ export async function getMenuImages(): Promise<Record<string, string>> {
   return snap.exists() ? (snap.data() as Record<string, string>) : {};
 }
 
-// Upload a file to Firebase Storage and return its public download URL
-export async function uploadMenuImage(key: string, file: File): Promise<string> {
-  const storageRef = ref(storage, `menuImages/${key}`);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+// Save a large image (e.g. GIF) by splitting into ~800KB chunks across Firestore docs
+const CHUNK_SIZE = 800_000;
+
+export async function uploadMenuImage(key: string, dataUrl: string): Promise<void> {
+  const chunks = [];
+  for (let i = 0; i < dataUrl.length; i += CHUNK_SIZE) {
+    chunks.push(dataUrl.slice(i, i + CHUNK_SIZE));
+  }
+  await Promise.all(
+    chunks.map((chunk, i) =>
+      setDoc(doc(db, 'menuImageChunks', `${key}_${i}`), { chunk, index: i, total: chunks.length, key })
+    )
+  );
+  // Clean up any old chunks beyond the new total
+  for (let i = chunks.length; i < chunks.length + 10; i++) {
+    deleteDoc(doc(db, 'menuImageChunks', `${key}_${i}`)).catch(() => {});
+  }
 }
 
-// Delete a file from Firebase Storage (best-effort, ignores missing-file errors)
+export async function loadChunkedImage(key: string): Promise<string | null> {
+  const snap = await getDocs(collection(db, 'menuImageChunks'));
+  const docs = snap.docs
+    .map(d => d.data())
+    .filter(d => d.key === key)
+    .sort((a, b) => a.index - b.index);
+  if (docs.length === 0) return null;
+  return docs.map(d => d.chunk as string).join('');
+}
+
 export async function deleteMenuImage(key: string): Promise<void> {
-  try {
-    await deleteObject(ref(storage, `menuImages/${key}`));
-  } catch {
-    // file may not exist — ignore
+  for (let i = 0; i < 20; i++) {
+    deleteDoc(doc(db, 'menuImageChunks', `${key}_${i}`)).catch(() => {});
   }
 }

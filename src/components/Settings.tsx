@@ -66,17 +66,17 @@ export function Settings({
   setMenuImgs,
   onClose,
 }: SettingsProps) {
-  // Upload file to Firebase Storage, store the returned HTTPS URL (works for all types incl. GIFs)
+  // Read file as data URL then store via Firestore chunks (works for GIFs too, no Storage needed)
   const uploadAndSet = (key: string, file: File) => {
-    // Show a local preview immediately while uploading
-    const localUrl = URL.createObjectURL(file);
-    setMenuImgs((prev) => ({ ...prev, ['mi_' + key]: localUrl, ['ed_' + key]: 'true' }));
-
-    uploadMenuImage(key, file)
-      .then((downloadUrl) => {
-        setMenuImgs((prev) => ({ ...prev, ['mi_' + key]: downloadUrl, ['ed_' + key]: 'true' }));
-      })
-      .catch((err) => console.error('Upload failed:', err));
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = (ev.target?.result as string) ?? '';
+      // Show preview immediately
+      setMenuImgs((prev) => ({ ...prev, ['mi_' + key]: dataUrl, ['ed_' + key]: 'true' }));
+      // Persist to Firestore in chunks (handles large GIFs that exceed 1MB doc limit)
+      uploadMenuImage(key, dataUrl).catch((err) => console.error('Upload failed:', err));
+    };
+    reader.readAsDataURL(file);
   };
 
   const doSave = (key: string) => {
