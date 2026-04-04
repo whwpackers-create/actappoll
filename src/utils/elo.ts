@@ -24,15 +24,19 @@ const UNDERDOG_MAX    = 0.85;  // maximum loss reduction (85%)
 export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 2.0 };
 export const SAT_ROUND_MULTI_DEFAULT = 1.1;
 
-// Season base (everyone starts here for a fresh season calc)
+// Season base floor (no one starts below this)
 export const SEASON_BASE_ELO = 5000;
 
-// Rank thresholds scaled to VR range
+// Number of races that count as placement (boosted gains)
+export const SEASON_PLACEMENT_RACES = 5;
+export const SEASON_PLACEMENT_MULT  = 2.0;
+
+// Season ranks — compressed scale so Diamond/Platinum are achievable within a season
 export const SEASON_RANKS = [
-  { key: 'diamond',  name: 'Diamond',  min: 8000, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
-  { key: 'platinum', name: 'Platinum', min: 7000, color: '#e2e8f0', bg: 'rgba(226,232,240,0.10)', icon: '🔹' },
-  { key: 'gold',     name: 'Gold',     min: 6200, color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: '🥇' },
-  { key: 'silver',   name: 'Silver',   min: 5500, color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', icon: '🥈' },
+  { key: 'diamond',  name: 'Diamond',  min: 6500, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
+  { key: 'platinum', name: 'Platinum', min: 6000, color: '#e2e8f0', bg: 'rgba(226,232,240,0.10)', icon: '🔹' },
+  { key: 'gold',     name: 'Gold',     min: 5600, color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: '🥇' },
+  { key: 'silver',   name: 'Silver',   min: 5300, color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', icon: '🥈' },
   { key: 'bronze',   name: 'Bronze',   min: 5000, color: '#cd7f32', bg: 'rgba(205,127,50,0.10)',  icon: '🥉' },
   { key: 'copper',   name: 'Copper',   min: 0,    color: '#b45309', bg: 'rgba(180,83,9,0.10)',    icon: '🪙' },
 ] as const;
@@ -167,7 +171,8 @@ export function computeAllElos(
 export function computeSeasonElos(
   players: Player[],
   acts: Act[],
-  season: Season
+  season: Season,
+  allTimeElos?: Record<string, number>  // optional: each player's all-time VR at season start
 ): { seasonElos: Record<string, number>; seasonHistory: Record<string, EloHistoryEntry[]>; actCount: number } {
   const sActs = acts
     .filter((a) => {
@@ -176,9 +181,17 @@ export function computeSeasonElos(
     })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+  // Starting VR = midpoint between SEASON_BASE_ELO and the player's all-time VR
+  // e.g. 7000 all-time → 6000 season start; 5000 all-time → 5000 season start
+  const seasonStart = (name: string): number => {
+    const allTime = allTimeElos?.[name] ?? SEASON_BASE_ELO;
+    return Math.round((SEASON_BASE_ELO + allTime) / 2);
+  };
+
   const sVRs: Record<string, number>            = {};
   const sH:   Record<string, EloHistoryEntry[]> = {};
-  players.forEach((p) => { sVRs[p.name] = SEASON_BASE_ELO; sH[p.name] = []; });
+  const raceCount: Record<string, number>        = {}; // total races played in season per player
+  players.forEach((p) => { sVRs[p.name] = seasonStart(p.name); sH[p.name] = []; raceCount[p.name] = 0; });
 
   sActs.forEach((act) => {
     const subMap: Record<string, string> = {};
@@ -197,7 +210,7 @@ export function computeSeasonElos(
     const startVR:  Record<string, number> = {};
     const totalPts: Record<string, number> = {};
     actPlayers.forEach((name) => {
-      if (!(name in sVRs)) { sVRs[name] = SEASON_BASE_ELO; sH[name] = []; }
+      if (!(name in sVRs)) { sVRs[name] = seasonStart(name); sH[name] = []; raceCount[name] = 0; }
       startVR[name]  = sVRs[name];
       totalPts[name] = 0;
     });
@@ -212,10 +225,16 @@ export function computeSeasonElos(
 
       const sorted = [...raceResults].sort((a, b) => b.pts - a.pts);
       sorted.forEach(({ name }, pos) => {
-        if (!(name in sVRs)) { sVRs[name] = SEASON_BASE_ELO; sH[name] = []; startVR[name] = SEASON_BASE_ELO; totalPts[name] = 0; }
-        const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => sVRs[opp] ?? SEASON_BASE_ELO);
-        const change = vrChange(sVRs[name], oppVRs, pos, satGainMult);
+        if (!(name in sVRs)) { sVRs[name] = seasonStart(name); sH[name] = []; startVR[name] = seasonStart(name); totalPts[name] = 0; raceCount[name] = 0; }
+
+        // Placement boost: first N races get a gain multiplier
+        const isPlacement = (raceCount[name] ?? 0) < SEASON_PLACEMENT_RACES;
+        const placementMult = isPlacement ? SEASON_PLACEMENT_MULT : 1;
+
+        const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => sVRs[opp] ?? seasonStart(opp));
+        const change = vrChange(sVRs[name], oppVRs, pos, satGainMult * placementMult);
         sVRs[name] = Math.max(1, Math.min(VR_MAX, sVRs[name] + change));
+        raceCount[name] = (raceCount[name] ?? 0) + 1;
       });
     });
 

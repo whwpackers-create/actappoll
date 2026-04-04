@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { computeSeasonElos, teamScores, BASE_ELO, getSeasonRank } from '../utils/elo';
+import { computeSeasonElos, computeAllElos, teamScores, BASE_ELO, getSeasonRank } from '../utils/elo';
 import { gid } from '../services/firestore';
 import { PRESETS } from '../constants';
 import {
@@ -139,8 +139,18 @@ export function Seasons({
   };
 
   const vs = sel ? all.find((s) => (s.id ?? s._id ?? s.name) === sel) : null;
+
+  // Compute each player's all-time VR using only acts before this season started
+  // so the midpoint starting VR reflects their rating at the time
+  const allTimeAtSeasonStart = vs
+    ? computeAllElos(
+        data.players,
+        data.acts.filter((a) => new Date(a.date) < new Date(vs.startDate))
+      ).elos
+    : null;
+
   const sd = vs
-    ? computeSeasonElos(data.players, data.acts, vs)
+    ? computeSeasonElos(data.players, data.acts, vs, allTimeAtSeasonStart ?? undefined)
     : null;
 
   const sBtn = {
