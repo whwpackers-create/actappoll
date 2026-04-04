@@ -81,20 +81,30 @@ export function Settings({
   setMenuImgs,
   onClose,
 }: SettingsProps) {
-  // Read file as data URL then store via Firestore chunks (works for GIFs too, no Storage needed)
+  // Read file as data URL, upload chunks, then auto-save once chunks are confirmed written
   const uploadAndSet = (key: string, file: File) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = (ev.target?.result as string) ?? '';
       // Show preview immediately
-      setMenuImgs((prev) => ({ ...prev, ['mi_' + key]: dataUrl, ['ed_' + key]: 'true' }));
-      // Persist to Firestore in chunks (handles large GIFs that exceed 1MB doc limit)
-      uploadMenuImage(key, dataUrl).catch((err) => console.error('Upload failed:', err));
+      setMenuImgs((prev) => ({ ...prev, ['mi_' + key]: dataUrl, ['ed_' + key]: 'uploading' }));
+      // Write chunks first, THEN write the flag so load can find them
+      uploadMenuImage(key, dataUrl)
+        .then(() => {
+          setMenuImgs((prev) => {
+            const n = { ...prev };
+            delete n['ed_' + key];
+            persistMenuImgs(n);
+            return n;
+          });
+        })
+        .catch((err) => console.error('Upload failed:', err));
     };
     reader.readAsDataURL(file);
   };
 
   const doSave = (key: string) => {
+    // Only used for position/size changes on already-uploaded images
     setMenuImgs((prev) => {
       const n = { ...prev };
       delete n['ed_' + key];
@@ -425,7 +435,9 @@ export function Settings({
           const py = parseInt(menuImgs['mp_' + key] ?? '50') || 50;
           const ct = parseInt(menuImgs['mc_' + key] ?? '0') || 0;
           const cb = parseInt(menuImgs['mb_' + key] ?? '0') || 0;
-          const editing = menuImgs['ed_' + key] === 'true';
+          const edVal = menuImgs['ed_' + key];
+          const editing = edVal === 'true';
+          const uploading = edVal === 'uploading';
 
           return (
             <div
@@ -549,6 +561,11 @@ export function Settings({
                   )}
                 </div>
               </div>
+              {img && uploading && (
+                <div style={{ marginTop: 6, fontFamily: FONT_MONO, fontSize: 10, color: '#fbbf24', letterSpacing: 1 }}>
+                  ⏳ Uploading… saving automatically when done
+                </div>
+              )}
               {img && editing && (
                 <div style={{ marginTop: 6 }}>
                   <div
