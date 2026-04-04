@@ -37,11 +37,18 @@ interface SettingsProps {
   onClose: () => void;
 }
 
-// Images are now URLs from Firebase Storage — small strings safe to store in Firestore
 function persistMenuImgs(imgs: Record<string, string>) {
   const fbImages: Record<string, string> = {};
   MENU_KEYS.forEach((k) => {
-    if (imgs['mi_' + k]) fbImages['mi_' + k] = imgs['mi_' + k];
+    const mi = imgs['mi_' + k];
+    if (mi) {
+      if (mi.startsWith('data:image/gif') || mi.length > 500_000) {
+        // Too large for Firestore doc — stored in chunks already. Just save a flag.
+        fbImages['chunked_' + k] = '1';
+      } else {
+        fbImages['mi_' + k] = mi;
+      }
+    }
     if (imgs['mz_' + k]) fbImages['mz_' + k] = imgs['mz_' + k];
     if (imgs['mp_' + k]) fbImages['mp_' + k] = imgs['mp_' + k];
     if (imgs['mc_' + k]) fbImages['mc_' + k] = imgs['mc_' + k];
@@ -51,11 +58,19 @@ function persistMenuImgs(imgs: Record<string, string>) {
   SEASON_RANKS.forEach((r) => {
     if (imgs['ri_' + r.key]) fbImages['ri_' + r.key] = imgs['ri_' + r.key];
   });
-  if (imgs['site_logo']) fbImages['site_logo'] = imgs['site_logo'];
+  if (imgs['site_logo']) {
+    const logo = imgs['site_logo'];
+    if (logo.startsWith('data:image/gif') || logo.length > 500_000) {
+      fbImages['chunked_site_logo'] = '1';
+    } else {
+      fbImages['site_logo'] = logo;
+    }
+  }
   fsSet('config', 'menuImages', fbImages);
   try {
-    localStorage.setItem('actMenuImgCache', JSON.stringify(fbImages));
-  } catch { /* ignore */ }
+    // Cache full data (including large images) locally for fast reload on same device
+    localStorage.setItem('actMenuImgCache', JSON.stringify(imgs));
+  } catch { /* ignore — large GIFs may exceed quota */ }
 }
 
 export function Settings({

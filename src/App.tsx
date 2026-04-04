@@ -54,18 +54,16 @@ export default function App() {
 
   useEffect(() => {
     getMenuImages().then(async (d) => {
-      // For each mi_ key that looks like a data URL stored in chunks, reload from chunk docs
-      const CHUNK_KEYS = ['newact','history','roster','seasons','sat','chooser','analytics','blackjack','trophy','site_logo'];
       const merged: Record<string, string> = { ...d };
+      // Find all keys flagged as chunked and reassemble them from chunk docs
+      const chunkedKeys = Object.keys(d)
+        .filter(k => k.startsWith('chunked_') && d[k] === '1')
+        .map(k => k.replace('chunked_', ''));
       await Promise.all(
-        CHUNK_KEYS.map(async (k) => {
+        chunkedKeys.map(async (k) => {
           const miKey = k === 'site_logo' ? 'site_logo' : 'mi_' + k;
-          // If the stored value is missing or is a leftover https:// Storage URL, try chunks
-          const current = d[miKey];
-          if (!current || current.startsWith('https://')) {
-            const chunked = await loadChunkedImage(k === 'site_logo' ? 'site_logo' : k).catch(() => null);
-            if (chunked) merged[miKey] = chunked;
-          }
+          const data = await loadChunkedImage(k).catch(() => null);
+          if (data) merged[miKey] = data;
         })
       );
       setMenuImgs(merged);
