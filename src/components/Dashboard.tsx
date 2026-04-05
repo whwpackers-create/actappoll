@@ -248,19 +248,57 @@ export function Dashboard({
     return computeSeasonElos(data.players, data.acts, currentSeason, allTimeAtStart);
   }, [currentSeason, data.players, data.acts]);
 
-  // Per-player season actCount (how many ACTs they've played this season)
-  const csActCountMap = useMemo(() => {
-    if (!currentSeason) return {} as Record<string, number>;
+  // Per-player season stats (acts, races, pts, wins, jersey swaps)
+  const csStatsMap = useMemo(() => {
+    if (!currentSeason) return {} as Record<string, { acts: number; races: number; pts: number; wins: number; js: number }>;
     const sActs = data.acts.filter(a => a.date >= currentSeason.startDate && a.date <= currentSeason.endDate);
-    const map: Record<string, number> = {};
+    const map: Record<string, { acts: number; races: number; pts: number; wins: number; js: number }> = {};
+    const ensure = (name: string) => { if (!map[name]) map[name] = { acts: 0, races: 0, pts: 0, wins: 0, js: 0 }; };
     sActs.forEach(act => {
-      const players = new Set<string>();
-      act.teams.forEach(t => t.members.forEach(m => players.add(m)));
-      act.races.forEach(r => r.results.forEach(res => { if (res.player) players.add(res.player); }));
-      players.forEach(name => { map[name] = (map[name] ?? 0) + 1; });
+      const sMap: Record<string, string> = {};
+      act.teams.forEach(t => { t.members.forEach((m, i) => { if (t.subs?.[i]) sMap[m] = t.subs[i]; }); });
+      const active = (name: string) => sMap[name] ?? name;
+      // ACT participation
+      const actPlayers = new Set<string>();
+      act.teams.forEach(t => t.members.forEach(m => actPlayers.add(active(m))));
+      act.races.forEach(r => r.results.forEach(res => { if (res.player) actPlayers.add(active(res.player)); }));
+      actPlayers.forEach(name => { ensure(name); map[name].acts++; });
+      // Race results
+      act.races.forEach(r => {
+        r.results.forEach(res => {
+          const name = active(res.player);
+          ensure(name);
+          map[name].races++;
+          map[name].pts += res.points;
+        });
+      });
+      // ACT wins (jersey swaps = top-2 teams)
+      const sortedTeams = [...act.teams].map(t => {
+        const score = act.races.reduce((s, r) => {
+          return s + r.results.filter(x => t.members.map(m => active(m)).includes(active(x.player))).reduce((ps, x) => ps + x.points, 0);
+        }, 0);
+        return { team: t, score };
+      }).sort((a, b) => b.score - a.score);
+      if (sortedTeams.length >= 2) {
+        // Top 2 teams get jersey swap credit; top 1 gets win
+        sortedTeams.slice(0, 2).forEach(({ team }, idx) => {
+          team.members.forEach(m => {
+            const name = active(m);
+            ensure(name);
+            map[name].js++;
+            if (idx === 0) map[name].wins++;
+          });
+        });
+      }
     });
     return map;
   }, [currentSeason, data.acts]);
+
+  const csActCountMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    Object.entries(csStatsMap).forEach(([n, s]) => { m[n] = s.acts; });
+    return m;
+  }, [csStatsMap]);
 
   // Build lookup for current season ELO — only players who actually played ≥1 act
   const csEloMap = useMemo(() => {
@@ -701,6 +739,7 @@ export function Dashboard({
                   : '0';
                 const ch30 = p.change30d ?? 0;
                 const satWins = countSatWins(data.sats ?? [], p.name);
+                const sStats = csStatsMap[p.name];
 
                 // Rank movement: spots gained/lost vs 30 days ago
                 const oldRank = rankMovement30d[p.name];
@@ -800,11 +839,18 @@ export function Dashboard({
                         )}
                       </div>
                       <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                        <span>{p.actCount} ACTs</span>
-                        <span>{p.raceCount ?? 0} races</span>
-                        <span>{avgPts} avg pts/ACT</span>
-                        <span>{winRate}% win rate</span>
-                        <span>{jsRate}% Jersey Swap</span>
+                        {showCurrentSeason && sStats ? <>
+                          <span>{sStats.acts} ACTs this season</span>
+                          <span>{sStats.races} races</span>
+                          <span>{sStats.acts > 0 ? (sStats.pts / sStats.acts).toFixed(1) : '0'} avg pts/ACT</span>
+                          <span>{sStats.acts > 0 ? (sStats.wins / sStats.acts * 100).toFixed(1) : '0'}% win rate</span>
+                        </> : <>
+                          <span>{p.actCount} ACTs</span>
+                          <span>{p.raceCount ?? 0} races</span>
+                          <span>{avgPts} avg pts/ACT</span>
+                          <span>{winRate}% win rate</span>
+                          <span>{jsRate}% Jersey Swap</span>
+                        </>}
                       </div>
                     </div>
                     {/* Stats */}
@@ -812,12 +858,12 @@ export function Dashboard({
                       className="lb-stats"
                       style={{ display: 'grid', gridTemplateColumns: 'repeat(5,auto)', gap: 20, textAlign: 'right' }}
                     >
-                      {(showCurrentSeason && csEloMap[p.name] != null ? [
+                      {(showCurrentSeason && sStats ? [
                         { l: 'SEASON VR', v: csEloMap[p.name], c: '#60a5fa' },
-                        { l: 'ALL-TIME VR', v: Math.round(p.elo), c: '#475569' },
-                        { l: 'POINTS', v: p.pts, c: '#fde68a' },
-                        { l: 'WINS', v: p.wins, c: '#86efac' },
-                        { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#f9a8d4' },
+                        { l: 'POINTS', v: sStats.pts, c: '#fde68a' },
+                        { l: 'WINS', v: sStats.wins, c: '#86efac' },
+                        { l: 'AVG PTS/ACT', v: sStats.acts > 0 ? (sStats.pts / sStats.acts).toFixed(1) : '0', c: '#93c5fd' },
+                        { l: 'JERSEY SWAPS', v: sStats.js, c: '#f9a8d4' },
                       ] : [
                         { l: 'VR', v: Math.round(p.elo), c: '#93c5fd' },
                         { l: '30D CHANGE', v: (ch30 > 0 ? '+' : '') + ch30, c: ch30 > 0 ? '#86efac' : ch30 < 0 ? '#fca5a5' : '#556' },
