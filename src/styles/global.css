@@ -12,6 +12,13 @@ input, select, textarea { font-family: inherit; }
   animation: checkerSlide 7s linear infinite;
 }
 
+/* History scorecard: desktop grid vs mobile card layout */
+.history-grid-mobile { display: none; }
+@media (max-width: 768px) {
+  .history-grid-desktop { display: none !important; }
+  .history-grid-mobile  { display: block !important; }
+}
+
 /* Mobile responsive utilities */
 @media (max-width: 768px) {
   .lb-row { flex-direction: column !important; gap: 8px !important; }

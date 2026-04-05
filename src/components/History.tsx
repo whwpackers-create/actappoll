@@ -416,7 +416,79 @@ export function History({
 
                   {/* Scorecard grid — NewAct step 1 style */}
                   {savedGrid ? (
-                    <div style={{ overflowX: 'auto', marginBottom: 10 }}>
+                    <>
+                    {/* ── Mobile card layout ── */}
+                    <div className="history-grid-mobile" style={{ marginBottom: 10 }}>
+                      {/* Team score cards: 2 per row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                        {act.teams.slice(0, numTeams).map((t, ti) => {
+                          const tot = getGrandTot(ti);
+                          const isWinner = ts[0]?.team.name === t.name;
+                          return (
+                            <div key={ti} style={{
+                              background: 'rgba(255,255,255,0.02)',
+                              border: `2px solid ${TC[ti]}${isWinner ? '' : '88'}`,
+                              borderRadius: 10,
+                              padding: '10px 12px',
+                            }}>
+                              <div style={{ fontFamily: FONT_HEADER, fontSize: 14, color: isWinner ? '#c8a030' : '#f0e6d3', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {isWinner && <span style={{ fontSize: 16 }}>🏆</span>}
+                                {t.name}
+                              </div>
+                              {t.members.map((m, mi) => {
+                                const sub = t.subs?.[mi];
+                                const displayName = sub && sub !== '' ? sub : m;
+                                const slot = ['A','B','C','D'][mi];
+                                return (
+                                  <div key={mi} style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#778', marginBottom: 2 }}>
+                                    <span style={{ color: TC[ti], marginRight: 4 }}>{slot}:</span>
+                                    {displayName.split(' ')[0]}
+                                    {sub && sub !== '' && <span style={{ color: '#445', fontSize: 9 }}> (sub)</span>}
+                                  </div>
+                                );
+                              })}
+                              <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                {[0,1,2,3].map((ri) => (
+                                  <div key={ri} style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#666', background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: '2px 5px' }}>
+                                    R{ri+1}: <span style={{ color: TC[ti] }}>{getRoundTot(ri, ti)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div style={{ marginTop: 6, fontFamily: FONT_HEADER, fontSize: 20, color: TC[ti] }}>
+                                {tot} <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>pts</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Player VR summary */}
+                      <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '8px 12px' }}>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1, marginBottom: 6 }}>PLAYER SUMMARY</div>
+                        {act.teams.slice(0, numTeams).map((t, ti) =>
+                          t.members.map((m, mi) => {
+                            const sub = t.subs?.[mi];
+                            const eloKey = sub && sub !== '' ? sub : m;
+                            const displayName = sub && sub !== '' ? `${sub.split(' ')[0]} (sub)` : m.split(' ')[0];
+                            const { before, after } = getEloChange(eloKey, aid ?? '');
+                            const diff = after - before;
+                            const pts2 = pp[eloKey] ?? pp[m] ?? 0;
+                            const slot = ['A','B','C','D'][mi];
+                            return (
+                              <div key={`${ti}-${mi}`} style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 5, marginBottom: 5, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: TC[ti], minWidth: 14 }}>{slot}</span>
+                                <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#d0d4dc', flex: 1 }}>{displayName}</span>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#a09880' }}>{pts2} pts</span>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 12, fontWeight: 700, color: diff > 0 ? '#50fa7b' : diff < 0 ? '#e94560' : '#556', minWidth: 48, textAlign: 'right' }}>
+                                  {diff > 0 ? `+${diff}` : diff === 0 ? '0' : diff} VR
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                    {/* ── Desktop grid layout ── */}
+                    <div className="history-grid-desktop" style={{ overflowX: 'auto', marginBottom: 10 }}>
                       <div
                         style={{
                           display: 'grid',
@@ -770,6 +842,7 @@ export function History({
                         <div style={{ padding: '6px 4px', background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(200,160,48,0.12)' }} />
                       </div>
                     </div>
+                    </>
                   ) : (
                     /* Fallback: no saved grid — show race results from act.races */
                     <div style={{ marginBottom: 10 }}>
