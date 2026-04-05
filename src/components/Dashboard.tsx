@@ -262,11 +262,16 @@ export function Dashboard({
     return map;
   }, [currentSeason, data.acts]);
 
-  // Build lookup for current season ELO and actCount by player name
+  // Build lookup for current season ELO — only players who actually played ≥1 act
   const csEloMap = useMemo(() => {
     const map: Record<string, number> = {};
     if (currentSeasonData) {
-      Object.entries(currentSeasonData.seasonElos).forEach(([name, elo]) => { map[name] = Math.round(elo); });
+      Object.entries(currentSeasonData.seasonElos).forEach(([name, elo]) => {
+        // Only include if they have history entries (played at least 1 act this season)
+        if ((currentSeasonData.seasonHistory[name] ?? []).length > 0) {
+          map[name] = Math.round(elo);
+        }
+      });
     }
     return map;
   }, [currentSeasonData]);
