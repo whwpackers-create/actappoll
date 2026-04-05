@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD } from '../utils/elo';
+import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
@@ -219,11 +220,23 @@ export function Dashboard({
   const [showEloInfo, setShowEloInfo] = useState(false);
   const [showCurrentSeason, setShowCurrentSeason] = useState(false);
 
-  // Determine current season
+  // Merge saved seasons with presets (same logic as Seasons.tsx)
+  const allSeasons = useMemo(() => {
+    const saved = data.seasons ?? [];
+    const merged = [...saved];
+    PRESETS.forEach(ps => {
+      if (!merged.find(s => s.name === ps.name)) {
+        merged.push({ ...ps, id: ps.name, isPreset: true } as typeof merged[0]);
+      }
+    });
+    return merged.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  }, [data.seasons]);
+
+  // Determine current season (uses allSeasons so presets are included)
   const currentSeason = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
-    return (data.seasons ?? []).find(s => today >= s.startDate && today <= s.endDate) ?? null;
-  }, [data.seasons]);
+    return allSeasons.find(s => today >= s.startDate && today <= s.endDate) ?? null;
+  }, [allSeasons]);
 
   // Compute current season VRs using the proper midpoint-start season engine
   const currentSeasonData = useMemo(() => {
@@ -315,7 +328,7 @@ export function Dashboard({
     ];
     const peakElo = ps.eloHistory.length > 0 ? Math.round(Math.max(...ps.eloHistory.map((h) => h.elo))) : Math.round(ps.elo);
     const lbRank = filtered.findIndex((p) => p.name === selPlayer) + 1;
-    const seasonRanks = [...(data.seasons ?? [])]
+    const seasonRanks = [...allSeasons]
       .sort((a, b) => b.startDate.localeCompare(a.startDate))
       .map((season) => {
         // Compute proper season VRs using the same midpoint-start engine as the Seasons page
@@ -353,7 +366,7 @@ export function Dashboard({
       .filter((x): x is NonNullable<typeof x> => x !== null);
     return { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank, seasonRanks };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selPlayer, stats, data.acts, data.sats, data.seasons, data.players]);
+  }, [selPlayer, stats, data.acts, data.sats, allSeasons, data.players]);
 
   const totalActive = activePlayers.length;
   const selS = {
@@ -759,11 +772,6 @@ export function Dashboard({
                     <div>
                       <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#e0e4ea', marginBottom: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                         {p.name}
-                        {!showCurrentSeason && (() => { const t = getTier(Math.round(p.elo)); return (
-                          <span style={{ fontSize: 10, color: t.color, background: `${t.color}18`, border: `1px solid ${t.color}40`, borderRadius: 4, padding: '2px 6px', fontFamily: FONT_MONO, letterSpacing: 0.5 }}>
-                            {t.icon} {t.name.toUpperCase()}
-                          </span>
-                        ); })()}
                         {showCurrentSeason && sRank && (
                           isUnranked ? (
                             <span style={{ fontSize: 10, color: '#445', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 6px', fontFamily: FONT_MONO }}>
