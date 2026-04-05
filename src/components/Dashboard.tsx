@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { computeStats } from '../utils/elo';
+import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD } from '../utils/elo';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
@@ -219,32 +219,65 @@ export function Dashboard({
   const [showEloInfo, setShowEloInfo] = useState(false);
   const [showCurrentSeason, setShowCurrentSeason] = useState(false);
 
-  // Determine current season and compute per-player season ELOs
+  // Determine current season
   const currentSeason = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return (data.seasons ?? []).find(s => today >= s.startDate && today <= s.endDate) ?? null;
   }, [data.seasons]);
 
-  const currentSeasonRankings = useMemo(() => {
+  // Compute current season VRs using the proper midpoint-start season engine
+  const currentSeasonData = useMemo(() => {
     if (!currentSeason) return null;
-    const entries = stats.map(ps => {
-      const seasonEntries = (ps.eloHistory ?? []).filter(
-        h => h.date >= currentSeason.startDate && h.date <= currentSeason.endDate && !(h.isSat && h.points === 0)
-      );
-      if (seasonEntries.length === 0) return null;
-      const lastEntry = [...seasonEntries].sort((a, b) => a.date.localeCompare(b.date)).pop()!;
-      const actCount = seasonEntries.filter(h => !h.isSat).length;
-      return { name: ps.name, elo: Math.round(lastEntry.elo), actCount };
-    }).filter((x): x is NonNullable<typeof x> => x !== null);
-    return entries.sort((a, b) => b.elo - a.elo);
-  }, [currentSeason, stats]);
+    const allTimeAtStart = computeAllElos(
+      data.players,
+      data.acts.filter(a => new Date(a.date) < new Date(currentSeason.startDate))
+    ).elos;
+    return computeSeasonElos(data.players, data.acts, currentSeason, allTimeAtStart);
+  }, [currentSeason, data.players, data.acts]);
 
-  // Build a lookup for current season ELO by player name
+  // Per-player season actCount (how many ACTs they've played this season)
+  const csActCountMap = useMemo(() => {
+    if (!currentSeason) return {} as Record<string, number>;
+    const sActs = data.acts.filter(a => a.date >= currentSeason.startDate && a.date <= currentSeason.endDate);
+    const map: Record<string, number> = {};
+    sActs.forEach(act => {
+      const players = new Set<string>();
+      act.teams.forEach(t => t.members.forEach(m => players.add(m)));
+      act.races.forEach(r => r.results.forEach(res => { if (res.player) players.add(res.player); }));
+      players.forEach(name => { map[name] = (map[name] ?? 0) + 1; });
+    });
+    return map;
+  }, [currentSeason, data.acts]);
+
+  // Build lookup for current season ELO and actCount by player name
   const csEloMap = useMemo(() => {
     const map: Record<string, number> = {};
-    (currentSeasonRankings ?? []).forEach(e => { map[e.name] = e.elo; });
+    if (currentSeasonData) {
+      Object.entries(currentSeasonData.seasonElos).forEach(([name, elo]) => { map[name] = Math.round(elo); });
+    }
     return map;
-  }, [currentSeasonRankings]);
+  }, [currentSeasonData]);
+
+  // Rank movement: compare each player's current all-time rank vs their rank 30 days ago
+  const rankMovement30d = useMemo(() => {
+    const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    // VR for each player 30d ago = last eloHistory entry before cutoff date
+    const vr30ago: Record<string, number> = {};
+    stats.forEach(ps => {
+      const old = (ps.eloHistory ?? []).filter(h => h.date < cutoff);
+      if (old.length > 0) {
+        vr30ago[ps.name] = old[old.length - 1].elo;
+      }
+      // If no history before cutoff, they didn't exist yet — skip
+    });
+    // Build old rank order (same filter as current: active only by default — use all for comparison)
+    const allWithOld = stats
+      .filter(ps => ps.name in vr30ago)
+      .sort((a, b) => (vr30ago[b.name] ?? 0) - (vr30ago[a.name] ?? 0));
+    const oldRankMap: Record<string, number> = {};
+    allWithOld.forEach((ps, i) => { oldRankMap[ps.name] = i + 1; });
+    return oldRankMap;
+  }, [stats]);
 
   let filtered: PlayerStats[] = [...stats];
   if (filterStatus === 'active')
@@ -252,9 +285,9 @@ export function Dashboard({
   else if (filterStatus === 'inactive')
     filtered = filtered.filter((s) => !activePlayers.includes(s.name));
 
-  if (showCurrentSeason && currentSeasonRankings) {
+  if (showCurrentSeason && currentSeasonData) {
     // In current season mode: only show players with season data, sorted by season ELO
-    const csNames = new Set(currentSeasonRankings.map(e => e.name));
+    const csNames = new Set(Object.keys(csEloMap));
     filtered = filtered.filter(p => csNames.has(p.name));
     filtered.sort((a, b) => (csEloMap[b.name] ?? 0) - (csEloMap[a.name] ?? 0));
   } else {
@@ -626,6 +659,16 @@ export function Dashboard({
                 const ch30 = p.change30d ?? 0;
                 const satWins = countSatWins(data.sats ?? [], p.name);
 
+                // Rank movement: spots gained/lost vs 30 days ago
+                const oldRank = rankMovement30d[p.name];
+                const rankDelta = oldRank != null ? oldRank - rank : null; // positive = moved up
+
+                // Season mode extras
+                const sVR = csEloMap[p.name];
+                const sActC = csActCountMap[p.name] ?? 0;
+                const isUnranked = sActC < SEASON_RANKED_THRESHOLD;
+                const sRank = sVR != null ? getSeasonRank(sVR) : null;
+
                 return (
                   <div
                     key={p.name}
@@ -655,7 +698,7 @@ export function Dashboard({
                     onMouseOut={(e) => { e.currentTarget.style.background = rank <= 3 ? 'linear-gradient(90deg,rgba(42,80,130,0.14) 0%,rgba(18,22,30,0.5) 100%)' : 'rgba(18,22,30,0.35)'; }}
                   >
                     {/* Rank */}
-                    <div style={{ textAlign: 'center' }}>
+                    <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                       <div style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -672,18 +715,43 @@ export function Dashboard({
                       }}>
                         #{rank}
                       </div>
+                      {rankDelta !== null && rankDelta !== 0 && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          fontFamily: FONT_MONO,
+                          fontSize: 9,
+                          color: rankDelta > 0 ? '#50fa7b' : '#e94560',
+                          lineHeight: 1,
+                        }}>
+                          {rankDelta > 0 ? '▲' : '▼'}
+                          {Math.abs(rankDelta)}
+                        </div>
+                      )}
                     </div>
                     {/* Name + sub-stats */}
                     <div>
-                      <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#e0e4ea', marginBottom: 4 }}>
+                      <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#e0e4ea', marginBottom: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                         {p.name}
+                        {showCurrentSeason && sRank && (
+                          isUnranked ? (
+                            <span style={{ fontSize: 10, color: '#445', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 6px', fontFamily: FONT_MONO }}>
+                              UNRANKED ({sActC}/{SEASON_RANKED_THRESHOLD})
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 10, color: sRank.color, background: sRank.bg, border: `1px solid ${sRank.color}55`, borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, letterSpacing: 0.5 }}>
+                              {sRank.icon} {sRank.name.toUpperCase()}
+                            </span>
+                          )
+                        )}
                         {satWins > 0 && (
-                          <span style={{ marginLeft: 8, fontSize: 11, color: '#f5a623', background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4, padding: '2px 7px' }}>
+                          <span style={{ fontSize: 11, color: '#f5a623', background: 'rgba(245,166,35,0.12)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4, padding: '2px 7px' }}>
                             🏆x{satWins}
                           </span>
                         )}
                         {!activePlayers.includes(p.name) && (
-                          <span style={{ marginLeft: 8, fontSize: 10, color: '#888', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 6px' }}>
+                          <span style={{ fontSize: 10, color: '#888', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 6px' }}>
                             Retired
                           </span>
                         )}
