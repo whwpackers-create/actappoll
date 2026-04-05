@@ -66,6 +66,10 @@ export function History({
   const [histMonth, setHistMonth] = useState('');
   const [histYear, setHistYear] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 12;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useMemo(() => { setPage(0); }, [histSort, histMonth, histYear, playerSearch]);
 
   // Compute full ELO history ONCE (O(n)), then derive per-ACT before/after from hist entries.
   // hist[player] is an array of { actId, elo, change } in chronological order.
@@ -95,7 +99,7 @@ export function History({
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
-  const sorted = [...data.acts]
+  const sorted = useMemo(() => [...data.acts]
     .filter((a) => {
       const d = new Date(a.date);
       if (histYear && d.getFullYear() !== parseInt(histYear)) return false;
@@ -114,7 +118,12 @@ export function History({
     .sort((a, b) => {
       if (histSort === 'added') return -1;
       return new Date(b.date).getTime() - new Date(a.date).getTime();
-    });
+    }), [data.acts, histYear, histMonth, playerSearch, histSort]);
+
+  // Reset to page 0 when filters change
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
+  const pageSlice = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
 
   const selectStyle = {
@@ -201,7 +210,7 @@ export function History({
           <Empty text="No ACTs yet" />
         </div>
       ) : (
-        sorted.map((act) => {
+        pageSlice.map((act) => {
           const ts = teamScores(act);
           const w = ts[0];
           const aid = act.id || act._id;
@@ -892,6 +901,27 @@ export function History({
             </div>
           );
         })
+      )}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '16px 0' }}>
+          <button
+            onClick={() => setPage(Math.max(0, safePage - 1))}
+            disabled={safePage === 0}
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '8px 16px', fontFamily: FONT_MONO, fontSize: 12, color: safePage === 0 ? '#333' : '#a09880', cursor: safePage === 0 ? 'default' : 'pointer' }}
+          >
+            ← Prev
+          </button>
+          <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556' }}>
+            {safePage + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
+            disabled={safePage >= totalPages - 1}
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '8px 16px', fontFamily: FONT_MONO, fontSize: 12, color: safePage >= totalPages - 1 ? '#333' : '#a09880', cursor: safePage >= totalPages - 1 ? 'default' : 'pointer' }}
+          >
+            Next →
+          </button>
+        </div>
       )}
     </div>
   );

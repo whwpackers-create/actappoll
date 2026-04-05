@@ -155,15 +155,7 @@ export default function App() {
 
   useEffect(() => {
     document.body.style.backgroundColor = theme.bgColor;
-    document.body.style.backgroundImage =
-      (theme.bgImage ? 'url(' + theme.bgImage + '),' : '') +
-      'repeating-linear-gradient(0deg, transparent 0px, transparent 28px, rgba(255,255,255,' +
-      theme.stripeOpacity +
-      ') 28px, rgba(255,255,255,' +
-      theme.stripeOpacity +
-      ') ' +
-      (28 + parseInt(theme.stripeWidth || '3')) +
-      'px)';
+    document.body.style.backgroundImage = theme.bgImage ? 'url(' + theme.bgImage + ')' : 'none';
     document.body.style.backgroundAttachment = 'fixed';
     if (theme.bgImage) document.body.style.backgroundSize = 'cover';
   }, [theme]);

@@ -481,7 +481,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(auto-fill, minmax(140px, 1fr))`,
+              gridTemplateColumns: `repeat(${numTeams}, 1fr)`,
               gap: 10,
               marginBottom: 20,
             }}

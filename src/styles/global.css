@@ -1,5 +1,5 @@
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: #0a0b10; color: #f0e6d3; }
+html, body { margin: 0; padding: 0; background: #0a0b10; color: #f0e6d3; overflow-x: hidden; }
 button { cursor: pointer; }
 input, select, textarea { font-family: inherit; }
 
