@@ -258,26 +258,23 @@ export function Dashboard({
     return map;
   }, [currentSeasonData]);
 
-  // Rank movement: compare each player's current all-time rank vs their rank 30 days ago
+  // Rank movement: compare each player's current rank vs 30 days ago,
+  // using only ACTIVE players so the comparison pool matches the default leaderboard view
   const rankMovement30d = useMemo(() => {
     const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-    // VR for each player 30d ago = last eloHistory entry before cutoff date
+    const activeStats = stats.filter(ps => activePlayers.includes(ps.name));
     const vr30ago: Record<string, number> = {};
-    stats.forEach(ps => {
+    activeStats.forEach(ps => {
       const old = (ps.eloHistory ?? []).filter(h => h.date < cutoff);
-      if (old.length > 0) {
-        vr30ago[ps.name] = old[old.length - 1].elo;
-      }
-      // If no history before cutoff, they didn't exist yet — skip
+      if (old.length > 0) vr30ago[ps.name] = old[old.length - 1].elo;
     });
-    // Build old rank order (same filter as current: active only by default — use all for comparison)
-    const allWithOld = stats
+    const oldSorted = activeStats
       .filter(ps => ps.name in vr30ago)
-      .sort((a, b) => (vr30ago[b.name] ?? 0) - (vr30ago[a.name] ?? 0));
+      .sort((a, b) => vr30ago[b.name] - vr30ago[a.name]);
     const oldRankMap: Record<string, number> = {};
-    allWithOld.forEach((ps, i) => { oldRankMap[ps.name] = i + 1; });
+    oldSorted.forEach((ps, i) => { oldRankMap[ps.name] = i + 1; });
     return oldRankMap;
-  }, [stats]);
+  }, [stats, activePlayers]);
 
   let filtered: PlayerStats[] = [...stats];
   if (filterStatus === 'active')
@@ -321,26 +318,37 @@ export function Dashboard({
     const seasonRanks = [...(data.seasons ?? [])]
       .sort((a, b) => b.startDate.localeCompare(a.startDate))
       .map((season) => {
-        // Use each player's real ELO history (computed with full history context) to find
-        // their end-of-season ELO. This avoids wrong tiers from recomputing ELO in isolation.
-        const participants = stats
-          .map((ps) => {
-            const seasonEntries = (ps.eloHistory ?? []).filter(
-              (h) => h.date >= season.startDate && h.date <= season.endDate && !(h.isSat && h.points === 0)
-            );
-            if (seasonEntries.length === 0) return null;
-            const lastEntry = [...seasonEntries].sort((a, b) => a.date.localeCompare(b.date)).pop()!;
-            const actCount = seasonEntries.filter((h) => !h.isSat).length;
-            return { name: ps.name, elo: lastEntry.elo, actCount };
-          })
-          .filter((x): x is NonNullable<typeof x> => x !== null);
-        if (participants.length === 0) return null;
+        // Compute proper season VRs using the same midpoint-start engine as the Seasons page
+        const allTimeAtStart = computeAllElos(
+          data.players,
+          data.acts.filter(a => new Date(a.date) < new Date(season.startDate))
+        ).elos;
+        const sd = computeSeasonElos(data.players, data.acts, season, allTimeAtStart);
+        const myVR = sd.seasonElos[selPlayer!];
+        if (myVR == null) return null;
+        // Per-player ACT count = length of their season history
+        const myActCount = (sd.seasonHistory[selPlayer!] ?? []).length;
+        // Build ranked list of all players who have season history
+        const participants = Object.entries(sd.seasonElos)
+          .filter(([name]) => (sd.seasonHistory[name] ?? []).length > 0)
+          .map(([name, elo]) => ({ name, elo }));
         const sorted = [...participants].sort((a, b) => b.elo - a.elo);
-        const rank = sorted.findIndex((s) => s.name === selPlayer) + 1;
-        const myEntry = participants.find((s) => s.name === selPlayer);
-        if (!myEntry || rank === 0) return null;
-        const tier = getTier(Math.round(myEntry.elo));
-        return { seasonName: season.name, rank, total: sorted.length, elo: Math.round(myEntry.elo), actCount: myEntry.actCount, tier };
+        const rank = sorted.findIndex(s => s.name === selPlayer) + 1;
+        if (rank === 0) return null;
+        const seasonRankBadge = getSeasonRank(Math.round(myVR));
+        const isUnrankedEntry = myActCount < SEASON_RANKED_THRESHOLD;
+        return {
+          seasonName: season.name,
+          rank: isUnrankedEntry ? null : rank,
+          total: sorted.filter((_, i) => {
+            const n = sorted[i].name;
+            return (sd.seasonHistory[n] ?? []).length >= SEASON_RANKED_THRESHOLD;
+          }).length,
+          elo: Math.round(myVR),
+          actCount: myActCount,
+          badge: seasonRankBadge,
+          isUnranked: isUnrankedEntry,
+        };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
     return { ps, finishes, totalFinishes, satPlacements, peakElo, lbRank, seasonRanks };
@@ -551,29 +559,47 @@ export function Dashboard({
                   {filtered.length} PLAYERS
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {currentSeason && (
-                  <button
-                    onClick={() => setShowCurrentSeason(v => !v)}
-                    style={{
-                      background: showCurrentSeason ? 'rgba(96,165,250,0.18)' : 'rgba(255,255,255,0.05)',
-                      border: `1px solid ${showCurrentSeason ? 'rgba(96,165,250,0.5)' : 'rgba(255,255,255,0.1)'}`,
-                      borderRadius: 6,
-                      padding: '6px 14px',
-                      fontFamily: FONT_HEADER,
-                      fontSize: 11,
-                      color: showCurrentSeason ? '#60a5fa' : '#8090a8',
-                      cursor: 'pointer',
-                      letterSpacing: 1,
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {showCurrentSeason ? `${currentSeason.name} ✕` : 'CURRENT SEASON'}
-                  </button>
-                )}
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {/* Tab: All-Time */}
+                <button
+                  onClick={() => setShowCurrentSeason(false)}
+                  style={{
+                    background: !showCurrentSeason ? 'rgba(96,165,250,0.18)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${!showCurrentSeason ? 'rgba(96,165,250,0.6)' : 'rgba(255,255,255,0.08)'}`,
+                    borderRadius: '6px 0 0 6px',
+                    padding: '6px 14px',
+                    fontFamily: FONT_HEADER,
+                    fontSize: 11,
+                    color: !showCurrentSeason ? '#60a5fa' : '#445',
+                    cursor: 'pointer',
+                    letterSpacing: 1,
+                  }}
+                >
+                  ALL-TIME
+                </button>
+                {/* Tab: Current Season */}
+                <button
+                  onClick={() => setShowCurrentSeason(true)}
+                  disabled={!currentSeason}
+                  style={{
+                    background: showCurrentSeason ? 'rgba(96,165,250,0.18)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${showCurrentSeason ? 'rgba(96,165,250,0.6)' : 'rgba(255,255,255,0.08)'}`,
+                    borderRadius: '0 6px 6px 0',
+                    padding: '6px 14px',
+                    fontFamily: FONT_HEADER,
+                    fontSize: 11,
+                    color: showCurrentSeason ? '#60a5fa' : currentSeason ? '#445' : '#2a3040',
+                    cursor: currentSeason ? 'pointer' : 'default',
+                    letterSpacing: 1,
+                    borderLeft: 'none',
+                  }}
+                >
+                  {currentSeason ? currentSeason.name.toUpperCase() : 'NO ACTIVE SEASON'}
+                </button>
                 <button
                   onClick={() => setShowEloInfo(v => !v)}
                   style={{
+                    marginLeft: 6,
                     background: showEloInfo ? 'rgba(200,160,48,0.18)' : 'rgba(255,255,255,0.05)',
                     border: `1px solid ${showEloInfo ? 'rgba(200,160,48,0.5)' : 'rgba(255,255,255,0.1)'}`,
                     borderRadius: 6,
@@ -583,7 +609,6 @@ export function Dashboard({
                     color: showEloInfo ? '#c8a030' : '#8090a8',
                     cursor: 'pointer',
                     letterSpacing: 1,
-                    transition: 'all 0.15s',
                   }}
                 >
                   VR INFO
@@ -734,6 +759,11 @@ export function Dashboard({
                     <div>
                       <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#e0e4ea', marginBottom: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                         {p.name}
+                        {!showCurrentSeason && (() => { const t = getTier(Math.round(p.elo)); return (
+                          <span style={{ fontSize: 10, color: t.color, background: `${t.color}18`, border: `1px solid ${t.color}40`, borderRadius: 4, padding: '2px 6px', fontFamily: FONT_MONO, letterSpacing: 0.5 }}>
+                            {t.icon} {t.name.toUpperCase()}
+                          </span>
+                        ); })()}
                         {showCurrentSeason && sRank && (
                           isUnranked ? (
                             <span style={{ fontSize: 10, color: '#445', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 6px', fontFamily: FONT_MONO }}>
@@ -985,12 +1015,20 @@ export function Dashboard({
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(30,50,80,0.2)', border: '1px solid rgba(100,140,200,0.12)', borderRadius: 6, padding: '10px 14px', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#c8d4e8', flex: 1 }}>{sr.seasonName}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.tier.color, background: `${sr.tier.color}18`, border: `1px solid ${sr.tier.color}50`, borderRadius: 5, padding: '2px 8px' }}>
-                          {sr.tier.icon} {sr.tier.name}
-                        </span>
-                        <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.rank === 1 ? '#fde68a' : sr.rank === 2 ? '#94a3b8' : sr.rank === 3 ? '#cd7f32' : '#93c5fd' }}>
-                          #{sr.rank}<span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>/{sr.total}</span>
-                        </span>
+                        {sr.isUnranked ? (
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 7px' }}>
+                            UNRANKED ({sr.actCount}/{SEASON_RANKED_THRESHOLD})
+                          </span>
+                        ) : (
+                          <>
+                            <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.badge.color, background: sr.badge.bg, border: `1px solid ${sr.badge.color}50`, borderRadius: 5, padding: '2px 8px' }}>
+                              {sr.badge.icon} {sr.badge.name}
+                            </span>
+                            <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.rank === 1 ? '#fde68a' : sr.rank === 2 ? '#94a3b8' : sr.rank === 3 ? '#cd7f32' : '#93c5fd' }}>
+                              #{sr.rank}<span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>/{sr.total}</span>
+                            </span>
+                          </>
+                        )}
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#93c5fd', fontWeight: 700 }}>VR {sr.elo}</span>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{sr.actCount} ACTs</span>
                       </div>
