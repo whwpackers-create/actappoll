@@ -226,7 +226,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
         for (let ti = 0; ti < numTeams; ti++) {
           const mi = m[ri][ti][h];
           res.push({
-            player: teams[ti].members[mi] ?? 'P' + mi,
+            player: teams[ti].members[mi] || ('P' + mi),
             points: grid[ri][ti][h] ?? 0,
           });
         }

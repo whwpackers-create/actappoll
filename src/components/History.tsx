@@ -235,18 +235,15 @@ export function History({
 
           // ELO snapshots come from precomputed history — O(1) per ACT
 
-          // Per-player total points from races (include subs so their points show correctly)
+          // Per-player total points — accumulate directly from race results so
+          // players at member slots 2/3 in 16-man are always counted correctly
+          // regardless of how many members are stored in act.teams.
           const pp: Record<string, number> = {};
-          act.teams.forEach((t) => {
-            t.members.forEach((m, i) => {
-              pp[m] = 0;
-              const sub = t.subs?.[i];
-              if (sub && sub !== '') pp[sub] = 0;
-            });
-          });
           act.races.forEach((r) =>
             r.results.forEach((x) => {
-              if (x.player in pp) pp[x.player] += x.points;
+              if (x.player && x.player.trim()) {
+                pp[x.player] = (pp[x.player] ?? 0) + x.points;
+              }
             })
           );
 
