@@ -65,11 +65,12 @@ export function History({
   const [histSort, setHistSort] = useState('date');
   const [histMonth, setHistMonth] = useState('');
   const [histYear, setHistYear] = useState('');
+  const [histType, setHistType] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 12;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useMemo(() => { setPage(0); }, [histSort, histMonth, histYear, playerSearch]);
+  useMemo(() => { setPage(0); }, [histSort, histMonth, histYear, histType, playerSearch]);
 
   // Compute full ELO history ONCE (O(n)), then derive per-ACT before/after from hist entries.
   // hist[player] is an array of { actId, elo, change } in chronological order.
@@ -104,6 +105,16 @@ export function History({
       const d = new Date(a.date);
       if (histYear && d.getFullYear() !== parseInt(histYear)) return false;
       if (histMonth && d.getMonth() !== parseInt(histMonth)) return false;
+      if (histType) {
+        // Use grid width to detect true type (same logic as display)
+        let savedGridForFilter: (number | null)[][][] | null = null;
+        if (a.gridJson) { try { savedGridForFilter = JSON.parse(a.gridJson); } catch { /* ignore */ } }
+        const gw = (savedGridForFilter?.[0]?.[0] as (number | null)[] | undefined)?.length;
+        let detectedType = a.type ?? '8man';
+        if (gw === 8) detectedType = '16man';
+        else if (gw === 6) detectedType = '12man';
+        if (detectedType !== histType) return false;
+      }
       if (playerSearch.trim()) {
         const q = playerSearch.trim().toLowerCase();
         const inAct = a.teams.some((t) =>
@@ -118,7 +129,7 @@ export function History({
     .sort((a, b) => {
       if (histSort === 'added') return -1;
       return new Date(b.date).getTime() - new Date(a.date).getTime();
-    }), [data.acts, histYear, histMonth, playerSearch, histSort]);
+    }), [data.acts, histYear, histMonth, histType, playerSearch, histSort]);
 
   // Reset to page 0 when filters change
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
@@ -181,6 +192,16 @@ export function History({
             </option>
           ))}
         </select>
+        <select
+          value={histType}
+          onChange={(e) => setHistType(e.target.value)}
+          style={selectStyle}
+        >
+          <option value="">All Types</option>
+          <option value="8man">8-Man</option>
+          <option value="12man">12-Man</option>
+          <option value="16man">16-Man</option>
+        </select>
         <datalist id="hist-plist">
           {data.players.map((p) => (
             <option key={p.name} value={p.name} />
@@ -229,23 +250,49 @@ export function History({
             try { savedPM = JSON.parse(act.playerMapJson); } catch { /* ignore */ }
           }
 
-          const actType = act.type ?? '8man';
+          // Auto-detect actType from saved grid dimensions — more reliable than
+          // the stored type field, which may have been saved wrong (e.g. 16-man
+          // saved as 8-man because the actType state wasn't updated in time).
+          const gridWidth = (savedGrid?.[0]?.[0] as (number | null)[] | undefined)?.length;
+          let actType = act.type ?? '8man';
+          if (gridWidth === 8) actType = '16man';
+          else if (gridWidth === 6) actType = '12man';
           const tSz = actType === '12man' ? 3 : actType === '16man' ? 4 : 2;
           const numTeams = actType === '6man' ? 3 : 4;
 
           // ELO snapshots come from precomputed history — O(1) per ACT
 
-          // Per-player total points — accumulate directly from race results so
-          // players at member slots 2/3 in 16-man are always counted correctly
-          // regardless of how many members are stored in act.teams.
+          // Per-player total points — computed from savedGrid+savedPM when available
+          // so that TV2 (B/D slot) players in 16-man get their correct points
+          // even when act.races was saved with wrong actType (only TV1 in races).
           const pp: Record<string, number> = {};
-          act.races.forEach((r) =>
-            r.results.forEach((x) => {
-              if (x.player && x.player.trim()) {
-                pp[x.player] = (pp[x.player] ?? 0) + x.points;
+          if (savedGrid && savedPM) {
+            for (let ri = 0; ri < 4; ri++) {
+              for (let ti = 0; ti < numTeams; ti++) {
+                const gridRow = savedGrid[ri]?.[ti] as (number | null)[] | undefined;
+                if (!gridRow) continue;
+                for (let h = 0; h < gridRow.length; h++) {
+                  const mi = savedPM[ri]?.[ti]?.[h];
+                  if (mi === undefined || mi === null) continue;
+                  const t = act.teams[ti];
+                  if (!t) continue;
+                  const sub = t.subs?.[mi];
+                  const playerName = (sub && sub !== '') ? sub : (t.members[mi] ?? '');
+                  if (!playerName) continue;
+                  pp[playerName] = (pp[playerName] ?? 0) + (gridRow[h] ?? 0);
+                }
               }
-            })
-          );
+            }
+          } else {
+            // Fallback: accumulate from race results
+            act.races.forEach((r) =>
+              r.results.forEach((x) => {
+                if (x.player && x.player.trim()) {
+                  pp[x.player] = (pp[x.player] ?? 0) + x.points;
+                }
+              })
+            );
+          }
 
           // Round total helper
           const getRoundTot = (ri: number, ti: number): number => {
