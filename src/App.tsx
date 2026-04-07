@@ -28,6 +28,7 @@ import { SAT } from './components/SAT';
 import { Blackjack } from './components/Blackjack';
 import { defaultTheme } from './styles/theme';
 import type { AppData, Act, Player } from './types';
+import { computeStats } from './utils/elo';
 import { FONT_HEADER, FONT_BODY } from './styles/theme';
 
 type View =
@@ -1304,7 +1305,7 @@ export default function App() {
           />
         )}
         {view === 'chooser' && (
-          <Chooser setView={(v) => setView(v as View)} />
+          <Chooser setView={(v) => setView(v as View)} data={data} stats={computeStats(data.players, data.acts, data.sats ?? [], data.seasons)} />
         )}
         {view === 'analytics' && (
           <Analytics
