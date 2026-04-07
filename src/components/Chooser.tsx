@@ -41,10 +41,18 @@ function generateTeams(
   const sorted = [...playerNames].sort((a, b) => getElo(b) - getElo(a));
 
   if (format === '8man') {
-    // Snake draft: seed 1 with 8, 2 with 7, 3 with 6, 4 with 5
-    // Seeds 1-4 = "A" slot (play first), seeds 5-8 = "B" slot
-    const pairs: [number, number][] = [[0, 7], [1, 6], [2, 5], [3, 4]];
-    return pairs.map(([ai, bi], ti) => {
+    // Optimize: try all 24 pairings of top-4 (0-3) with bottom-4 (4-7)
+    // Each top seed is always slot A, each bottom seed is slot B
+    const bottom = [4, 5, 6, 7];
+    let bestPerm8 = bottom;
+    let bestVar8 = Infinity;
+    for (const perm of permutations(bottom)) {
+      const totals = [0, 1, 2, 3].map((ai, ti) => getElo(sorted[ai]) + getElo(sorted[perm[ti]]));
+      const v = variance(totals);
+      if (v < bestVar8) { bestVar8 = v; bestPerm8 = perm; }
+    }
+    return [0, 1, 2, 3].map((ai, ti) => {
+      const bi = bestPerm8[ti];
       const a = sorted[ai];
       const b = sorted[bi];
       return {
@@ -59,20 +67,28 @@ function generateTeams(
   }
 
   if (format === '12man') {
-    // Fixed: seed 1+12, 2+11, 3+10, 4+9
-    // Middle bracket seeds 5-8 optimized across teams to minimize ELO variance
-    const anchors: [number, number][] = [[0, 11], [1, 10], [2, 9], [3, 8]];
-    const midSeeds = [4, 5, 6, 7]; // 0-indexed: seeds 5,6,7,8
+    // Seeds 3+10, 4+9 are fixed. Seeds 1 and 2 can swap between 11 and 12
+    // to account for unequal skill gaps at the bottom. Try both assignments.
+    // Middle seeds (5-8) optimized across all 4 teams via permutations.
+    const midSeeds = [4, 5, 6, 7];
 
-    let bestPerm = midSeeds;
-    let bestVar = Infinity;
-    for (const perm of permutations(midSeeds)) {
-      const totals = anchors.map(([ai, bi], ti) =>
-        getElo(sorted[ai]) + getElo(sorted[bi]) + getElo(sorted[perm[ti]])
-      );
-      const v = variance(totals);
-      if (v < bestVar) { bestVar = v; bestPerm = perm; }
-    }
+    const tryAnchors = (top2bottom: [number, number][]): { anchors: [number, number][]; perm: number[]; v: number } => {
+      const anchors: [number, number][] = [top2bottom[0], top2bottom[1], [2, 9], [3, 8]];
+      let bestPerm = midSeeds;
+      let bestVar = Infinity;
+      for (const perm of permutations(midSeeds)) {
+        const totals = anchors.map(([ai, bi], ti) =>
+          getElo(sorted[ai]) + getElo(sorted[bi]) + getElo(sorted[perm[ti]])
+        );
+        const v = variance(totals);
+        if (v < bestVar) { bestVar = v; bestPerm = perm; }
+      }
+      return { anchors, perm: bestPerm, v: bestVar };
+    };
+
+    const optionA = tryAnchors([[0, 11], [1, 10]]); // 1+12, 2+11
+    const optionB = tryAnchors([[0, 10], [1, 11]]); // 1+11, 2+12
+    const { anchors, perm: bestPerm } = optionA.v <= optionB.v ? optionA : optionB;
 
     return anchors.map(([ai, bi], ti) => {
       const a = sorted[ai];
@@ -323,8 +339,8 @@ export function Chooser({ setView, data, stats }: ChooserProps) {
 
             {/* Format hint */}
             <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', marginBottom: 16, lineHeight: 1.6 }}>
-              {format === '8man' && 'Snake draft: Seed 1+8, 2+7, 3+6, 4+5 — balanced team ELOs'}
-              {format === '12man' && 'Fixed pairs: 1+12, 2+11, 3+10, 4+9. Middle seeds (5–8) optimized across teams.'}
+              {format === '8man' && 'Optimized pairings: top 4 matched with bottom 4 for lowest ELO variance across teams.'}
+              {format === '12man' && 'Seeds 3+10, 4+9 fixed. Seeds 1 & 2 swap with 11/12 if it balances better. Middle (5–8) optimized.'}
               {format === '16man' && 'Snake draft across 4 brackets: 1+8+9+16, 2+7+10+15, 3+6+11+14, 4+5+12+13'}
             </div>
 
