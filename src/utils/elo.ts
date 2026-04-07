@@ -14,11 +14,29 @@ const VR_BASE_PTS = [20, 10, -10, -20];
 const VR_DIFF_K   = 180;
 const VR_DIFF_CAP = 15;
 
+// Season mode uses a tighter K and higher cap so opponent quality matters more
+// e.g. winning 5 races against weaker opponents gives noticeably less VR gain
+const SEASON_DIFF_K   = 120;
+const SEASON_DIFF_CAP = 22;
+
 // Underdog protection thresholds
 // When a player is this many VR below room average, losses start being reduced
 const UNDERDOG_FLOOR  = 300;   // deficit at which protection starts
 const UNDERDOG_SCALE  = 900;   // deficit at which protection is at max
 const UNDERDOG_MAX    = 0.85;  // maximum loss reduction (85%)
+
+// Veteran dampening — scales with career ACT count (all-time only, not season)
+// Veterans lose less against stronger opponents, gain less against weaker ones
+const VETERAN_ACT_START  = 10;   // dampening begins ramping up at 10 ACTs
+const VETERAN_ACT_MAX    = 35;   // fully applied at 35+ ACTs
+const VETERAN_LOSS_CAP   = 0.60; // max additional 60% loss reduction (stacks with underdog protection)
+const VETERAN_GAIN_CAP   = 0.35; // max 35% gain reduction when beating much weaker opponents
+const VETERAN_OPP_FLOOR  = 300;  // VR gap at which veteran effect starts activating
+const VETERAN_OPP_SCALE  = 700;  // ramp range — full effect at gap of FLOOR+SCALE (1000 VR)
+
+// Placement: first N ACTs amplify both gains AND losses to calibrate new players faster
+export const PLACEMENT_ACTS = 4;
+export const PLACEMENT_MULT = 2.0;
 
 // SAT gain multipliers — gains only, losses are normal
 export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 2.0 };
@@ -57,8 +75,10 @@ export const SAT_PLACEMENT_BONUS: Record<string, number> = {
 function vrChange(
   myVR: number,
   oppVRs: number[],
-  pos: number,        // 0=1st, 1=2nd, 2=3rd, 3=4th
-  satGainMult: number
+  pos: number,          // 0=1st, 1=2nd, 2=3rd, 3=4th
+  satGainMult: number,
+  actsBefore: number = 0,    // career ACTs completed before this one
+  seasonMode: boolean = false // use tighter K/cap; veteran dampening OFF
 ): number {
   if (oppVRs.length === 0) return 0;
 
@@ -69,18 +89,42 @@ function vrChange(
   const base = VR_BASE_PTS[Math.min(pos, VR_BASE_PTS.length - 1)];
 
   // Skill modifier — being above the room reduces gains, increases losses
-  const adj  = Math.max(-VR_DIFF_CAP, Math.min(VR_DIFF_CAP, -(diff / VR_DIFF_K)));
+  // Season mode uses tighter K so opponent quality matters more
+  const K   = seasonMode ? SEASON_DIFF_K   : VR_DIFF_K;
+  const CAP = seasonMode ? SEASON_DIFF_CAP : VR_DIFF_CAP;
+  const adj = Math.max(-CAP, Math.min(CAP, -(diff / K)));
   let change = base + adj;
 
   // SAT day multiplier (gains only)
   if (change > 0) change *= satGainMult;
 
+  // Placement window: first N ACTs amplify both gains and losses for fast calibration
+  // Skip all other modifiers — raw signal is what we want here
+  if (actsBefore < PLACEMENT_ACTS) {
+    return change * PLACEMENT_MULT;
+  }
+
   // Underdog protection: reduce losses when substantially below room average
-  // e.g. 600 below = 0% reduction, 1200 below = 40%, 1800+ below = 80%
   if (change < 0 && diff < -UNDERDOG_FLOOR) {
     const deficit = Math.abs(diff) - UNDERDOG_FLOOR;
     const reductionFactor = Math.min(UNDERDOG_MAX, (deficit / UNDERDOG_SCALE) * UNDERDOG_MAX);
     change *= (1 - reductionFactor);
+  }
+
+  // Veteran dampening (all-time only — season keeps opponents honest via K/cap)
+  if (!seasonMode && actsBefore >= VETERAN_ACT_START) {
+    const vFactor = Math.min(1, (actsBefore - VETERAN_ACT_START) / (VETERAN_ACT_MAX - VETERAN_ACT_START));
+    const gapFactor = Math.max(0, Math.min(1, (Math.abs(diff) - VETERAN_OPP_FLOOR) / VETERAN_OPP_SCALE));
+    const strength = vFactor * gapFactor;
+    if (strength > 0) {
+      if (change < 0 && diff < 0) {
+        // Veteran below the room — reduce loss
+        change *= (1 - strength * VETERAN_LOSS_CAP);
+      } else if (change > 0 && diff > 0) {
+        // Veteran above the room — reduce gain
+        change *= (1 - strength * VETERAN_GAIN_CAP);
+      }
+    }
   }
 
   // Diminishing returns above VR_ELITE (losses unaffected)
@@ -98,10 +142,11 @@ export function computeAllElos(
   _sats?: Sat[] | null,
   _seasons?: Season[]
 ): { elos: Record<string, number>; hist: Record<string, EloHistoryEntry[]> } {
-  const vrs:  Record<string, number>           = {};
-  const hist: Record<string, EloHistoryEntry[]> = {};
+  const vrs:      Record<string, number>           = {};
+  const hist:     Record<string, EloHistoryEntry[]> = {};
+  const actCount: Record<string, number>            = {}; // career ACTs completed so far
 
-  players.forEach((p) => { vrs[p.name] = STARTING_VR; hist[p.name] = []; });
+  players.forEach((p) => { vrs[p.name] = STARTING_VR; hist[p.name] = []; actCount[p.name] = 0; });
 
   [...acts]
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -121,12 +166,14 @@ export function computeAllElos(
       act.teams.forEach((t) => t.members.forEach((m) => actPlayers.add(remap(m))));
       act.races.forEach((r) => r.results.forEach((res) => { if (res.player) actPlayers.add(remap(res.player)); }));
 
-      const startVR:   Record<string, number> = {};
-      const totalPts:  Record<string, number> = {};
+      const startVR:       Record<string, number> = {};
+      const totalPts:      Record<string, number> = {};
+      const actsBeforeMap: Record<string, number> = {}; // snapshot before this act
       actPlayers.forEach((name) => {
-        if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; }
-        startVR[name]  = vrs[name];
-        totalPts[name] = 0;
+        if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; actCount[name] = 0; }
+        startVR[name]       = vrs[name];
+        totalPts[name]      = 0;
+        actsBeforeMap[name] = actCount[name];
       });
 
       // Process each race individually — VR updates carry into subsequent races
@@ -144,13 +191,16 @@ export function computeAllElos(
         const sorted = [...raceResults].sort((a, b) => b.pts - a.pts);
 
         sorted.forEach(({ name }, pos) => {
-          if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; startVR[name] = STARTING_VR; totalPts[name] = 0; }
+          if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; startVR[name] = STARTING_VR; totalPts[name] = 0; actsBeforeMap[name] = 0; actCount[name] = 0; }
 
           const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => vrs[opp] ?? STARTING_VR);
-          const change = vrChange(vrs[name], oppVRs, pos, satGainMult);
+          const change = vrChange(vrs[name], oppVRs, pos, satGainMult, actsBeforeMap[name], false);
           vrs[name] = Math.max(1, Math.min(VR_MAX, vrs[name] + change));
         });
       });
+
+      // Increment career ACT count once per act (after all races processed)
+      actPlayers.forEach((name) => { actCount[name] = (actCount[name] ?? 0) + 1; });
 
       // One history entry per act (net VR change across all races)
       actPlayers.forEach((name) => {
@@ -230,12 +280,9 @@ export function computeSeasonElos(
       sorted.forEach(({ name }, pos) => {
         if (!(name in sVRs)) { sVRs[name] = seasonStart(name); sH[name] = []; startVR[name] = seasonStart(name); totalPts[name] = 0; actCount[name] = 0; }
 
-        // Placement boost: first N races get a gain multiplier
-        const isPlacement = (actCount[name] ?? 0) < SEASON_PLACEMENT_ACTS;
-        const placementMult = isPlacement ? SEASON_PLACEMENT_MULT : 1;
-
         const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => sVRs[opp] ?? seasonStart(opp));
-        const change = vrChange(sVRs[name], oppVRs, pos, satGainMult * placementMult);
+        // Pass actsBefore so vrChange handles placement (2× both ways) and uses season K/cap
+        const change = vrChange(sVRs[name], oppVRs, pos, satGainMult, actCount[name] ?? 0, true);
         sVRs[name] = Math.max(1, Math.min(VR_MAX, sVRs[name] + change));
       });
     });
