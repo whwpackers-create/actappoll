@@ -412,6 +412,17 @@ export function Dashboard({
   }, [selPlayer, stats, data.acts, data.sats, allSeasons, data.players]);
 
   const totalActive = activePlayers.length;
+
+  const activeStats = stats.filter((ps) => activePlayers.includes(ps.name));
+  const biggestClimber = activeStats.reduce<PlayerStats | null>(
+    (best, ps) => (!best || (ps.change30d ?? 0) > (best.change30d ?? 0) ? ps : best),
+    null
+  );
+  const biggestLoser = activeStats.reduce<PlayerStats | null>(
+    (worst, ps) => (!worst || (ps.change30d ?? 0) < (worst.change30d ?? 0) ? ps : worst),
+    null
+  );
+
   const selS = {
     background: '#181c24',
     border: '2px solid #6a6040',
@@ -433,6 +444,80 @@ export function Dashboard({
         position: 'relative',
       }}
     >
+      {/* Biggest climber / loser row */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 0,
+          marginBottom: 0,
+          borderLeft: '2px solid #2a3550',
+          borderRight: '2px solid #2a3550',
+          borderTop: '2px solid #2a3550',
+          borderBottom: 'none',
+          borderRadius: '6px 6px 0 0',
+          overflow: 'hidden',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        {/* Biggest Climber */}
+        <div
+          style={{
+            background: 'rgba(15,18,25,0.48)',
+            backdropFilter: 'blur(4px)',
+            borderRight: '1px solid rgba(42,53,80,0.6)',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+          }}
+        >
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
+          <div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', letterSpacing: 2, marginBottom: 3 }}>BIGGEST CLIMBER (30D)</div>
+            {biggestClimber && (biggestClimber.change30d ?? 0) > 0 ? (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: FONT_HEADER, fontSize: 20, color: '#e8e0c0' }}>{biggestClimber.name}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#4ade80', fontWeight: 700 }}>+{biggestClimber.change30d}</span>
+              </div>
+            ) : (
+              <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556' }}>—</span>
+            )}
+          </div>
+        </div>
+        {/* Biggest Loser */}
+        <div
+          style={{
+            background: 'rgba(15,18,25,0.48)',
+            backdropFilter: 'blur(4px)',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+          }}
+        >
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/>
+            <polyline points="17 18 23 18 23 12"/>
+          </svg>
+          <div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', letterSpacing: 2, marginBottom: 3 }}>BIGGEST LOSER (30D)</div>
+            {biggestLoser && (biggestLoser.change30d ?? 0) < 0 ? (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: FONT_HEADER, fontSize: 20, color: '#e8e0c0' }}>{biggestLoser.name}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#f87171', fontWeight: 700 }}>{biggestLoser.change30d}</span>
+              </div>
+            ) : (
+              <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556' }}>—</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div
         className="stat-cards"
         style={{
@@ -441,7 +526,7 @@ export function Dashboard({
           gap: 0,
           marginBottom: 20,
           border: '2px solid #2a3550',
-          borderRadius: 6,
+          borderRadius: '0 0 6px 6px',
           overflow: 'hidden',
           position: 'relative',
           zIndex: 1,
