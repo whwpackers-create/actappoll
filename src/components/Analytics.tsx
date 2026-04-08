@@ -35,6 +35,9 @@ export function Analytics({ data, setView }: AnalyticsProps) {
   const [h2hQ2, setH2hQ2] = useState('');
   const [h2hShow1, setH2hShow1] = useState(false);
   const [h2hShow2, setH2hShow2] = useState(false);
+  const [rivalsQ, setRivalsQ] = useState('');
+  const [rivalsPlayer, setRivalsPlayer] = useState('');
+  const [rivalsDropdown, setRivalsDropdown] = useState(false);
 
   const h2hData = useMemo(() => {
     if (!h2hP1 || !h2hP2 || h2hP1 === h2hP2) return null;
@@ -91,6 +94,51 @@ export function Analytics({ data, setView }: AnalyticsProps) {
       p2AvgPts: totalRaces > 0 ? p2TotalPts / totalRaces : 0,
     };
   }, [h2hP1, h2hP2, data.acts]);
+
+  const rivalsData = useMemo(() => {
+    if (!rivalsPlayer) return null;
+    const getActiveName = (act: AppData['acts'][0], name: string): string | null => {
+      for (const team of act.teams ?? []) {
+        const idx = (team.members ?? []).indexOf(name);
+        if (idx !== -1) return team.subs?.[idx] || name;
+      }
+      return null;
+    };
+    const opponentMap: Record<string, { races: number; wins: number }> = {};
+    for (const act of data.acts ?? []) {
+      const myActive = getActiveName(act, rivalsPlayer);
+      if (!myActive) continue;
+      // Find all other players in this act
+      const otherPlayers = new Set<string>();
+      for (const team of act.teams ?? []) {
+        for (const member of team.members ?? []) {
+          if (member !== rivalsPlayer) {
+            const active = getActiveName(act, member) ?? member;
+            otherPlayers.add(member); // key by roster name
+            // map active name back to roster name
+            void active;
+          }
+        }
+      }
+      for (const opponent of otherPlayers) {
+        const oppActive = getActiveName(act, opponent);
+        if (!oppActive) continue;
+        for (const race of act.races ?? []) {
+          const myResult = (race.results ?? []).find(r => r.player === myActive);
+          const oppResult = (race.results ?? []).find(r => r.player === oppActive);
+          if (!myResult || !oppResult) continue;
+          if (!opponentMap[opponent]) opponentMap[opponent] = { races: 0, wins: 0 };
+          opponentMap[opponent].races++;
+          if (myResult.points > oppResult.points) opponentMap[opponent].wins++;
+        }
+      }
+    }
+    return Object.entries(opponentMap)
+      .filter(([, d]) => d.races >= 5)
+      .map(([name, d]) => ({ name, races: d.races, wins: d.wins, winPct: d.races > 0 ? d.wins / d.races : 0 }))
+      .filter(r => r.winPct >= 0.4 && r.winPct <= 0.6)
+      .sort((a, b) => b.races - a.races);
+  }, [rivalsPlayer, data.acts]);
 
   const colors = [
     '#e94560',
@@ -881,6 +929,118 @@ export function Analytics({ data, setView }: AnalyticsProps) {
             </>
           );
         })()}
+      </div>
+
+      {/* Rivals */}
+      <div
+        style={{
+          marginTop: 24,
+          background: 'rgba(14,18,30,0.85)',
+          border: '1px solid rgba(200,160,48,0.18)',
+          borderRadius: 12,
+          padding: '20px 24px',
+        }}
+      >
+        <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: '#ffffff', marginBottom: 4, letterSpacing: 3 }}>
+          RIVALS
+        </div>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 22 }}>
+          PLAYERS WITH A 40–60% RACE WIN RATE AGAINST (MIN 5 SHARED RACES)
+        </div>
+
+        <div style={{ position: 'relative', maxWidth: 360, marginBottom: 24 }}>
+          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, display: 'block', marginBottom: 6 }}>SEARCH PLAYER</span>
+          <input
+            value={rivalsQ}
+            onChange={e => { setRivalsQ(e.target.value); setRivalsDropdown(true); if (!e.target.value) setRivalsPlayer(''); }}
+            onFocus={() => setRivalsDropdown(true)}
+            onBlur={() => setTimeout(() => setRivalsDropdown(false), 150)}
+            placeholder="Type a player name..."
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'rgba(255,255,255,0.04)',
+              border: `1px solid ${rivalsPlayer ? 'rgba(200,160,48,0.4)' : 'rgba(200,160,48,0.15)'}`,
+              borderRadius: 8, padding: '10px 14px',
+              fontFamily: FONT_HEADER, fontSize: 15, color: '#f0e6d3', outline: 'none',
+            }}
+          />
+          {rivalsDropdown && rivalsQ.length > 0 && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+              background: '#0f1420', border: '1px solid rgba(200,160,48,0.25)',
+              borderRadius: '0 0 8px 8px', overflow: 'hidden',
+            }}>
+              {allPlayerNames
+                .filter(n => n.toLowerCase().includes(rivalsQ.toLowerCase()))
+                .slice(0, 8)
+                .map(n => (
+                  <div
+                    key={n}
+                    onMouseDown={() => { setRivalsPlayer(n); setRivalsQ(n); setRivalsDropdown(false); }}
+                    style={{
+                      padding: '9px 14px', cursor: 'pointer',
+                      fontFamily: FONT_HEADER, fontSize: 14, color: '#c8bfa8',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    }}
+                    onMouseOver={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.1)')}
+                    onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    {n}
+                  </div>
+                ))}
+              {allPlayerNames.filter(n => n.toLowerCase().includes(rivalsQ.toLowerCase())).length === 0 && (
+                <div style={{ padding: '9px 14px', fontFamily: FONT_MONO, fontSize: 11, color: '#556' }}>No matches</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {rivalsPlayer && rivalsData !== null && (
+          rivalsData.length === 0 ? (
+            <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556' }}>
+              No rivals found — no opponents with 5+ shared races and a 40–60% win rate.
+            </div>
+          ) : (
+            <>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 10 }}>
+                {rivalsPlayer.toUpperCase()}'S RIVALS ({rivalsData.length})
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+                {rivalsData.map(r => {
+                  const pct = Math.round(r.winPct * 100);
+                  const isSlightlyAhead = pct > 50;
+                  return (
+                    <div key={r.name} style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(200,160,48,0.12)',
+                      borderRadius: 10, padding: '14px 16px',
+                    }}>
+                      <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', marginBottom: 8 }}>{r.name}</div>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', letterSpacing: 1, marginBottom: 2 }}>WIN RATE</div>
+                          <div style={{ fontFamily: FONT_HEADER, fontSize: 22, color: isSlightlyAhead ? '#50fa7b' : '#e94560', lineHeight: 1 }}>{pct}%</div>
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', letterSpacing: 1, marginBottom: 2 }}>W–L</div>
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 14, color: '#c8bfa8' }}>{r.wins}–{r.races - r.wins}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', letterSpacing: 1, marginBottom: 2 }}>RACES</div>
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 14, color: '#8090a0' }}>{r.races}</div>
+                        </div>
+                      </div>
+                      {/* Win rate bar */}
+                      <div style={{ marginTop: 10, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ width: pct + '%', height: '100%', background: isSlightlyAhead ? '#50fa7b' : '#e94560', borderRadius: 2, transition: 'width 0.4s' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )
+        )}
       </div>
     </div>
   );
