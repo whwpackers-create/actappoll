@@ -272,8 +272,13 @@ export function History({
                 const gridRow = savedGrid[ri]?.[ti] as (number | null)[] | undefined;
                 if (!gridRow) continue;
                 for (let h = 0; h < gridRow.length; h++) {
-                  const mi = savedPM[ri]?.[ti]?.[h];
-                  if (mi === undefined || mi === null) continue;
+                  const miRaw = savedPM?.[ri]?.[ti]?.[h];
+                  // Use saved PM entry; fall back to default layout when PM is shorter than grid
+                  const mi = miRaw !== undefined && miRaw !== null ? miRaw : (
+                    actType === '16man'
+                      ? (h < 4 ? (h % 2 === 0 ? 0 : 2) : (h % 2 === 0 ? 1 : 3))
+                      : h % tSz
+                  );
                   const t = act.teams[ti];
                   if (!t) continue;
                   const sub = t.subs?.[mi];
@@ -510,12 +515,29 @@ export function History({
                         <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1, marginBottom: 6 }}>PLAYER SUMMARY</div>
                         {act.teams.slice(0, numTeams).map((t, ti) =>
                           t.members.map((m, mi) => {
+                            // Recover name from races for old 16-man acts with empty member slots
+                            let resolvedM = m;
+                            if (!resolvedM.trim() && is16man && savedPM) {
+                              for (let ri = 0; ri < 4 && !resolvedM.trim(); ri++) {
+                                for (let h = 0; h < (savedPM[ri]?.[ti]?.length ?? 0); h++) {
+                                  if (savedPM[ri]?.[ti]?.[h] === mi) {
+                                    const raceIdx = ri * tSz * 2 + h;
+                                    const race = act.races[raceIdx];
+                                    if (race) {
+                                      const res = race.results.find(r => r.player && r.player.trim() && !r.player.startsWith('P'));
+                                      if (res) { resolvedM = res.player; break; }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            if (!resolvedM.trim()) return null;
                             const sub = t.subs?.[mi];
-                            const eloKey = sub && sub !== '' ? sub : m;
-                            const displayName = sub && sub !== '' ? `${sub.split(' ')[0]} (sub)` : m.split(' ')[0];
+                            const eloKey = sub && sub !== '' ? sub : resolvedM;
+                            const displayName = sub && sub !== '' ? `${sub.split(' ')[0]} (sub)` : resolvedM.split(' ')[0];
                             const { before, after } = getEloChange(eloKey, aid ?? '');
                             const diff = after - before;
-                            const pts2 = pp[eloKey] ?? pp[m] ?? 0;
+                            const pts2 = pp[eloKey] ?? pp[resolvedM] ?? 0;
                             const slot = ['A','B','C','D'][mi];
                             return (
                               <div key={`${ti}-${mi}`} style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 5, marginBottom: 5, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -861,16 +883,36 @@ export function History({
                           >
                             {team.members.map((member, mi) => {
                               const subName = team.subs?.[mi];
-                              const eloKey = subName && subName !== '' ? subName : member;
+                              // For 16-man acts with old data, member slots may be empty strings.
+                              // Try to recover the actual player name from race results when possible.
+                              let resolvedMember = member;
+                              if (!resolvedMember.trim() && is16man && savedPM) {
+                                // Find which heat positions map to this member index
+                                for (let ri = 0; ri < 4 && !resolvedMember.trim(); ri++) {
+                                  for (let h = 0; h < (savedPM[ri]?.[act.teams.indexOf(team)]?.length ?? 0); h++) {
+                                    if (savedPM[ri]?.[ti]?.[h] === mi) {
+                                      const raceIdx = ri * tSz * 2 + h;
+                                      const race = act.races[raceIdx];
+                                      if (race) {
+                                        const res = race.results.find(r => r.player && r.player.trim() && !r.player.startsWith('P'));
+                                        if (res) { resolvedMember = res.player; break; }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                              // Skip completely empty member slots (old 16-man data gap)
+                              if (!resolvedMember.trim()) return null;
+                              const eloKey = subName && subName !== '' ? subName : resolvedMember;
                               const { before, after } = getEloChange(eloKey, aid ?? '');
                               const diff = after - before;
                               const slot = mi === 0 ? 'A' : mi === 1 ? 'B' : mi === 2 ? 'C' : 'D';
                               const displayFirst = subName && subName !== ''
                                 ? `${subName.split(' ')[0]} (sub)`
-                                : member.split(' ')[0];
-                              const pts = (pp[eloKey] ?? pp[member] ?? 0);
+                                : resolvedMember.split(' ')[0];
+                              const pts = (pp[eloKey] ?? pp[resolvedMember] ?? 0);
                               return (
-                                <div key={member} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div key={resolvedMember || `slot-${mi}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                   <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#778', minWidth: 12 }}>{slot}:</span>
                                   <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#d0d4dc', flex: 1 }}>{displayFirst}</span>
                                   <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#a09880', minWidth: 30, textAlign: 'right' }}>{pts} pts</span>
