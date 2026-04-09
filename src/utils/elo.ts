@@ -50,11 +50,11 @@ export const SEASON_RANKED_THRESHOLD = 4;
 
 // Season ranks — compressed scale so Diamond/Platinum are achievable within a season
 export const SEASON_RANKS = [
-  { key: 'diamond',  name: 'Diamond',  min: 6000, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
-  { key: 'platinum', name: 'Platinum', min: 5750, color: '#e2e8f0', bg: 'rgba(226,232,240,0.10)', icon: '🔹' },
-  { key: 'gold',     name: 'Gold',     min: 5250, color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: '🥇' },
-  { key: 'silver',   name: 'Silver',   min: 5000, color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', icon: '🥈' },
-  { key: 'bronze',   name: 'Bronze',   min: 4750, color: '#cd7f32', bg: 'rgba(205,127,50,0.10)',  icon: '🥉' },
+  { key: 'diamond',  name: 'Diamond',  min: 6500, color: '#67e8f9', bg: 'rgba(103,232,249,0.12)', icon: '💎' },
+  { key: 'platinum', name: 'Platinum', min: 5900, color: '#e2e8f0', bg: 'rgba(226,232,240,0.10)', icon: '🔹' },
+  { key: 'gold',     name: 'Gold',     min: 5500, color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  icon: '🥇' },
+  { key: 'silver',   name: 'Silver',   min: 5200, color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', icon: '🥈' },
+  { key: 'bronze',   name: 'Bronze',   min: 4900, color: '#cd7f32', bg: 'rgba(205,127,50,0.10)',  icon: '🥉' },
   { key: 'copper',   name: 'Copper',   min: 0,    color: '#b45309', bg: 'rgba(180,83,9,0.10)',    icon: '🪙' },
 ] as const;
 
