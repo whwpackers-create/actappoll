@@ -116,10 +116,45 @@ export function computeAllElos(
       const satGainMult = act.satId
         ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
 
+      // For 16-man acts: if act.races is missing TV2 data, reconstruct TV2 races
+      // from gridJson+playerMapJson so TV2 players get proper VR changes.
+      // TV1 and TV2 each race only against their own TV peers — just like two 8-mans.
+      let effectiveRaces = act.races as { raceNum?: number; results: { player: string; points: number }[] }[];
+      if (act.gridJson && act.playerMapJson) {
+        try {
+          const sg: (number | null)[][][] = JSON.parse(act.gridJson);
+          const spm: number[][][] = JSON.parse(act.playerMapJson);
+          const gridWidth = sg?.[0]?.[0]?.length ?? 0;
+          // 16-man grid has 8 slots per cell; expect 32 races (4 rounds × 8 heats).
+          // If fewer than 32, TV2 races are missing — reconstruct them from the grid.
+          if (gridWidth === 8 && act.races.length < 32) {
+            const extra: typeof effectiveRaces = [];
+            let n = act.races.length + 1;
+            for (let ri = 0; ri < 4; ri++) {
+              for (let h = 4; h < 8; h++) {   // TV2 heat positions only
+                const res: { player: string; points: number }[] = [];
+                for (let ti = 0; ti < act.teams.length && ti < 4; ti++) {
+                  const miRaw = spm[ri]?.[ti]?.[h];
+                  const mi = miRaw !== undefined && miRaw !== null
+                    ? miRaw
+                    : (h % 2 === 0 ? 1 : 3);   // default TV2 slots: 1 and 3
+                  const memberName = act.teams[ti]?.members[mi] ?? '';
+                  if (!memberName.trim()) continue;
+                  const pts = sg[ri]?.[ti]?.[h] ?? 0;
+                  res.push({ player: memberName, points: pts });
+                }
+                if (res.length >= 2) extra.push({ raceNum: n++, results: res });
+              }
+            }
+            effectiveRaces = [...act.races, ...extra];
+          }
+        } catch { /* ignore malformed grid data */ }
+      }
+
       // Collect all players in this act and initialise any new ones
       const actPlayers = new Set<string>();
-      act.teams.forEach((t) => t.members.forEach((m) => actPlayers.add(remap(m))));
-      act.races.forEach((r) => r.results.forEach((res) => { if (res.player) actPlayers.add(remap(res.player)); }));
+      act.teams.forEach((t) => t.members.forEach((m) => { if (m.trim()) actPlayers.add(remap(m)); }));
+      effectiveRaces.forEach((r) => r.results.forEach((res) => { if (res.player) actPlayers.add(remap(res.player)); }));
 
       const startVR:   Record<string, number> = {};
       const totalPts:  Record<string, number> = {};
@@ -130,7 +165,7 @@ export function computeAllElos(
       });
 
       // Process each race individually — VR updates carry into subsequent races
-      act.races.forEach((race) => {
+      effectiveRaces.forEach((race) => {
         const raceResults = race.results
           .map((res) => ({ name: remap(res.player), pts: res.points }))
           .filter((r) => r.name);
@@ -206,9 +241,37 @@ export function computeSeasonElos(
     const satGainMult = act.satId
       ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
 
+    // Reconstruct missing TV2 races for 16-man acts (same logic as computeAllElos)
+    let effectiveRaces = act.races as { raceNum?: number; results: { player: string; points: number }[] }[];
+    if (act.gridJson && act.playerMapJson) {
+      try {
+        const sg: (number | null)[][][] = JSON.parse(act.gridJson);
+        const spm: number[][][] = JSON.parse(act.playerMapJson);
+        const gridWidth = sg?.[0]?.[0]?.length ?? 0;
+        if (gridWidth === 8 && act.races.length < 32) {
+          const extra: typeof effectiveRaces = [];
+          let n = act.races.length + 1;
+          for (let ri = 0; ri < 4; ri++) {
+            for (let h = 4; h < 8; h++) {
+              const res: { player: string; points: number }[] = [];
+              for (let ti = 0; ti < act.teams.length && ti < 4; ti++) {
+                const miRaw = spm[ri]?.[ti]?.[h];
+                const mi = miRaw !== undefined && miRaw !== null ? miRaw : (h % 2 === 0 ? 1 : 3);
+                const memberName = act.teams[ti]?.members[mi] ?? '';
+                if (!memberName.trim()) continue;
+                res.push({ player: memberName, points: sg[ri]?.[ti]?.[h] ?? 0 });
+              }
+              if (res.length >= 2) extra.push({ raceNum: n++, results: res });
+            }
+          }
+          effectiveRaces = [...act.races, ...extra];
+        }
+      } catch { /* ignore */ }
+    }
+
     const actPlayers = new Set<string>();
-    act.teams.forEach((t) => t.members.forEach((m) => actPlayers.add(remap(m))));
-    act.races.forEach((r) => r.results.forEach((res) => { if (res.player) actPlayers.add(remap(res.player)); }));
+    act.teams.forEach((t) => t.members.forEach((m) => { if (m.trim()) actPlayers.add(remap(m)); }));
+    effectiveRaces.forEach((r) => r.results.forEach((res) => { if (res.player) actPlayers.add(remap(res.player)); }));
 
     const startVR:  Record<string, number> = {};
     const totalPts: Record<string, number> = {};
@@ -218,7 +281,7 @@ export function computeSeasonElos(
       totalPts[name] = 0;
     });
 
-    act.races.forEach((race) => {
+    effectiveRaces.forEach((race) => {
       const raceResults = race.results
         .map((res) => ({ name: remap(res.player), pts: res.points }))
         .filter((r) => r.name);
