@@ -14,11 +14,15 @@ const VR_BASE_PTS = [30, 15, -15, -30];
 const VR_DIFF_K   = 120;
 const VR_DIFF_CAP = 20;
 
-// Floor loss dampening: players below FLOOR_VR lose less VR
-// Scale: 0% reduction at FLOOR_VR, FLOOR_MAX_REDUCTION at (FLOOR_VR - FLOOR_DEPTH)
-const FLOOR_VR            = 5000;
-const FLOOR_MAX_REDUCTION = 0.50;
-const FLOOR_DEPTH         = 1000;
+// Floor loss dampening: players below 5000 VR lose less based on ACTs played
+//  0–8 ACTs:  no protection (new players find their level fast)
+//  9–20 ACTs: 30% loss reduction below 5000
+//  21+ ACTs:  50% loss reduction below 5000
+const FLOOR_VR              = 5000;
+const FLOOR_MID_ACTS        = 8;    // must have played MORE than this for mid-tier protection
+const FLOOR_VET_ACTS        = 20;   // must have played MORE than this for full protection
+const FLOOR_MID_REDUCTION   = 0.30;
+const FLOOR_VET_REDUCTION   = 0.50;
 
 // Provisional period: first N all-time ACTs get reduced gains (not losses)
 const PROVISIONAL_ACTS      = 10;
@@ -67,9 +71,10 @@ export const SAT_PLACEMENT_BONUS: Record<string, number> = {
 function vrChange(
   myVR: number,
   oppVRs: number[],
-  pos: number,        // 0=1st, 1=2nd, 2=3rd, 3=4th
+  pos: number,           // 0=1st, 1=2nd, 2=3rd, 3=4th
   satGainMult: number,
-  provMult: number = 1.0   // provisional period multiplier (gains only)
+  provMult: number = 1.0,  // provisional period multiplier (gains only)
+  actCount: number = 0     // all-time ACTs played (for floor dampening tier)
 ): number {
   if (oppVRs.length === 0) return 0;
 
@@ -96,12 +101,12 @@ function vrChange(
     change *= (1 - reductionFactor);
   }
 
-  // Floor loss dampening: players below 5000 lose less VR
-  // Scales from 0% reduction at 5000 → 50% reduction at 4000 and below
+  // Floor loss dampening: players below 5000 lose less based on ACTs played
   if (change < 0 && myVR < FLOOR_VR) {
-    const depth = Math.min(FLOOR_DEPTH, FLOOR_VR - myVR);
-    const reduction = (depth / FLOOR_DEPTH) * FLOOR_MAX_REDUCTION;
-    change *= (1 - reduction);
+    let floorReduction = 0;
+    if (actCount > FLOOR_VET_ACTS)      floorReduction = FLOOR_VET_REDUCTION;
+    else if (actCount > FLOOR_MID_ACTS) floorReduction = FLOOR_MID_REDUCTION;
+    if (floorReduction > 0) change *= (1 - floorReduction);
   }
 
   // Diminishing returns above VR_ELITE (losses unaffected)
@@ -207,8 +212,9 @@ export function computeAllElos(
           if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; startVR[name] = STARTING_VR; totalPts[name] = 0; actProvSnapshot[name] = 0; }
 
           const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => vrs[opp] ?? STARTING_VR);
-          const provMult = (actProvSnapshot[name] ?? 0) < PROVISIONAL_ACTS ? PROVISIONAL_GAIN_MULT : 1.0;
-          const change = vrChange(vrs[name], oppVRs, pos, satGainMult, provMult);
+          const snap = actProvSnapshot[name] ?? 0;
+          const provMult = snap < PROVISIONAL_ACTS ? PROVISIONAL_GAIN_MULT : 1.0;
+          const change = vrChange(vrs[name], oppVRs, pos, satGainMult, provMult, snap);
           vrs[name] = Math.max(1, Math.min(VR_MAX, vrs[name] + change));
         });
       });
