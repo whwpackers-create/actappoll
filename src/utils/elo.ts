@@ -7,12 +7,22 @@ export const VR_MAX      = 9999;       // hard ceiling
 export const VR_ELITE    = 9000;       // diminishing returns kick in above this
 
 // Base VR change by finishing position (index 0 = 1st place)
-const VR_BASE_PTS = [20, 10, -10, -20];
+const VR_BASE_PTS = [30, 15, -15, -30];
 
 // Skill modifier: adjustment = -(diff / K), clamped to ±CAP
 // If you're rated higher than the room, you gain less and lose more
-const VR_DIFF_K   = 180;
-const VR_DIFF_CAP = 15;
+const VR_DIFF_K   = 120;
+const VR_DIFF_CAP = 20;
+
+// Floor loss dampening: players below FLOOR_VR lose less VR
+// Scale: 0% reduction at FLOOR_VR, FLOOR_MAX_REDUCTION at (FLOOR_VR - FLOOR_DEPTH)
+const FLOOR_VR            = 5000;
+const FLOOR_MAX_REDUCTION = 0.50;
+const FLOOR_DEPTH         = 1000;
+
+// Provisional period: first N all-time ACTs get reduced gains (not losses)
+const PROVISIONAL_ACTS      = 10;
+const PROVISIONAL_GAIN_MULT = 0.60;
 
 // Underdog protection thresholds
 // When a player is this many VR below room average, losses start being reduced
@@ -58,7 +68,8 @@ function vrChange(
   myVR: number,
   oppVRs: number[],
   pos: number,        // 0=1st, 1=2nd, 2=3rd, 3=4th
-  satGainMult: number
+  satGainMult: number,
+  provMult: number = 1.0   // provisional period multiplier (gains only)
 ): number {
   if (oppVRs.length === 0) return 0;
 
@@ -72,15 +83,25 @@ function vrChange(
   const adj  = Math.max(-VR_DIFF_CAP, Math.min(VR_DIFF_CAP, -(diff / VR_DIFF_K)));
   let change = base + adj;
 
-  // SAT day multiplier (gains only)
-  if (change > 0) change *= satGainMult;
+  // SAT day multiplier + provisional dampening (gains only)
+  if (change > 0) {
+    change *= satGainMult;
+    change *= provMult;
+  }
 
   // Underdog protection: reduce losses when substantially below room average
-  // e.g. 600 below = 0% reduction, 1200 below = 40%, 1800+ below = 80%
   if (change < 0 && diff < -UNDERDOG_FLOOR) {
     const deficit = Math.abs(diff) - UNDERDOG_FLOOR;
     const reductionFactor = Math.min(UNDERDOG_MAX, (deficit / UNDERDOG_SCALE) * UNDERDOG_MAX);
     change *= (1 - reductionFactor);
+  }
+
+  // Floor loss dampening: players below 5000 lose less VR
+  // Scales from 0% reduction at 5000 → 50% reduction at 4000 and below
+  if (change < 0 && myVR < FLOOR_VR) {
+    const depth = Math.min(FLOOR_DEPTH, FLOOR_VR - myVR);
+    const reduction = (depth / FLOOR_DEPTH) * FLOOR_MAX_REDUCTION;
+    change *= (1 - reduction);
   }
 
   // Diminishing returns above VR_ELITE (losses unaffected)
@@ -100,8 +121,9 @@ export function computeAllElos(
 ): { elos: Record<string, number>; hist: Record<string, EloHistoryEntry[]> } {
   const vrs:  Record<string, number>           = {};
   const hist: Record<string, EloHistoryEntry[]> = {};
+  const provActCount: Record<string, number>    = {};  // all-time ACTs played per player
 
-  players.forEach((p) => { vrs[p.name] = STARTING_VR; hist[p.name] = []; });
+  players.forEach((p) => { vrs[p.name] = STARTING_VR; hist[p.name] = []; provActCount[p.name] = 0; });
 
   [...acts]
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -158,10 +180,13 @@ export function computeAllElos(
 
       const startVR:   Record<string, number> = {};
       const totalPts:  Record<string, number> = {};
+      // Snapshot provisional counts at act start so all races in this act share the same prov status
+      const actProvSnapshot: Record<string, number> = {};
       actPlayers.forEach((name) => {
-        if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; }
+        if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; provActCount[name] = 0; }
         startVR[name]  = vrs[name];
         totalPts[name] = 0;
+        actProvSnapshot[name] = provActCount[name] ?? 0;
       });
 
       // Process each race individually — VR updates carry into subsequent races
@@ -179,10 +204,11 @@ export function computeAllElos(
         const sorted = [...raceResults].sort((a, b) => b.pts - a.pts);
 
         sorted.forEach(({ name }, pos) => {
-          if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; startVR[name] = STARTING_VR; totalPts[name] = 0; }
+          if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; startVR[name] = STARTING_VR; totalPts[name] = 0; actProvSnapshot[name] = 0; }
 
           const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => vrs[opp] ?? STARTING_VR);
-          const change = vrChange(vrs[name], oppVRs, pos, satGainMult);
+          const provMult = (actProvSnapshot[name] ?? 0) < PROVISIONAL_ACTS ? PROVISIONAL_GAIN_MULT : 1.0;
+          const change = vrChange(vrs[name], oppVRs, pos, satGainMult, provMult);
           vrs[name] = Math.max(1, Math.min(VR_MAX, vrs[name] + change));
         });
       });
@@ -199,6 +225,8 @@ export function computeAllElos(
           points:  totalPts[name] ?? 0,
           isSat:   !!act.satId,
         });
+        // Increment provisional ACT count after the act is processed
+        provActCount[name] = (provActCount[name] ?? 0) + 1;
       });
     });
 
