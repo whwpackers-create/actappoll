@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD } from '../utils/elo';
+import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD } from '../utils/VR';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -909,8 +909,11 @@ export function Dashboard({
                               UNRANKED ({sActC}/{SEASON_RANKED_THRESHOLD})
                             </span>
                           ) : (
-                            <span style={{ fontSize: 10, color: sRank.color, background: sRank.bg, border: `1px solid ${sRank.color}55`, borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, letterSpacing: 0.5 }}>
-                              {sRank.icon} {sRank.name.toUpperCase()}
+                            <span style={{ fontSize: 10, color: sRank.color, background: sRank.bg, border: `1px solid ${sRank.color}55`, borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, letterSpacing: 0.5, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              {menuImgs['ri_' + sRank.key]
+                                ? <img src={menuImgs['ri_' + sRank.key]} style={{ width: 14, height: 14, objectFit: 'contain' }} alt={sRank.name} />
+                                : sRank.icon}
+                              {sRank.name.toUpperCase()}
                             </span>
                           )
                         )}
@@ -1167,8 +1170,11 @@ export function Dashboard({
                           </span>
                         ) : (
                           <>
-                            <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.badge.color, background: sr.badge.bg, border: `1px solid ${sr.badge.color}50`, borderRadius: 5, padding: '2px 8px' }}>
-                              {sr.badge.icon} {sr.badge.name}
+                            <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.badge.color, background: sr.badge.bg, border: `1px solid ${sr.badge.color}50`, borderRadius: 5, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                              {menuImgs['ri_' + sr.badge.key]
+                                ? <img src={menuImgs['ri_' + sr.badge.key]} style={{ width: 18, height: 18, objectFit: 'contain' }} alt={sr.badge.name} />
+                                : sr.badge.icon}
+                              {sr.badge.name}
                             </span>
                             <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: sr.rank === 1 ? '#fde68a' : sr.rank === 2 ? '#94a3b8' : sr.rank === 3 ? '#cd7f32' : '#93c5fd' }}>
                               #{sr.rank}<span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>/{sr.total}</span>
