@@ -528,23 +528,26 @@ export default function App() {
     ),
     removePlayer: useCallback(
       async (_: unknown, name: string) => {
-        const p = data.players.find((x) => x.name === name);
-        const did = p?.id ?? p?._id ?? '';
-        if (did)
-          try {
-            await fsDel('players', did);
-            await reload();
-          } catch (e) {
-            console.error(e);
-            setData((nd) => ({
-              ...nd,
-              players: nd.players.filter((x) => x.name !== name),
-            }));
-            saveLocal({
-              ...data,
-              players: data.players.filter((x) => x.name !== name),
-            });
-          }
+        try {
+          // Fetch fresh data so we always have the real Firestore document ID
+          const freshPlayers = await fsGet<Player>('players');
+          const fp = freshPlayers.find((x) => x.name === name);
+          const did = fp?._id ?? fp?.id ?? '';
+          if (!did) throw new Error(`No document ID found for player "${name}"`);
+          await fsDel('players', did);
+          await reload();
+        } catch (e) {
+          console.error(e);
+          // Optimistic local fallback
+          setData((nd) => ({
+            ...nd,
+            players: nd.players.filter((x) => x.name !== name),
+          }));
+          saveLocal({
+            ...data,
+            players: data.players.filter((x) => x.name !== name),
+          });
+        }
       },
       [data, reload]
     ),
@@ -795,9 +798,13 @@ export default function App() {
     }, [data, reload]),
     renamePlayer: useCallback(
       async (oldName: string, newName: string) => {
-        const p = data.players.find((x) => x.name === oldName);
-        if (!p) return;
-        const did = p.id ?? p._id ?? '';
+        // Fetch fresh data so we always use the real Firestore document ID
+        const freshPlayers = await fsGet<Player>('players');
+        const fp = freshPlayers.find((x) => x.name === oldName);
+        if (!fp) return;
+        const did = fp._id ?? fp.id ?? '';
+        if (!did) return;
+        const p = data.players.find((x) => x.name === oldName) ?? fp;
         await fsSet('players', did, { ...p, name: newName, id: did });
         const rn = (s: string) => (s === oldName ? newName : s);
         for (const act of data.acts) {

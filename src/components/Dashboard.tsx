@@ -6,12 +6,12 @@ import type { PlayerStats } from '../types';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 
 const TIERS = [
-  { name: 'Copper',   min: 0,    max: 5000, color: '#b45309', icon: '🪙' },
-  { name: 'Bronze',   min: 5000, max: 5500, color: '#cd7f32', icon: '🥉' },
-  { name: 'Silver',   min: 5500, max: 6200, color: '#94a3b8', icon: '🥈' },
-  { name: 'Gold',     min: 6200, max: 7000, color: '#fbbf24', icon: '🥇' },
-  { name: 'Platinum', min: 7000, max: 8000, color: '#60a5fa', icon: '💎' },
-  { name: 'Diamond',  min: 8000, max: Infinity, color: '#c084fc', icon: '💠' },
+  { name: 'Copper',   min: 0,    max: 4900, color: '#b45309', icon: '🪙' },
+  { name: 'Bronze',   min: 4900, max: 5200, color: '#cd7f32', icon: '🥉' },
+  { name: 'Silver',   min: 5200, max: 5500, color: '#94a3b8', icon: '🥈' },
+  { name: 'Gold',     min: 5500, max: 5900, color: '#fbbf24', icon: '🥇' },
+  { name: 'Platinum', min: 5900, max: 6500, color: '#60a5fa', icon: '💎' },
+  { name: 'Diamond',  min: 6500, max: Infinity, color: '#c084fc', icon: '💠' },
 ];
 
 function getTier(elo: number) {
