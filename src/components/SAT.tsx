@@ -1,5 +1,6 @@
-import { useState, Fragment } from 'react';
+import { useState, Fragment, useMemo } from 'react';
 import { fsGet, fsSet, gid } from '../services/firestore';
+import { computeStats } from '../utils/VR';
 import {
   card,
   cHead,
@@ -117,6 +118,23 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   const [showHeatEntry, setShowHeatEntry] = useState(false);
   const [editAdvHeat, setEditAdvHeat] = useState<{ round: number; idx: number } | null>(null);
   const [editAdvCount, setEditAdvCount] = useState(2);
+
+  // Upcoming SAT creation/edit state
+  const [showUpcomingForm, setShowUpcomingForm] = useState(false);
+  const [upName, setUpName] = useState('');
+  const [upDate, setUpDate] = useState('');
+  const [upTeams, setUpTeams] = useState<{ p1: string; p2: string }[]>([{ p1: '', p2: '' }]);
+  const [editingUpcoming, setEditingUpcoming] = useState(false);
+  const [editUpTeams, setEditUpTeams] = useState<{ p1: string; p2: string }[]>([]);
+
+  const allStats = useMemo(
+    () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
+    [data.players, data.acts, data.sats, data.seasons]
+  );
+  const vrMap = useMemo(
+    () => Object.fromEntries(allStats.map((s) => [s.name, s.elo])),
+    [allStats]
+  );
 
   const sats = (data.sats ?? []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const curSat = selSat ? sats.find((s) => (s.id ?? s._id) === selSat) ?? null : null;
@@ -481,10 +499,100 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
         </button>
         <div style={cHead}>
           <span style={cTitle}>{'🏆'} SAT Tournaments</span>
-          <button onClick={() => auth.req(() => setMode('create'))} style={priBtn}>
-            + New SAT
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => auth.req(() => { setShowUpcomingForm(true); setUpName(''); setUpDate(''); setUpTeams([{ p1: '', p2: '' }]); })} style={{ ...secBtn, fontSize: 11 }}>
+              + Upcoming SAT
+            </button>
+            <button onClick={() => auth.req(() => setMode('create'))} style={priBtn}>
+              + New SAT
+            </button>
+          </div>
         </div>
+
+        {/* Upcoming SATs */}
+        {(() => {
+          const upcoming = sats.filter((s) => s.upcoming);
+          if (upcoming.length === 0 && !showUpcomingForm) return null;
+          return (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Upcoming</div>
+              {upcoming.map((sat) => {
+                const sid = sat.id ?? sat._id ?? '';
+                const teams = (sat.roster ?? []).map((t) => {
+                  const vr1 = vrMap[t.members[0]] ?? 5000;
+                  const vr2 = vrMap[t.members[1]] ?? 5000;
+                  return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
+                }).sort((a, b) => b.avgVR - a.avgVR);
+                return (
+                  <div key={sid} style={{ ...card, marginBottom: 10, borderLeft: '3px solid #f9a8d4', cursor: 'pointer' }}
+                    onClick={() => { setSelSat(sid); setMode('detail'); }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4', marginBottom: 2 }}>{sat.name}</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556', marginBottom: 10 }}>{sat.date} · {teams.length} teams signed up</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {teams.map((t, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: FONT_MONO, fontSize: 12 }}>
+                              <span style={{ color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#445', minWidth: 22, fontFamily: FONT_HEADER }}>#{i + 1}</span>
+                              <span style={{ color: '#e0d4c0', minWidth: 120 }}>{t.members[0]} & {t.members[1]}</span>
+                              <span style={{ color: '#c8a030' }}>avg {t.avgVR} VR</span>
+                              <span style={{ color: '#445', fontSize: 10 }}>({t.vr1} / {t.vr2})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); deleteSat(sid); }} style={delBtn}>✕</button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {showUpcomingForm && (
+                <div style={{ ...card, borderLeft: '3px solid #f9a8d4' }}>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#f9a8d4', marginBottom: 14 }}>New Upcoming SAT</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, display: 'block', marginBottom: 4 }}>NAME</label>
+                      <input style={inp} value={upName} onChange={(e) => setUpName(e.target.value)} placeholder="Spring 2026 SAT" />
+                    </div>
+                    <div>
+                      <label style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, display: 'block', marginBottom: 4 }}>DATE</label>
+                      <input style={inp} type="date" value={upDate} onChange={(e) => setUpDate(e.target.value)} />
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, marginBottom: 8 }}>TEAMS</div>
+                  {upTeams.map((t, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                      <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
+                      <input style={{ ...inp, flex: 1 }} value={t.p1} onChange={(e) => { const c = [...upTeams]; c[i] = { ...c[i], p1: e.target.value }; setUpTeams(c); }} placeholder="Player 1" />
+                      <input style={{ ...inp, flex: 1 }} value={t.p2} onChange={(e) => { const c = [...upTeams]; c[i] = { ...c[i], p2: e.target.value }; setUpTeams(c); }} placeholder="Player 2" />
+                      {upTeams.length > 1 && (
+                        <button onClick={() => setUpTeams(upTeams.filter((_, j) => j !== i))} style={{ ...delBtn, padding: '4px 8px' }}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => setUpTeams([...upTeams, { p1: '', p2: '' }])} style={{ ...secBtn, fontSize: 11, marginBottom: 14 }}>+ Add Team</button>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button style={secBtn} onClick={() => setShowUpcomingForm(false)}>Cancel</button>
+                    <button style={priBtn} onClick={() => {
+                      if (!upName.trim() || !upDate) { showToast('Name and date required'); return; }
+                      auth.req(async () => {
+                        const roster = upTeams.filter(t => t.p1.trim() || t.p2.trim()).map((t) => ({
+                          name: (t.p1.split(' ')[0] ?? '') + (t.p2 ? ' & ' + t.p2.split(' ')[0] : ''),
+                          members: [t.p1.trim(), t.p2.trim()],
+                        }));
+                        const id = gid();
+                        await ops.addSat({ id, _id: id, name: upName.trim(), date: upDate, upcoming: true, teams: [], races: [], rounds: 4, roster } as unknown as typeof data.sats[0]);
+                        setShowUpcomingForm(false);
+                        showToast('Upcoming SAT saved!');
+                      });
+                    }}>Save</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         {sats.length === 0 ? (
           <div style={card}>
             <div style={{ textAlign: 'center', color: '#444', fontFamily: FONT_MONO, fontSize: 13, padding: '32px 0' }}>
@@ -893,6 +1001,95 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
               Create SAT
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // === UPCOMING DETAIL ===
+  if (curSat?.upcoming) {
+    const teams = (curSat.roster ?? []).map((t) => {
+      const vr1 = vrMap[t.members[0]] ?? 5000;
+      const vr2 = vrMap[t.members[1]] ?? 5000;
+      return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
+    }).sort((a, b) => b.avgVR - a.avgVR);
+
+    return (
+      <div style={{ width: '100%' }}>
+        <button style={{ background: 'none', border: 'none', color: '#e94560', fontFamily: FONT_HEADER, fontSize: 14, cursor: 'pointer', marginBottom: 16 }}
+          onClick={() => { setSelSat(null); setMode('list'); }}>
+          {'←'} Back
+        </button>
+        <div style={{ ...card, borderLeft: '3px solid #f9a8d4' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontFamily: FONT_HEADER, fontSize: 24, color: '#f9a8d4', letterSpacing: 2 }}>{curSat.name}</div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556', marginTop: 4 }}>{curSat.date} · {teams.length} teams</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={secBtn} onClick={() => { setEditUpTeams(teams.map(t => ({ p1: t.members[0], p2: t.members[1] }))); setEditingUpcoming(true); }}>Edit</button>
+              <button style={delBtn} onClick={() => deleteSat(curSat.id ?? curSat._id ?? '')}>Delete</button>
+            </div>
+          </div>
+
+          {editingUpcoming ? (
+            <div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, marginBottom: 8 }}>TEAMS</div>
+              {editUpTeams.map((t, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
+                  <input style={{ ...inp, flex: 1 }} value={t.p1} onChange={(e) => { const c = [...editUpTeams]; c[i] = { ...c[i], p1: e.target.value }; setEditUpTeams(c); }} placeholder="Player 1" />
+                  <input style={{ ...inp, flex: 1 }} value={t.p2} onChange={(e) => { const c = [...editUpTeams]; c[i] = { ...c[i], p2: e.target.value }; setEditUpTeams(c); }} placeholder="Player 2" />
+                  {editUpTeams.length > 1 && <button onClick={() => setEditUpTeams(editUpTeams.filter((_, j) => j !== i))} style={{ ...delBtn, padding: '4px 8px' }}>✕</button>}
+                </div>
+              ))}
+              <button onClick={() => setEditUpTeams([...editUpTeams, { p1: '', p2: '' }])} style={{ ...secBtn, fontSize: 11, marginBottom: 14 }}>+ Add Team</button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button style={secBtn} onClick={() => setEditingUpcoming(false)}>Cancel</button>
+                <button style={priBtn} onClick={() => {
+                  auth.req(async () => {
+                    const roster = editUpTeams.filter(t => t.p1.trim() || t.p2.trim()).map((t) => ({
+                      name: (t.p1.split(' ')[0] ?? '') + (t.p2 ? ' & ' + t.p2.split(' ')[0] : ''),
+                      members: [t.p1.trim(), t.p2.trim()],
+                    }));
+                    await ops.updateSat(curSat.id ?? curSat._id ?? '', { roster });
+                    setEditingUpcoming(false);
+                    showToast('Updated!');
+                  });
+                }}>Save</button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 12 }}>TEAM STANDINGS BY VR</div>
+              {teams.length === 0 ? (
+                <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams signed up yet</div>
+              ) : (
+                teams.map((t, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '12px 14px', marginBottom: 6, borderRadius: 8,
+                    background: i === 0 ? 'rgba(251,191,36,0.08)' : i === 1 ? 'rgba(148,163,184,0.06)' : i === 2 ? 'rgba(205,127,50,0.06)' : 'rgba(255,255,255,0.02)',
+                    borderLeft: `3px solid ${i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#334'}`,
+                  }}>
+                    <span style={{ fontFamily: FONT_HEADER, fontSize: 20, color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#445', minWidth: 32 }}>#{i + 1}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginTop: 2 }}>
+                        {t.members[0]}: <span style={{ color: '#c8a030' }}>{t.vr1}</span>
+                        <span style={{ margin: '0 6px', color: '#334' }}>·</span>
+                        {t.members[1]}: <span style={{ color: '#c8a030' }}>{t.vr2}</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4' }}>{t.avgVR}</div>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>avg VR</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

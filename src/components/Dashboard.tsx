@@ -205,6 +205,7 @@ function menuImgLayer(
 export function Dashboard({
   data,
   setView,
+  setSelSat,
   menuImgs,
 }: DashboardProps) {
   const stats = useMemo(
@@ -506,23 +507,33 @@ export function Dashboard({
             label: 'TOTAL ACTs',
             color: '#fbbf24',
           },
-          {
-            icon: (
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f9a8d4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 9H3.5a2.5 2.5 0 0 0 0 5H6"/>
-                <path d="M18 9h2.5a2.5 2.5 0 0 1 0 5H18"/>
-                <path d="M6 4h12v10a6 6 0 0 1-12 0V4z"/>
-                <path d="M9 21h6"/>
-                <path d="M12 18v3"/>
-              </svg>
-            ),
-            val: '4/16',
-            label: 'SPRING 2026 SAT',
-            color: '#f9a8d4',
-          },
+          (() => {
+            const nextSat = (data.sats ?? [])
+              .filter((s) => s.upcoming)
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+            const satLabel = nextSat ? nextSat.name.toUpperCase() : 'NO UPCOMING SAT';
+            const satVal = nextSat ? new Date(nextSat.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : '—';
+            const satId = nextSat ? (nextSat.id ?? nextSat._id ?? '') : null;
+            return {
+              icon: (
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f9a8d4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 9H3.5a2.5 2.5 0 0 0 0 5H6"/>
+                  <path d="M18 9h2.5a2.5 2.5 0 0 1 0 5H18"/>
+                  <path d="M6 4h12v10a6 6 0 0 1-12 0V4z"/>
+                  <path d="M9 21h6"/>
+                  <path d="M12 18v3"/>
+                </svg>
+              ),
+              val: satVal,
+              label: satLabel,
+              color: '#f9a8d4',
+              satId,
+            };
+          })(),
         ].map((s, i) => (
           <div
             key={i}
+            onClick={'satId' in s && s.satId ? () => { setSelSat?.(s.satId!); setView('sat'); } : undefined}
             style={{
               background: 'rgba(15,18,25,0.48)',
               backdropFilter: 'blur(4px)',
@@ -531,6 +542,7 @@ export function Dashboard({
               textAlign: 'center',
               position: 'relative',
               overflow: 'hidden',
+              cursor: 'satId' in s && s.satId ? 'pointer' : 'default',
             }}
           >
             <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>

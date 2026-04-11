@@ -94,6 +94,7 @@ export interface Sat extends Act {
   rounds?: number;
   placements?: Record<string, PlacementTeam[]>;
   heats?: SatHeat[];
+  upcoming?: boolean;
 }
 
 export interface AppData {
