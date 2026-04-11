@@ -126,6 +126,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   const [upTeams, setUpTeams] = useState<{ p1: string; p2: string }[]>([{ p1: '', p2: '' }]);
   const [editingUpcoming, setEditingUpcoming] = useState(false);
   const [editUpTeams, setEditUpTeams] = useState<{ p1: string; p2: string }[]>([]);
+  const [upActiveDropdown, setUpActiveDropdown] = useState<string | null>(null); // key = "form-i-p1" etc
 
   const allStats = useMemo(
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
@@ -134,6 +135,10 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   const vrMap = useMemo(
     () => Object.fromEntries(allStats.map((s) => [s.name, s.elo])),
     [allStats]
+  );
+  const rosterNames = useMemo(
+    () => data.players.filter((p) => p.active !== false).map((p) => p.name).sort(),
+    [data.players]
   );
 
   const sats = (data.sats ?? []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -564,8 +569,33 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                   {upTeams.map((t, i) => (
                     <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                       <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
-                      <input style={{ ...inp, flex: 1 }} value={t.p1} onChange={(e) => { const c = [...upTeams]; c[i] = { ...c[i], p1: e.target.value }; setUpTeams(c); }} placeholder="Player 1" />
-                      <input style={{ ...inp, flex: 1 }} value={t.p2} onChange={(e) => { const c = [...upTeams]; c[i] = { ...c[i], p2: e.target.value }; setUpTeams(c); }} placeholder="Player 2" />
+                      {(['p1', 'p2'] as const).map((pk) => {
+                        const dk = `form-${i}-${pk}`;
+                        const val = t[pk];
+                        const suggs = val.trim() ? rosterNames.filter(n => n.toLowerCase().includes(val.toLowerCase()) && n !== val).slice(0, 6) : [];
+                        return (
+                          <div key={pk} style={{ flex: 1, position: 'relative' }}>
+                            <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
+                              value={val}
+                              placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
+                              onFocus={() => setUpActiveDropdown(dk)}
+                              onBlur={() => setTimeout(() => setUpActiveDropdown(null), 150)}
+                              onChange={(e) => { const c = [...upTeams]; c[i] = { ...c[i], [pk]: e.target.value }; setUpTeams(c); }} />
+                            {upActiveDropdown === dk && suggs.length > 0 && (
+                              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 100, marginTop: 2, overflow: 'hidden' }}>
+                                {suggs.map(n => (
+                                  <div key={n} onMouseDown={() => { const c = [...upTeams]; c[i] = { ...c[i], [pk]: n }; setUpTeams(c); setUpActiveDropdown(null); }}
+                                    style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.12)')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                    {n} <span style={{ color: '#c8a030', fontSize: 10 }}>{vrMap[n] ? vrMap[n] + ' VR' : ''}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                       {upTeams.length > 1 && (
                         <button onClick={() => setUpTeams(upTeams.filter((_, j) => j !== i))} style={{ ...delBtn, padding: '4px 8px' }}>✕</button>
                       )}
@@ -1038,8 +1068,33 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
               {editUpTeams.map((t, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                   <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
-                  <input style={{ ...inp, flex: 1 }} value={t.p1} onChange={(e) => { const c = [...editUpTeams]; c[i] = { ...c[i], p1: e.target.value }; setEditUpTeams(c); }} placeholder="Player 1" />
-                  <input style={{ ...inp, flex: 1 }} value={t.p2} onChange={(e) => { const c = [...editUpTeams]; c[i] = { ...c[i], p2: e.target.value }; setEditUpTeams(c); }} placeholder="Player 2" />
+                  {(['p1', 'p2'] as const).map((pk) => {
+                    const dk = `edit-${i}-${pk}`;
+                    const val = t[pk];
+                    const suggs = val.trim() ? rosterNames.filter(n => n.toLowerCase().includes(val.toLowerCase()) && n !== val).slice(0, 6) : [];
+                    return (
+                      <div key={pk} style={{ flex: 1, position: 'relative' }}>
+                        <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
+                          value={val}
+                          placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
+                          onFocus={() => setUpActiveDropdown(dk)}
+                          onBlur={() => setTimeout(() => setUpActiveDropdown(null), 150)}
+                          onChange={(e) => { const c = [...editUpTeams]; c[i] = { ...c[i], [pk]: e.target.value }; setEditUpTeams(c); }} />
+                        {upActiveDropdown === dk && suggs.length > 0 && (
+                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 100, marginTop: 2, overflow: 'hidden' }}>
+                            {suggs.map(n => (
+                              <div key={n} onMouseDown={() => { const c = [...editUpTeams]; c[i] = { ...c[i], [pk]: n }; setEditUpTeams(c); setUpActiveDropdown(null); }}
+                                style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.12)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                {n} <span style={{ color: '#c8a030', fontSize: 10 }}>{vrMap[n] ? vrMap[n] + ' VR' : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {editUpTeams.length > 1 && <button onClick={() => setEditUpTeams(editUpTeams.filter((_, j) => j !== i))} style={{ ...delBtn, padding: '4px 8px' }}>✕</button>}
                 </div>
               ))}
