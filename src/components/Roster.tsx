@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { computeStats } from '../utils/elo';
+import { computeStats } from '../utils/VR';
 import { gid } from '../services/firestore';
 import {
   card,

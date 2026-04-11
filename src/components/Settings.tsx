@@ -2,7 +2,7 @@ import { fsSet, uploadMenuImage, deleteMenuImage } from '../services/firestore';
 import { imgCacheSet, imgCacheDel } from '../services/imageCache';
 import { inp } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
-import { SEASON_RANKS } from '../utils/elo';
+import { SEASON_RANKS } from '../utils/VR';
 import type { Theme } from '../styles/theme';
 
 const MENU_KEYS = [

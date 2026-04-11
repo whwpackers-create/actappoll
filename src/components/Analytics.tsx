@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { computeStats, STARTING_VR } from '../utils/elo';
+import { computeStats, STARTING_VR } from '../utils/VR';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import type { AppData } from '../types';
 

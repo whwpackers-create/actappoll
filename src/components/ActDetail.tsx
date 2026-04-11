@@ -1,5 +1,5 @@
 import React, { useState, Fragment } from 'react';
-import { teamScores, computeAllElos, computeActBracketBreakdown, STARTING_VR } from '../utils/elo';
+import { teamScores, computeAllElos, computeActBracketBreakdown, STARTING_VR } from '../utils/VR';
 import { fsSet, gid } from '../services/firestore';
 import { card, cHead, cTitle, cSub, inp, TC } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';

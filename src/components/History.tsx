@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from 'react';
-import { teamScores, computeAllElos, STARTING_VR } from '../utils/elo';
+import { teamScores, computeAllElos, STARTING_VR } from '../utils/VR';
 import {
   card,
   cHead,

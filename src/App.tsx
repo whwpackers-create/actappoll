@@ -28,7 +28,7 @@ import { SAT } from './components/SAT';
 import { Blackjack } from './components/Blackjack';
 import { defaultTheme } from './styles/theme';
 import type { AppData, Act, Player } from './types';
-import { computeStats } from './utils/elo';
+import { computeStats } from './utils/VR';
 import { FONT_HEADER, FONT_BODY } from './styles/theme';
 
 type View =

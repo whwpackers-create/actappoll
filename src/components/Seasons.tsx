@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { computeSeasonElos, computeAllElos, teamScores, BASE_ELO, getSeasonRank, SEASON_RANKED_THRESHOLD } from '../utils/elo';
+import { computeSeasonElos, computeAllElos, teamScores, BASE_ELO, getSeasonRank, SEASON_RANKED_THRESHOLD } from '../utils/VR';
 import { gid } from '../services/firestore';
 import { PRESETS } from '../constants';
 import {
