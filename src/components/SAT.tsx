@@ -156,6 +156,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   const [editingTimeIdx, setEditingTimeIdx] = useState<number | null>(null);
   const [editingTimeVal, setEditingTimeVal] = useState('');
   const [upcomingHeatSaveIdx, setUpcomingHeatSaveIdx] = useState<number | null>(null);
+  const [day2HeatSaveIdx, setDay2HeatSaveIdx] = useState<number | null>(null);
   const [advancingCuts, setAdvancingCuts] = useState<number[]>([]); // indices of 3rd-place teams being cut
 
   const allStats = useMemo(
@@ -443,9 +444,14 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
       const actId = gid();
       const rn = heatRound < RN.length ? RN[heatRound] : 'Round ' + (heatRound + 1);
       const hNum = (curSat.heats ?? []).filter((h) => h.round === heatRound).length + 1;
+      const upcomingActName = upcomingHeatSaveIdx !== null
+        ? `${curSat.name} - Day 1 H${upcomingHeatSaveIdx + 1}`
+        : day2HeatSaveIdx !== null
+          ? `${curSat.name} - Day 2 H${day2HeatSaveIdx + 1}`
+          : null;
       const actData = {
         id: actId,
-        name: curSat.name + ' - ' + rn + ' H' + hNum,
+        name: upcomingActName ?? (curSat.name + ' - ' + rn + ' H' + hNum),
         date: getRoundDate(curSat.date, heatRound),
         type: '8man' as const,
         satId: curSat.id ?? curSat._id,
@@ -467,14 +473,26 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
         console.error(e);
       }
 
-      // ── Upcoming SAT heat: just link act and return ──────────────────────
+      // ── Upcoming SAT Day 1 heat: link act and return ─────────────────────
       if (upcomingHeatSaveIdx !== null) {
         const hi = upcomingHeatSaveIdx;
         const actIds = [...(curSat.heatActIds ?? [])];
         actIds[hi] = actId;
         await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatActIds: actIds });
-        showToast(`Heat ${hi + 1} results saved!`);
+        showToast(`Day 1 Heat ${hi + 1} saved! (1.1× SAT multiplier)`);
         setUpcomingHeatSaveIdx(null);
+        setShowHeatEntry(false);
+        setHeatStep(0);
+        return;
+      }
+      // ── Upcoming SAT Day 2 heat: link act and return ──────────────────────
+      if (day2HeatSaveIdx !== null) {
+        const hi = day2HeatSaveIdx;
+        const actIds = [...(curSat.day2HeatActIds ?? [])];
+        actIds[hi] = actId;
+        await ops.updateSat(curSat.id ?? curSat._id ?? '', { day2HeatActIds: actIds });
+        showToast(`Day 2 Heat ${hi + 1} saved! (1.1× SAT multiplier)`);
+        setDay2HeatSaveIdx(null);
         setShowHeatEntry(false);
         setHeatStep(0);
         return;
@@ -1131,6 +1149,19 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
       });
     };
 
+    const deleteDay2HeatResults = (hi: number) => {
+      auth.req(async () => {
+        const actIds = [...(curSat.day2HeatActIds ?? [])];
+        const actId = actIds[hi];
+        if (actId) {
+          await ops.deleteAct(actId);
+          actIds[hi] = '';
+          await ops.updateSat(curSat.id ?? curSat._id ?? '', { day2HeatActIds: actIds });
+        }
+        showToast('Results cleared');
+      });
+    };
+
     return (
       <div style={{ width: '100%' }}>
         <button style={{ background: 'none', border: 'none', color: '#e94560', fontFamily: FONT_HEADER, fontSize: 14, cursor: 'pointer', marginBottom: 16 }}
@@ -1234,9 +1265,10 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                   ).filter((i) => i >= 0)
                 : defaultCutIdxs;
 
-            const tabs = ['STANDINGS', 'HEAT DRAW', ...(completedCount > 0 ? ['ADVANCING'] : [])];
+            const tabs = ['STANDINGS', 'HEAT DRAW', ...(completedCount > 0 ? ['ADVANCING'] : []), ...(curSat.day2Teams ? ['DAY 2'] : [])];
             const activeTab = upActiveDropdown === '__tab_heat__' ? 'HEAT DRAW'
               : upActiveDropdown === '__tab_advance__' ? 'ADVANCING'
+              : upActiveDropdown === '__tab_day2__' ? 'DAY 2'
               : 'STANDINGS';
 
             return (
@@ -1245,7 +1277,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                 <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   {tabs.map((tab) => {
                     const active = activeTab === tab;
-                    const key = tab === 'HEAT DRAW' ? '__tab_heat__' : tab === 'ADVANCING' ? '__tab_advance__' : null;
+                    const key = tab === 'HEAT DRAW' ? '__tab_heat__' : tab === 'ADVANCING' ? '__tab_advance__' : tab === 'DAY 2' ? '__tab_day2__' : null;
                     return (
                       <button key={tab}
                         onClick={() => setUpActiveDropdown(key)}
@@ -1382,7 +1414,9 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                                     setHeatOrder('A');
                                     setAdvCount(3);
                                     setHeatStep(0);
+                                    setHeatRound(0);
                                     setUpcomingHeatSaveIdx(hi);
+                                    setDay2HeatSaveIdx(null);
                                     setShowHeatEntry(true);
                                   }}>
                                   + Enter Results
@@ -1395,6 +1429,103 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                     </div>
                   )
                 )}
+
+                {activeTab === 'DAY 2' && (() => {
+                  const d2Teams = curSat.day2Teams ?? [];
+                  const NUM_D2 = 4;
+                  const d2Heats: (typeof d2Teams[0])[][] = Array.from({ length: NUM_D2 }, () => []);
+                  d2Teams.forEach((t, i) => {
+                    const round = Math.floor(i / NUM_D2);
+                    const pos = i % NUM_D2;
+                    const heatIdx = round % 2 === 0 ? pos : NUM_D2 - 1 - pos;
+                    d2Heats[heatIdx].push(t);
+                  });
+                  const d2HeatResults = d2Heats.map((_, hi) => {
+                    const actId = curSat.day2HeatActIds?.[hi];
+                    const act = actId ? data.acts.find((a) => (a.id ?? a._id) === actId) : null;
+                    return act ? getHeatTeamRankings(act) : null;
+                  });
+                  const d2Colors = ['#c084fc','#f97316','#22d3ee','#a3e635'];
+                  return (
+                    <div>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginBottom: 14 }}>
+                        {d2Teams.length} teams · seeded by Day 1 pts · 1.1× SAT multiplier
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+                        {d2Heats.map((hTeams, hi) => {
+                          if (hTeams.length === 0) return null;
+                          const hColor = d2Colors[hi] ?? '#c084fc';
+                          const hAvg = Math.round(hTeams.reduce((s, t) => s + (vrMap[t.members[0]] ?? unknownVR + vrMap[t.members[1]] ?? unknownVR) / 2, 0) / hTeams.length);
+                          const teamRankings = d2HeatResults[hi];
+                          return (
+                            <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}33`, borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: '12px 14px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: hColor, letterSpacing: 1 }}>DAY 2 · HEAT {hi + 1}</span>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', background: 'rgba(192,132,252,0.1)', border: '1px solid rgba(192,132,252,0.2)', borderRadius: 4, padding: '2px 6px' }}>1.1× VR</span>
+                              </div>
+                              {teamRankings ? (
+                                <div>
+                                  {teamRankings.map((t, ri) => {
+                                    const rankColor = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
+                                    return (
+                                      <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: ri < 2 ? 1 : 0.55 }}>
+                                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: rankColor, minWidth: 24 }}>{ri + 1}{['st','nd','rd'][ri] ?? 'th'}</span>
+                                        <div style={{ flex: 1 }}>
+                                          <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.name}</div>
+                                          {t.subs?.some(s => s) && <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>sub: {t.subs.filter(Boolean).join(', ')}</div>}
+                                        </div>
+                                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{t.score}pts</span>
+                                        {ri < 2 ? <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b' }}>✓ ADV</span>
+                                               : <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560' }}>✗ OUT</span>}
+                                      </div>
+                                    );
+                                  })}
+                                  <button onClick={() => deleteDay2HeatResults(hi)} style={{ ...delBtn, fontSize: 10, padding: '3px 8px', marginTop: 8 }}>Clear Results</button>
+                                </div>
+                              ) : (
+                                hTeams.map((t, ti) => (
+                                  <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                                    <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{t.seed}</span>
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
+                                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{vrMap[t.members[0]] ?? unknownVR} · {vrMap[t.members[1]] ?? unknownVR}</div>
+                                    </div>
+                                    <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{hAvg}</span>
+                                  </div>
+                                ))
+                              )}
+                              {!teamRankings && (
+                                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                  <button style={{ ...secBtn, width: '100%', fontSize: 11 }}
+                                    onClick={() => {
+                                      const n = Math.max(hTeams.length, 4);
+                                      setHeatTeams(hTeams.map((t) => {
+                                        const vr0 = vrMap[t.members[0]] ?? unknownVR;
+                                        const vr1 = vrMap[t.members[1]] ?? unknownVR;
+                                        const ordered: string[] = vr0 >= vr1 ? [...t.members] : [t.members[1], t.members[0]];
+                                        return { name: t.name, members: ordered, subs: ['', ''], seed: t.seed ?? null };
+                                      }));
+                                      setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
+                                      setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
+                                      setHeatOrder('A');
+                                      setAdvCount(2);
+                                      setHeatStep(0);
+                                      setHeatRound(1);
+                                      setDay2HeatSaveIdx(hi);
+                                      setUpcomingHeatSaveIdx(null);
+                                      setShowHeatEntry(true);
+                                    }}>
+                                    + Enter Results
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {activeTab === 'ADVANCING' && (() => {
                   const advancingTeams: { name: string; members: string[]; heatIdx: number; rank: number }[] = [];
@@ -1498,6 +1629,31 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                           }}>
                             Save Advancement Selection
                           </button>
+                          {completedCount === NUM_HEATS && (
+                            <button style={{ ...secBtn, marginTop: 8, width: '100%' }} onClick={() => {
+                              auth.req(async () => {
+                                const advancing: { name: string; members: string[]; subs: string[]; score: number }[] = [];
+                                heatResults.forEach((rankings) => {
+                                  if (!rankings) return;
+                                  rankings.slice(0, 3).forEach((t, rank) => {
+                                    if (rank === 2) {
+                                      const idx = thirdPlaceTeams.findIndex((tp) => tp.name === t.name);
+                                      if (idx >= 0 && activeCutIdxs.includes(idx)) return;
+                                    }
+                                    advancing.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score });
+                                  });
+                                });
+                                const day2Teams = advancing
+                                  .sort((a, b) => b.score - a.score)
+                                  .map((t, i) => ({ name: t.name, members: t.members, subs: t.subs, seed: i + 1 }));
+                                await ops.updateSat(curSat.id ?? curSat._id ?? '', { day2Teams });
+                                setUpActiveDropdown('__tab_day2__');
+                                showToast(`Day 2 bracket generated — ${day2Teams.length} teams seeded by Day 1 pts`);
+                              });
+                            }}>
+                              Generate Day 2 Bracket ({completedCount === NUM_HEATS ? (heatResults.flatMap(r => (r ?? []).slice(0, 3)).length - activeCutIdxs.length) : '?'} teams)
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

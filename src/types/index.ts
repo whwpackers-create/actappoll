@@ -98,6 +98,8 @@ export interface Sat extends Act {
   heatTimes?: string[];
   heatActIds?: string[];
   day1Cuts?: string[][];
+  day2Teams?: SatRosterTeam[];
+  day2HeatActIds?: string[];
 }
 
 export interface AppData {
