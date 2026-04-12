@@ -318,7 +318,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
         (heatPen[ri]?.[ti] ?? []).reduce((s2: number, v) => s2 + v * -2, 0),
       0
     );
-  const allHF = heatGrid.every((r) => (r ?? []).every((t) => (t ?? []).every((v) => v !== null)));
+  const allHF = heatGrid.every((r) => heatTeams.every((_, ti) => (r[ti] ?? []).every((v) => v !== null)));
   const allHTOk = heatTeams.every((t) => (t.members ?? []).every((m) => m.trim()));
 
   const buildHR = () => {
@@ -328,7 +328,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
     for (let ri = 0; ri < 4; ri++) {
       for (let h = 0; h < 4; h++) {
         const res: { player: string; points: number }[] = [];
-        for (let ti = 0; ti < 4; ti++) {
+        for (let ti = 0; ti < heatTeams.length; ti++) {
           const mi = m[ri][ti][h];
           const mem = heatTeams[ti]?.members ?? ['', ''];
           const subs = heatTeams[ti]?.subs ?? ['', ''];
@@ -1341,12 +1341,15 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                             ) : (
                               hTeams.map((t, ti) => {
                                 const globalSeed = teams.indexOf(t) + 1;
+                                const [p1, p2, pv1, pv2] = t.vr1 >= t.vr2
+                                  ? [t.members[0], t.members[1], t.vr1, t.vr2]
+                                  : [t.members[1], t.members[0], t.vr2, t.vr1];
                                 return (
                                   <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                                     <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
                                     <div style={{ flex: 1 }}>
-                                      <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
-                                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{t.vr1} · {t.vr2}</div>
+                                      <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{p1} & {p2}</div>
+                                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
                                     </div>
                                     <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{t.avgVR}</span>
                                   </div>
@@ -1359,14 +1362,15 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                               <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                 <button style={{ ...secBtn, width: '100%', fontSize: 11 }}
                                   onClick={() => {
-                                    setHeatTeams(hTeams.map((t) => ({
-                                      name: t.name,
-                                      members: [...t.members],
-                                      subs: ['', ''],
-                                      seed: t.seed ?? null,
-                                    })));
-                                    setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => Array(4).fill(null))));
-                                    setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => Array(4).fill(0))));
+                                    const n = Math.max(hTeams.length, 4);
+                                    setHeatTeams(hTeams.map((t) => {
+                                      const vr0 = vrMap[t.members[0]] ?? 5000;
+                                      const vr1 = vrMap[t.members[1]] ?? 5000;
+                                      const ordered: string[] = vr0 >= vr1 ? [...t.members] : [t.members[1], t.members[0]];
+                                      return { name: t.name, members: ordered, subs: ['', ''], seed: t.seed ?? null };
+                                    }));
+                                    setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
+                                    setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
                                     setHeatOrder('A');
                                     setAdvCount(3);
                                     setHeatStep(0);
