@@ -1114,37 +1114,103 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                 }}>Save</button>
               </div>
             </div>
-          ) : (
-            <div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 12 }}>TEAM STANDINGS BY VR</div>
-              {teams.length === 0 ? (
-                <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams signed up yet</div>
-              ) : (
-                teams.map((t, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 14px', marginBottom: 6, borderRadius: 8,
-                    background: i === 0 ? 'rgba(251,191,36,0.08)' : i === 1 ? 'rgba(148,163,184,0.06)' : i === 2 ? 'rgba(205,127,50,0.06)' : 'rgba(255,255,255,0.02)',
-                    borderLeft: `3px solid ${i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#334'}`,
-                  }}>
-                    <span style={{ fontFamily: FONT_HEADER, fontSize: 20, color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#445', minWidth: 32 }}>#{i + 1}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
-                      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginTop: 2 }}>
-                        {t.members[0]}: <span style={{ color: '#c8a030' }}>{t.vr1}</span>
-                        <span style={{ margin: '0 6px', color: '#334' }}>·</span>
-                        {t.members[1]}: <span style={{ color: '#c8a030' }}>{t.vr2}</span>
+          ) : (() => {
+            const NUM_HEATS = 6;
+            // Snake seeding: round 1 forward, round 2 backward, repeat
+            // e.g. 24 teams → H1: seeds 1,12,13,24 | H2: seeds 2,11,14,23 | etc.
+            const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);
+            teams.forEach((t, i) => {
+              const round = Math.floor(i / NUM_HEATS);
+              const pos = i % NUM_HEATS;
+              const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
+              seededHeats[heatIdx].push(t);
+            });
+            const heatColors = ['#f9a8d4','#8be9fd','#50fa7b','#f5a623','#c084fc','#fbbf24'];
+
+            return (
+              <div>
+                {/* Tab bar */}
+                <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  {['STANDINGS', 'HEAT DRAW'].map((tab) => {
+                    const active = (upActiveDropdown === '__tab_heat__') === (tab === 'HEAT DRAW');
+                    return (
+                      <button key={tab}
+                        onClick={() => setUpActiveDropdown(tab === 'HEAT DRAW' ? '__tab_heat__' : null)}
+                        style={{ background: 'none', border: 'none', borderBottom: active ? '2px solid #f9a8d4' : '2px solid transparent', padding: '6px 16px', fontFamily: FONT_MONO, fontSize: 11, color: active ? '#f9a8d4' : '#556', cursor: 'pointer', letterSpacing: 1 }}>
+                        {tab}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {upActiveDropdown !== '__tab_heat__' ? (
+                  /* STANDINGS TAB */
+                  teams.length === 0 ? (
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams signed up yet</div>
+                  ) : (
+                    teams.map((t, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 14px', marginBottom: 6, borderRadius: 8,
+                        background: i === 0 ? 'rgba(251,191,36,0.08)' : i === 1 ? 'rgba(148,163,184,0.06)' : i === 2 ? 'rgba(205,127,50,0.06)' : 'rgba(255,255,255,0.02)',
+                        borderLeft: `3px solid ${i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#334'}`,
+                      }}>
+                        <span style={{ fontFamily: FONT_HEADER, fontSize: 20, color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#445', minWidth: 32 }}>#{i + 1}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginTop: 2 }}>
+                            {t.members[0]}: <span style={{ color: '#c8a030' }}>{t.vr1}</span>
+                            <span style={{ margin: '0 6px', color: '#334' }}>·</span>
+                            {t.members[1]}: <span style={{ color: '#c8a030' }}>{t.vr2}</span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4' }}>{t.avgVR}</div>
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>avg VR</div>
+                        </div>
                       </div>
+                    ))
+                  )
+                ) : (
+                  /* HEAT DRAW TAB */
+                  teams.length === 0 ? (
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams to seed yet</div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                      {seededHeats.map((hTeams, hi) => {
+                        if (hTeams.length === 0) return null;
+                        const hColor = heatColors[hi] ?? '#f9a8d4';
+                        const hAvg = hTeams.length ? Math.round(hTeams.reduce((s, t) => s + t.avgVR, 0) / hTeams.length) : 0;
+                        return (
+                          <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}33`, borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                              <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: hColor, letterSpacing: 1 }}>HEAT {hi + 1}</span>
+                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>avg {hAvg} VR</span>
+                            </div>
+                            {hTeams.map((t, ti) => {
+                              const globalSeed = teams.indexOf(t) + 1;
+                              return (
+                                <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
+                                    <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>
+                                      {t.members[0]}: {t.vr1} · {t.members[1]}: {t.vr2}
+                                    </div>
+                                  </div>
+                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: hColor }}>{t.avgVR}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4' }}>{t.avgVR}</div>
-                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>avg VR</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
+                  )
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     );
