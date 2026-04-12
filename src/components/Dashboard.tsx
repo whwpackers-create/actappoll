@@ -212,6 +212,10 @@ export function Dashboard({
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
     [data.players, data.acts, data.sats, data.seasons]
   );
+  const vrMap = useMemo(
+    () => Object.fromEntries(stats.map((s) => [s.name, s.elo])),
+    [stats]
+  );
   const activePlayers = data.players
     .filter((p) => p.active !== false)
     .map((p) => p.name);
@@ -649,6 +653,72 @@ export function Dashboard({
           )}
         </div>
       </div>
+
+      {/* Upcoming SAT heats */}
+      {(() => {
+        const upcomingSats = (data.sats ?? []).filter((s) => s.upcoming);
+        if (upcomingSats.length === 0) return null;
+        const sat = upcomingSats.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+        const teams = (sat.roster ?? []).map((t) => {
+          const vr1 = vrMap[t.members[0]] ?? 5000;
+          const vr2 = vrMap[t.members[1]] ?? 5000;
+          return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
+        }).sort((a, b) => b.avgVR - a.avgVR);
+        if (teams.length === 0) return null;
+        const NUM_HEATS = 6;
+        const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);
+        teams.forEach((t, i) => {
+          const round = Math.floor(i / NUM_HEATS);
+          const pos = i % NUM_HEATS;
+          const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
+          seededHeats[heatIdx].push(t);
+        });
+        const heatColors = ['#f9a8d4', '#8be9fd', '#50fa7b', '#f5a623', '#c084fc', '#fbbf24'];
+        const satDate = new Date(sat.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+        return (
+          <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
+            <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f9a8d4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 2v4M16 2v4M3 10h18M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/>
+                </svg>
+                <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4', letterSpacing: 2 }}>UPCOMING SAT HEATS</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · {satDate}</span>
+                <button
+                  onClick={() => { setSelSat?.(sat.id ?? sat._id ?? ''); setView('sats'); }}
+                  style={{ marginLeft: 'auto', background: 'rgba(249,168,212,0.1)', border: '1px solid rgba(249,168,212,0.25)', borderRadius: 4, padding: '3px 10px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer', letterSpacing: 1 }}
+                >
+                  VIEW →
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                {seededHeats.map((hTeams, hi) => {
+                  if (hTeams.length === 0) return null;
+                  const hColor = heatColors[hi] ?? '#f9a8d4';
+                  const hAvg = Math.round(hTeams.reduce((s, t) => s + t.avgVR, 0) / hTeams.length);
+                  return (
+                    <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}33`, borderRadius: 6, padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>HEAT {hi + 1}</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {hAvg}</span>
+                      </div>
+                      {hTeams.map((t, ti) => (
+                        <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0' }}>
+                            {t.members[0] && <span>{t.members[0].split(' ')[0]}</span>}
+                            {t.members[1] && <span style={{ color: '#8090a0' }}> &amp; {t.members[1].split(' ')[0]}</span>}
+                          </div>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>{t.avgVR}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div
         className="dash-grid"
