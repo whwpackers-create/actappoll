@@ -97,6 +97,7 @@ export interface Sat extends Act {
   upcoming?: boolean;
   heatTimes?: string[];
   heatActIds?: string[];
+  day1Cuts?: string[][];
 }
 
 export interface AppData {
