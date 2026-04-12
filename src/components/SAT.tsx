@@ -568,9 +568,13 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
               <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Upcoming</div>
               {upcoming.map((sat) => {
                 const sid = sat.id ?? sat._id ?? '';
+                const listVRs = (sat.roster ?? []).flatMap((t) =>
+                  t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
+                );
+                const listUnknownVR = listVRs.length > 0 ? Math.min(4300, Math.min(...listVRs) - 1) : 4300;
                 const teams = (sat.roster ?? []).map((t) => {
-                  const vr1 = vrMap[t.members[0]] ?? 0;
-                  const vr2 = vrMap[t.members[1]] ?? 0;
+                  const vr1 = vrMap[t.members[0]] ?? listUnknownVR;
+                  const vr2 = vrMap[t.members[1]] ?? listUnknownVR;
                   return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
                 }).sort((a, b) => b.avgVR - a.avgVR);
                 return (
@@ -1083,9 +1087,13 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
 
   // === UPCOMING DETAIL ===
   if (curSat?.upcoming && !showHeatEntry) {
+    const rosterVRs = (curSat.roster ?? []).flatMap((t) =>
+      t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
+    );
+    const unknownVR = rosterVRs.length > 0 ? Math.min(4300, Math.min(...rosterVRs) - 1) : 4300;
     const teams = (curSat.roster ?? []).map((t) => {
-      const vr1 = vrMap[t.members[0]] ?? 0;
-      const vr2 = vrMap[t.members[1]] ?? 0;
+      const vr1 = vrMap[t.members[0]] ?? unknownVR;
+      const vr2 = vrMap[t.members[1]] ?? unknownVR;
       return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
     }).sort((a, b) => b.avgVR - a.avgVR);
 
@@ -1364,8 +1372,8 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                                   onClick={() => {
                                     const n = Math.max(hTeams.length, 4);
                                     setHeatTeams(hTeams.map((t) => {
-                                      const vr0 = vrMap[t.members[0]] ?? 0;
-                                      const vr1 = vrMap[t.members[1]] ?? 0;
+                                      const vr0 = vrMap[t.members[0]] ?? unknownVR;
+                                      const vr1 = vrMap[t.members[1]] ?? unknownVR;
                                       const ordered: string[] = vr0 >= vr1 ? [...t.members] : [t.members[1], t.members[0]];
                                       return { name: t.name, members: ordered, subs: ['', ''], seed: t.seed ?? null };
                                     }));

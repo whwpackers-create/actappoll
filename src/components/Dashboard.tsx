@@ -659,9 +659,13 @@ export function Dashboard({
         const upcomingSats = (data.sats ?? []).filter((s) => s.upcoming);
         if (upcomingSats.length === 0) return null;
         const sat = upcomingSats.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+        const dashVRs = (sat.roster ?? []).flatMap((t) =>
+          t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
+        );
+        const dashUnknownVR = dashVRs.length > 0 ? Math.min(4300, Math.min(...dashVRs) - 1) : 4300;
         const teams = (sat.roster ?? []).map((t) => {
-          const vr1 = vrMap[t.members[0]] ?? 0;
-          const vr2 = vrMap[t.members[1]] ?? 0;
+          const vr1 = vrMap[t.members[0]] ?? dashUnknownVR;
+          const vr2 = vrMap[t.members[1]] ?? dashUnknownVR;
           return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
         }).sort((a, b) => b.avgVR - a.avgVR);
         if (teams.length === 0) return null;
