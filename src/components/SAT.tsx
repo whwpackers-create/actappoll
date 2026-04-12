@@ -225,7 +225,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
       }
       await ops.updateSat(sid,{ name: eSatName.trim(), date: eSatDate, rounds: eSatRounds, roster, seeds: seedMap });
       setEditingSat(false);
-      showToast('SAT updated! Elo recalculated.');
+      showToast('SAT updated! VR recalculated.');
     });
   };
 
@@ -2195,7 +2195,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
               <div style={{ ...card, marginBottom: 12 }}>
                 <div style={cTitle}>Placements (Auto)</div>
                 <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#555', marginBottom: 8 }}>
-                  Automatically calculated from results. Elo bonuses applied.
+                  Automatically calculated from results. VR multipliers applied.
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {(['winner', 'runnerUp', 'finalist', 'semi', 'round2'] as const).map((pl) => {

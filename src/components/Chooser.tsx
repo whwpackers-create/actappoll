@@ -340,7 +340,7 @@ export function Chooser({ setView, data, stats }: ChooserProps) {
 
             {/* Format hint */}
             <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', marginBottom: 16, lineHeight: 1.6 }}>
-              {format === '8man' && 'Optimized pairings: top 4 matched with bottom 4 for lowest ELO variance across teams.'}
+              {format === '8man' && 'Optimized pairings: top 4 matched with bottom 4 for lowest VR variance across teams.'}
               {format === '12man' && 'Seeds 3+10, 4+9 fixed. Seeds 1 & 2 swap with 11/12 if it balances better. Middle (5–8) optimized.'}
               {format === '16man' && 'Snake draft across 4 brackets: 1+8+9+16, 2+7+10+15, 3+6+11+14, 4+5+12+13'}
             </div>
@@ -443,7 +443,7 @@ export function Chooser({ setView, data, stats }: ChooserProps) {
                           <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: TC4[ti], minWidth: 14 }}>{pl.slot}</span>
                           <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', minWidth: 16 }}>#{pl.seed}</span>
                           <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: '#e0e4ea', flex: 1 }}>{pl.name}</span>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#60a5fa' }}>{pl.elo}</span>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#60a5fa' }}>{pl.elo} VR</span>
                         </div>
                       ))}
                     </div>

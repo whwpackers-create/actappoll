@@ -1885,14 +1885,14 @@ export function ActDetail({
                             {name} <span style={{ color: '#555' }}>(Top):</span>{' '}
                             <strong style={{ color: '#f0e6d3' }}>{bd.pts0}pts</strong>
                             <span style={{ color: d0 > 0 ? '#50fa7b' : d0 < 0 ? '#e94560' : '#555', marginLeft: 4 }}>
-                              {d0 > 0 ? '+' : ''}{d0} elo
+                              {d0 > 0 ? '+' : ''}{d0} VR
                             </span>
                           </span>
                           <span>
                             {name} <span style={{ color: '#555' }}>(Bot):</span>{' '}
                             <strong style={{ color: '#f0e6d3' }}>{bd.pts1}pts</strong>
                             <span style={{ color: d1 > 0 ? '#50fa7b' : d1 < 0 ? '#e94560' : '#555', marginLeft: 4 }}>
-                              {d1 > 0 ? '+' : ''}{d1} elo
+                              {d1 > 0 ? '+' : ''}{d1} VR
                             </span>
                           </span>
                         </span>
@@ -1916,7 +1916,7 @@ export function ActDetail({
                           }}
                         >
                           {d > 0 ? '+' : ''}
-                          {d} elo
+                          {d} VR
                         </span>
                       </span>
                     );
@@ -2035,7 +2035,7 @@ export function ActDetail({
                       <div
                         style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#555' }}
                       >
-                        ELO
+                        VR
                       </div>
                     </div>
                   </div>
