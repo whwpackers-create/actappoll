@@ -133,7 +133,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   const [editingTimeIdx, setEditingTimeIdx] = useState<number | null>(null);
   const [editingTimeVal, setEditingTimeVal] = useState('');
   const [scoringHeatIdx, setScoringHeatIdx] = useState<number | null>(null);
-  const [heatFinish, setHeatFinish] = useState<number[]>([]); // team positions in finish order (indices into seededHeats[hi])
+  const [heatFinish, setHeatFinish] = useState<string[]>([]); // player names in finish order (1st → last)
 
   const allStats = useMemo(
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
@@ -1075,20 +1075,10 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
     const saveHeatResults = (hi: number) => {
       auth.req(async () => {
         const hTeams = seededHeats[hi];
-        const orderedTeams = heatFinish.map((idx) => hTeams[idx]);
-        const n = orderedTeams.length;
-        // TV1 race: first member of each team
-        const tv1 = orderedTeams
-          .filter((t) => t.members[0]?.trim())
-          .map((t, pos) => ({ player: t.members[0], points: n - pos }));
-        // TV2 race: second member of each team
-        const tv2 = orderedTeams
-          .filter((t) => t.members[1]?.trim())
-          .map((t, pos) => ({ player: t.members[1], points: n - pos }));
-        const races: Act['races'] = [];
-        if (tv1.length >= 2) races.push({ raceNum: 1, results: tv1 });
-        if (tv2.length >= 2) races.push({ raceNum: 2, results: tv2 });
-        if (races.length === 0) { showToast('Need at least 2 players'); return; }
+        if (heatFinish.length < 2) { showToast('Need at least 2 players'); return; }
+        // One race with all players; heatFinish is ordered list of player names (1st → last)
+        const results = heatFinish.map((name, pos) => ({ player: name, points: heatFinish.length - pos }));
+        const races: Act['races'] = [{ raceNum: 1, results }];
 
         const sid = curSat.id ?? curSat._id ?? '';
         const newId = gid();
@@ -1097,7 +1087,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
           name: `${curSat.name} – Heat ${hi + 1}`,
           date: curSat.date,
           type: '8man',
-          teams: orderedTeams.map((t) => ({ name: t.name, members: t.members })),
+          teams: hTeams.map((t) => ({ name: t.name, members: t.members })),
           races,
           satId: sid,
           satRound: 1,
@@ -1252,15 +1242,11 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                       const heatActId = curSat.heatActIds?.[hi];
                       const resultAct = heatActId ? data.acts.find((a) => (a.id ?? a._id) === heatActId) : null;
 
-                      // Derive result finish order from the act's TV1 race (sorted by pts desc)
+                      // Derive result finish order from the single race (sorted by pts desc)
                       const resultOrder: string[] = resultAct
                         ? [...(resultAct.races[0]?.results ?? [])]
                             .sort((a, b) => b.points - a.points)
-                            .map((r) => {
-                              // find team whose member[0] matches this player
-                              const tm = hTeams.find((t) => t.members[0] === r.player);
-                              return tm ? tm.name : r.player;
-                            })
+                            .map((r) => r.player)
                         : [];
 
                       return (
@@ -1327,32 +1313,27 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                               </div>
                             ) : scoringHeatIdx === hi ? (
                               <div>
-                                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, marginBottom: 8 }}>FINISH ORDER — drag to reorder</div>
-                                {heatFinish.map((teamIdx, pos) => {
-                                  const t = hTeams[teamIdx];
-                                  return (
-                                    <div key={pos} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: pos < heatFinish.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                                      <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: pos === 0 ? '#fbbf24' : pos === 1 ? '#94a3b8' : pos === 2 ? '#cd7f32' : '#445', minWidth: 28 }}>
-                                        {pos + 1}{['st','nd','rd'][pos] ?? 'th'}
-                                      </span>
-                                      <div style={{ flex: 1, fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>
-                                        {t.members[0]}{t.members[1] ? ` & ${t.members[1]}` : ''}
-                                      </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        <button disabled={pos === 0} onClick={() => {
-                                          const next = [...heatFinish];
-                                          [next[pos - 1], next[pos]] = [next[pos], next[pos - 1]];
-                                          setHeatFinish(next);
-                                        }} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 3, color: pos === 0 ? '#334' : '#aaa', cursor: pos === 0 ? 'default' : 'pointer', padding: '1px 6px', fontSize: 10 }}>▲</button>
-                                        <button disabled={pos === heatFinish.length - 1} onClick={() => {
-                                          const next = [...heatFinish];
-                                          [next[pos], next[pos + 1]] = [next[pos + 1], next[pos]];
-                                          setHeatFinish(next);
-                                        }} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 3, color: pos === heatFinish.length - 1 ? '#334' : '#aaa', cursor: pos === heatFinish.length - 1 ? 'default' : 'pointer', padding: '1px 6px', fontSize: 10 }}>▼</button>
-                                      </div>
+                                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, marginBottom: 8 }}>FINISH ORDER (1st → last) — use ▲▼ to reorder</div>
+                                {heatFinish.map((playerName, pos) => (
+                                  <div key={pos} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: pos < heatFinish.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                                    <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: pos === 0 ? '#fbbf24' : pos === 1 ? '#94a3b8' : pos === 2 ? '#cd7f32' : '#445', minWidth: 28 }}>
+                                      {pos + 1}{['st','nd','rd'][pos] ?? 'th'}
+                                    </span>
+                                    <span style={{ flex: 1, fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{playerName}</span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                      <button disabled={pos === 0} onClick={() => {
+                                        const next = [...heatFinish];
+                                        [next[pos - 1], next[pos]] = [next[pos], next[pos - 1]];
+                                        setHeatFinish(next);
+                                      }} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 3, color: pos === 0 ? '#334' : '#aaa', cursor: pos === 0 ? 'default' : 'pointer', padding: '1px 6px', fontSize: 10 }}>▲</button>
+                                      <button disabled={pos === heatFinish.length - 1} onClick={() => {
+                                        const next = [...heatFinish];
+                                        [next[pos], next[pos + 1]] = [next[pos + 1], next[pos]];
+                                        setHeatFinish(next);
+                                      }} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 3, color: pos === heatFinish.length - 1 ? '#334' : '#aaa', cursor: pos === heatFinish.length - 1 ? 'default' : 'pointer', padding: '1px 6px', fontSize: 10 }}>▼</button>
                                     </div>
-                                  );
-                                })}
+                                  </div>
+                                ))}
                                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                                   <button style={secBtn} onClick={() => setScoringHeatIdx(null)}>Cancel</button>
                                   <button style={priBtn} onClick={() => saveHeatResults(hi)}>Save Results</button>
@@ -1361,7 +1342,12 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                             ) : (
                               <button
                                 style={{ ...secBtn, width: '100%', fontSize: 11 }}
-                                onClick={() => { setScoringHeatIdx(hi); setHeatFinish(hTeams.map((_, i) => i)); }}>
+                                onClick={() => {
+                                  setScoringHeatIdx(hi);
+                                  // Initialize with all individual players in seeded order
+                                  const players = hTeams.flatMap((t) => t.members.filter((m) => m.trim()));
+                                  setHeatFinish(players);
+                                }}>
                                 + Enter Results
                               </button>
                             )}
