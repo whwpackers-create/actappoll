@@ -1082,7 +1082,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   }
 
   // === UPCOMING DETAIL ===
-  if (curSat?.upcoming) {
+  if (curSat?.upcoming && !showHeatEntry) {
     const teams = (curSat.roster ?? []).map((t) => {
       const vr1 = vrMap[t.members[0]] ?? 5000;
       const vr2 = vrMap[t.members[1]] ?? 5000;
