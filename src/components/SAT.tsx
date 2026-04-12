@@ -15,6 +15,7 @@ import {
 } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import type {
+  Act,
   AppData,
   AppOps,
   PlacementTeam,
@@ -127,6 +128,12 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   const [editingUpcoming, setEditingUpcoming] = useState(false);
   const [editUpTeams, setEditUpTeams] = useState<{ p1: string; p2: string }[]>([]);
   const [upActiveDropdown, setUpActiveDropdown] = useState<string | null>(null); // key = "form-i-p1" etc
+
+  // Heat time + scorecard state
+  const [editingTimeIdx, setEditingTimeIdx] = useState<number | null>(null);
+  const [editingTimeVal, setEditingTimeVal] = useState('');
+  const [scoringHeatIdx, setScoringHeatIdx] = useState<number | null>(null);
+  const [heatFinish, setHeatFinish] = useState<number[]>([]); // team positions in finish order (indices into seededHeats[hi])
 
   const allStats = useMemo(
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
@@ -1044,6 +1051,79 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
       return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
     }).sort((a, b) => b.avgVR - a.avgVR);
 
+    // Compute seeded heats here so they're available to event handlers
+    const NUM_HEATS = 6;
+    const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);
+    teams.forEach((t, i) => {
+      const round = Math.floor(i / NUM_HEATS);
+      const pos = i % NUM_HEATS;
+      const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
+      seededHeats[heatIdx].push(t);
+    });
+    const heatColors = ['#f9a8d4','#8be9fd','#50fa7b','#f5a623','#c084fc','#fbbf24'];
+
+    const saveHeatTime = (hi: number, val: string) => {
+      auth.req(async () => {
+        const times = [...(curSat.heatTimes ?? [])];
+        times[hi] = val;
+        await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatTimes: times });
+        setEditingTimeIdx(null);
+        showToast('Time saved!');
+      });
+    };
+
+    const saveHeatResults = (hi: number) => {
+      auth.req(async () => {
+        const hTeams = seededHeats[hi];
+        const orderedTeams = heatFinish.map((idx) => hTeams[idx]);
+        const n = orderedTeams.length;
+        // TV1 race: first member of each team
+        const tv1 = orderedTeams
+          .filter((t) => t.members[0]?.trim())
+          .map((t, pos) => ({ player: t.members[0], points: n - pos }));
+        // TV2 race: second member of each team
+        const tv2 = orderedTeams
+          .filter((t) => t.members[1]?.trim())
+          .map((t, pos) => ({ player: t.members[1], points: n - pos }));
+        const races: Act['races'] = [];
+        if (tv1.length >= 2) races.push({ raceNum: 1, results: tv1 });
+        if (tv2.length >= 2) races.push({ raceNum: 2, results: tv2 });
+        if (races.length === 0) { showToast('Need at least 2 players'); return; }
+
+        const sid = curSat.id ?? curSat._id ?? '';
+        const newId = gid();
+        const act: Act = {
+          id: newId,
+          name: `${curSat.name} – Heat ${hi + 1}`,
+          date: curSat.date,
+          type: '8man',
+          teams: orderedTeams.map((t) => ({ name: t.name, members: t.members })),
+          races,
+          satId: sid,
+          satRound: 1,
+        };
+        await ops.addAct(act);
+        const actIds = [...(curSat.heatActIds ?? [])];
+        actIds[hi] = newId;
+        await ops.updateSat(sid, { heatActIds: actIds });
+        setScoringHeatIdx(null);
+        showToast('Results saved!');
+      });
+    };
+
+    const deleteHeatResults = (hi: number) => {
+      auth.req(async () => {
+        const actIds = [...(curSat.heatActIds ?? [])];
+        const actId = actIds[hi];
+        if (actId) {
+          await ops.deleteAct(actId);
+          actIds[hi] = '';
+          await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatActIds: actIds });
+        }
+        showToast('Results cleared');
+      });
+    };
+
     return (
       <div style={{ width: '100%' }}>
         <button style={{ background: 'none', border: 'none', color: '#e94560', fontFamily: FONT_HEADER, fontSize: 14, cursor: 'pointer', marginBottom: 16 }}
@@ -1114,103 +1194,186 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                 }}>Save</button>
               </div>
             </div>
-          ) : (() => {
-            const NUM_HEATS = 6;
-            // Snake seeding: round 1 forward, round 2 backward, repeat
-            // e.g. 24 teams → H1: seeds 1,12,13,24 | H2: seeds 2,11,14,23 | etc.
-            const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);
-            teams.forEach((t, i) => {
-              const round = Math.floor(i / NUM_HEATS);
-              const pos = i % NUM_HEATS;
-              const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
-              seededHeats[heatIdx].push(t);
-            });
-            const heatColors = ['#f9a8d4','#8be9fd','#50fa7b','#f5a623','#c084fc','#fbbf24'];
+          ) : (
+            <div>
+              {/* Tab bar */}
+              <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                {['STANDINGS', 'HEAT DRAW'].map((tab) => {
+                  const active = (upActiveDropdown === '__tab_heat__') === (tab === 'HEAT DRAW');
+                  return (
+                    <button key={tab}
+                      onClick={() => { setUpActiveDropdown(tab === 'HEAT DRAW' ? '__tab_heat__' : null); setScoringHeatIdx(null); }}
+                      style={{ background: 'none', border: 'none', borderBottom: active ? '2px solid #f9a8d4' : '2px solid transparent', padding: '6px 16px', fontFamily: FONT_MONO, fontSize: 11, color: active ? '#f9a8d4' : '#556', cursor: 'pointer', letterSpacing: 1 }}>
+                      {tab}
+                    </button>
+                  );
+                })}
+              </div>
 
-            return (
-              <div>
-                {/* Tab bar */}
-                <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {['STANDINGS', 'HEAT DRAW'].map((tab) => {
-                    const active = (upActiveDropdown === '__tab_heat__') === (tab === 'HEAT DRAW');
-                    return (
-                      <button key={tab}
-                        onClick={() => setUpActiveDropdown(tab === 'HEAT DRAW' ? '__tab_heat__' : null)}
-                        style={{ background: 'none', border: 'none', borderBottom: active ? '2px solid #f9a8d4' : '2px solid transparent', padding: '6px 16px', fontFamily: FONT_MONO, fontSize: 11, color: active ? '#f9a8d4' : '#556', cursor: 'pointer', letterSpacing: 1 }}>
-                        {tab}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {upActiveDropdown !== '__tab_heat__' ? (
-                  /* STANDINGS TAB */
-                  teams.length === 0 ? (
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams signed up yet</div>
-                  ) : (
-                    teams.map((t, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '12px 14px', marginBottom: 6, borderRadius: 8,
-                        background: i === 0 ? 'rgba(251,191,36,0.08)' : i === 1 ? 'rgba(148,163,184,0.06)' : i === 2 ? 'rgba(205,127,50,0.06)' : 'rgba(255,255,255,0.02)',
-                        borderLeft: `3px solid ${i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#334'}`,
-                      }}>
-                        <span style={{ fontFamily: FONT_HEADER, fontSize: 20, color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#445', minWidth: 32 }}>#{i + 1}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
-                          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginTop: 2 }}>
-                            {t.members[0]}: <span style={{ color: '#c8a030' }}>{t.vr1}</span>
-                            <span style={{ margin: '0 6px', color: '#334' }}>·</span>
-                            {t.members[1]}: <span style={{ color: '#c8a030' }}>{t.vr2}</span>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4' }}>{t.avgVR}</div>
-                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>avg VR</div>
+              {upActiveDropdown !== '__tab_heat__' ? (
+                /* STANDINGS TAB */
+                teams.length === 0 ? (
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams signed up yet</div>
+                ) : (
+                  teams.map((t, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 14px', marginBottom: 6, borderRadius: 8,
+                      background: i === 0 ? 'rgba(251,191,36,0.08)' : i === 1 ? 'rgba(148,163,184,0.06)' : i === 2 ? 'rgba(205,127,50,0.06)' : 'rgba(255,255,255,0.02)',
+                      borderLeft: `3px solid ${i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#334'}`,
+                    }}>
+                      <span style={{ fontFamily: FONT_HEADER, fontSize: 20, color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#445', minWidth: 32 }}>#{i + 1}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginTop: 2 }}>
+                          {t.members[0]}: <span style={{ color: '#c8a030' }}>{t.vr1}</span>
+                          <span style={{ margin: '0 6px', color: '#334' }}>·</span>
+                          {t.members[1]}: <span style={{ color: '#c8a030' }}>{t.vr2}</span>
                         </div>
                       </div>
-                    ))
-                  )
-                ) : (
-                  /* HEAT DRAW TAB */
-                  teams.length === 0 ? (
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams to seed yet</div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-                      {seededHeats.map((hTeams, hi) => {
-                        if (hTeams.length === 0) return null;
-                        const hColor = heatColors[hi] ?? '#f9a8d4';
-                        const hAvg = hTeams.length ? Math.round(hTeams.reduce((s, t) => s + t.avgVR, 0) / hTeams.length) : 0;
-                        return (
-                          <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}33`, borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: '12px 14px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                              <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: hColor, letterSpacing: 1 }}>HEAT {hi + 1}</span>
-                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>avg {hAvg} VR</span>
-                            </div>
-                            {hTeams.map((t, ti) => {
-                              const globalSeed = teams.indexOf(t) + 1;
-                              return (
-                                <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
-                                    <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>
-                                      {t.members[0]}: {t.vr1} · {t.members[1]}: {t.vr2}
-                                    </div>
-                                  </div>
-                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: hColor }}>{t.avgVR}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4' }}>{t.avgVR}</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>avg VR</div>
+                      </div>
                     </div>
-                  )
-                )}
-              </div>
-            );
-          })()}
+                  ))
+                )
+              ) : (
+                /* HEAT DRAW TAB */
+                teams.length === 0 ? (
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams to seed yet</div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+                    {seededHeats.map((hTeams, hi) => {
+                      if (hTeams.length === 0) return null;
+                      const hColor = heatColors[hi] ?? '#f9a8d4';
+                      const hAvg = Math.round(hTeams.reduce((s, t) => s + t.avgVR, 0) / hTeams.length);
+                      const savedTime = curSat.heatTimes?.[hi] ?? '';
+                      const heatActId = curSat.heatActIds?.[hi];
+                      const resultAct = heatActId ? data.acts.find((a) => (a.id ?? a._id) === heatActId) : null;
+
+                      // Derive result finish order from the act's TV1 race (sorted by pts desc)
+                      const resultOrder: string[] = resultAct
+                        ? [...(resultAct.races[0]?.results ?? [])]
+                            .sort((a, b) => b.points - a.points)
+                            .map((r) => {
+                              // find team whose member[0] matches this player
+                              const tm = hTeams.find((t) => t.members[0] === r.player);
+                              return tm ? tm.name : r.player;
+                            })
+                        : [];
+
+                      return (
+                        <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}33`, borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: '12px 14px' }}>
+                          {/* Heat header */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: hColor, letterSpacing: 1 }}>HEAT {hi + 1}</span>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>avg {hAvg} VR</span>
+                          </div>
+
+                          {/* Time field */}
+                          <div style={{ marginBottom: 10 }}>
+                            {editingTimeIdx === hi ? (
+                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                <input
+                                  style={{ ...inp, flex: 1, fontSize: 12, padding: '4px 8px' }}
+                                  value={editingTimeVal}
+                                  placeholder="e.g. 10:30 AM"
+                                  autoFocus
+                                  onChange={(e) => setEditingTimeVal(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') saveHeatTime(hi, editingTimeVal); if (e.key === 'Escape') setEditingTimeIdx(null); }}
+                                />
+                                <button style={{ ...priBtn, padding: '4px 10px', fontSize: 11 }} onClick={() => saveHeatTime(hi, editingTimeVal)}>✓</button>
+                                <button style={{ ...secBtn, padding: '4px 8px', fontSize: 11 }} onClick={() => setEditingTimeIdx(null)}>✕</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingTimeIdx(hi); setEditingTimeVal(savedTime); }}
+                                style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 8px', fontFamily: FONT_MONO, fontSize: 11, color: savedTime ? '#c8a030' : '#445', cursor: 'pointer' }}>
+                                {savedTime ? `🕐 ${savedTime}` : '+ Set time'}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Team list */}
+                          {hTeams.map((t, ti) => {
+                            const globalSeed = teams.indexOf(t) + 1;
+                            return (
+                              <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
+                                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{t.vr1} · {t.vr2}</div>
+                                </div>
+                                <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{t.avgVR}</span>
+                              </div>
+                            );
+                          })}
+
+                          {/* Results section */}
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                            {resultAct ? (
+                              <div>
+                                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, marginBottom: 6 }}>RESULTS</div>
+                                {resultOrder.map((name, pos) => (
+                                  <div key={pos} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+                                    <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: pos === 0 ? '#fbbf24' : pos === 1 ? '#94a3b8' : pos === 2 ? '#cd7f32' : '#445', minWidth: 28 }}>
+                                      {pos + 1}{['st','nd','rd'][pos] ?? 'th'}
+                                    </span>
+                                    <span style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#e0d4c0', flex: 1 }}>{name}</span>
+                                  </div>
+                                ))}
+                                <button onClick={() => deleteHeatResults(hi)} style={{ ...delBtn, fontSize: 10, padding: '3px 8px', marginTop: 6 }}>Clear</button>
+                              </div>
+                            ) : scoringHeatIdx === hi ? (
+                              <div>
+                                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, marginBottom: 8 }}>FINISH ORDER — drag to reorder</div>
+                                {heatFinish.map((teamIdx, pos) => {
+                                  const t = hTeams[teamIdx];
+                                  return (
+                                    <div key={pos} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: pos < heatFinish.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                                      <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: pos === 0 ? '#fbbf24' : pos === 1 ? '#94a3b8' : pos === 2 ? '#cd7f32' : '#445', minWidth: 28 }}>
+                                        {pos + 1}{['st','nd','rd'][pos] ?? 'th'}
+                                      </span>
+                                      <div style={{ flex: 1, fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>
+                                        {t.members[0]}{t.members[1] ? ` & ${t.members[1]}` : ''}
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        <button disabled={pos === 0} onClick={() => {
+                                          const next = [...heatFinish];
+                                          [next[pos - 1], next[pos]] = [next[pos], next[pos - 1]];
+                                          setHeatFinish(next);
+                                        }} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 3, color: pos === 0 ? '#334' : '#aaa', cursor: pos === 0 ? 'default' : 'pointer', padding: '1px 6px', fontSize: 10 }}>▲</button>
+                                        <button disabled={pos === heatFinish.length - 1} onClick={() => {
+                                          const next = [...heatFinish];
+                                          [next[pos], next[pos + 1]] = [next[pos + 1], next[pos]];
+                                          setHeatFinish(next);
+                                        }} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 3, color: pos === heatFinish.length - 1 ? '#334' : '#aaa', cursor: pos === heatFinish.length - 1 ? 'default' : 'pointer', padding: '1px 6px', fontSize: 10 }}>▼</button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                                  <button style={secBtn} onClick={() => setScoringHeatIdx(null)}>Cancel</button>
+                                  <button style={priBtn} onClick={() => saveHeatResults(hi)}>Save Results</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                style={{ ...secBtn, width: '100%', fontSize: 11 }}
+                                onClick={() => { setScoringHeatIdx(hi); setHeatFinish(hTeams.map((_, i) => i)); }}>
+                                + Enter Results
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

@@ -95,6 +95,8 @@ export interface Sat extends Act {
   placements?: Record<string, PlacementTeam[]>;
   heats?: SatHeat[];
   upcoming?: boolean;
+  heatTimes?: string[];
+  heatActIds?: string[];
 }
 
 export interface AppData {

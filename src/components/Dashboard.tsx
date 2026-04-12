@@ -699,7 +699,12 @@ export function Dashboard({
                   return (
                     <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}33`, borderRadius: 6, padding: '10px 12px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>HEAT {hi + 1}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>HEAT {hi + 1}</span>
+                          {sat.heatTimes?.[hi] && (
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>🕐 {sat.heatTimes[hi]}</span>
+                          )}
+                        </div>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {hAvg}</span>
                       </div>
                       {hTeams.map((t, ti) => (
