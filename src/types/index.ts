@@ -76,6 +76,7 @@ export interface SatHeat {
   actId?: string;
   round?: number;
   advanceCount?: number;
+  slotIdx?: number;
   teams?: SatHeatTeam[];
   advanced?: SatHeatTeam[];
   scores?: SatHeatScore[];
@@ -96,10 +97,7 @@ export interface Sat extends Act {
   heats?: SatHeat[];
   upcoming?: boolean;
   heatTimes?: string[];
-  heatActIds?: string[];
   day1Cuts?: string[][];
-  day2Teams?: SatRosterTeam[];
-  day2HeatActIds?: string[];
 }
 
 export interface AppData {
