@@ -660,8 +660,8 @@ export function Dashboard({
         if (upcomingSats.length === 0) return null;
         const sat = upcomingSats.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
         const teams = (sat.roster ?? []).map((t) => {
-          const vr1 = vrMap[t.members[0]] ?? 5000;
-          const vr2 = vrMap[t.members[1]] ?? 5000;
+          const vr1 = vrMap[t.members[0]] ?? 0;
+          const vr2 = vrMap[t.members[1]] ?? 0;
           return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
         }).sort((a, b) => b.avgVR - a.avgVR);
         if (teams.length === 0) return null;

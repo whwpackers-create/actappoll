@@ -569,8 +569,8 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
               {upcoming.map((sat) => {
                 const sid = sat.id ?? sat._id ?? '';
                 const teams = (sat.roster ?? []).map((t) => {
-                  const vr1 = vrMap[t.members[0]] ?? 5000;
-                  const vr2 = vrMap[t.members[1]] ?? 5000;
+                  const vr1 = vrMap[t.members[0]] ?? 0;
+                  const vr2 = vrMap[t.members[1]] ?? 0;
                   return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
                 }).sort((a, b) => b.avgVR - a.avgVR);
                 return (
@@ -1084,8 +1084,8 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   // === UPCOMING DETAIL ===
   if (curSat?.upcoming && !showHeatEntry) {
     const teams = (curSat.roster ?? []).map((t) => {
-      const vr1 = vrMap[t.members[0]] ?? 5000;
-      const vr2 = vrMap[t.members[1]] ?? 5000;
+      const vr1 = vrMap[t.members[0]] ?? 0;
+      const vr2 = vrMap[t.members[1]] ?? 0;
       return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
     }).sort((a, b) => b.avgVR - a.avgVR);
 
@@ -1364,8 +1364,8 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                                   onClick={() => {
                                     const n = Math.max(hTeams.length, 4);
                                     setHeatTeams(hTeams.map((t) => {
-                                      const vr0 = vrMap[t.members[0]] ?? 5000;
-                                      const vr1 = vrMap[t.members[1]] ?? 5000;
+                                      const vr0 = vrMap[t.members[0]] ?? 0;
+                                      const vr1 = vrMap[t.members[1]] ?? 0;
                                       const ordered: string[] = vr0 >= vr1 ? [...t.members] : [t.members[1], t.members[0]];
                                       return { name: t.name, members: ordered, subs: ['', ''], seed: t.seed ?? null };
                                     }));
