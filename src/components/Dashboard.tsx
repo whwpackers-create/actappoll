@@ -685,7 +685,7 @@ export function Dashboard({
                 <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4', letterSpacing: 2 }}>UPCOMING SAT HEATS</span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · {satDate}</span>
                 <button
-                  onClick={() => { setSelSat?.(sat.id ?? sat._id ?? ''); setView('sats'); }}
+                  onClick={() => { setSelSat?.(sat.id ?? sat._id ?? ''); setView('sat'); }}
                   style={{ marginLeft: 'auto', background: 'rgba(249,168,212,0.1)', border: '1px solid rgba(249,168,212,0.25)', borderRadius: 4, padding: '3px 10px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer', letterSpacing: 1 }}
                 >
                   VIEW →
