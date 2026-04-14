@@ -1,5 +1,5 @@
 import { useState, Fragment, useMemo } from 'react';
-import { fsGet, fsSet, gid } from '../services/firestore';
+import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
 import { computeStats } from '../utils/VR';
 import {
   card,
@@ -39,6 +39,7 @@ interface AuthState {
 export interface SATProps {
   data: AppData;
   ops: AppOps;
+  reload: () => Promise<void>;
   showToast: (msg: string) => void;
   auth: AuthState;
   setView: (v: string) => void;
@@ -108,7 +109,7 @@ function getDefMap4(ro: string): number[][][] {
   );
 }
 
-export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, setSelSat }: SATProps) {
+export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, selSat, setSelSat }: SATProps) {
   const [mode, setMode] = useState<'list' | 'create' | 'detail'>(selSat ? 'detail' : 'list');
   const [editingSat, setEditingSat] = useState(false);
   const [eSatName, setESatName] = useState('');
@@ -1133,7 +1134,8 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
         fresh[aHeat] = fresh[aHeat].map((n) => (n === aName ? bName : n));
         fresh[bHeat] = fresh[bHeat].map((n) => (n === bName ? aName : n));
         const sid = curSat.id ?? curSat._id ?? '';
-        await ops.updateSat(sid, { heatAssignmentsJson: JSON.stringify(fresh) });
+        await fsUpdate('sats', sid, { heatAssignmentsJson: JSON.stringify(fresh) });
+        await reload();
         setSwapSrc(null);
         showToast(`Swapped ${aName.split(' & ')[0]} ↔ ${bName.split(' & ')[0]}`);
       });
@@ -1356,7 +1358,8 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                     {curSat.heatAssignmentsJson && !swapSrc && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                         <button onClick={() => auth.req(async () => {
-                          await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: '' });
+                          await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: '' });
+                          await reload();
                           showToast('Bracket reset to default seeding');
                         })} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 10px', fontFamily: FONT_MONO, fontSize: 10, color: '#556', cursor: 'pointer' }}>
                           Reset to default seeding

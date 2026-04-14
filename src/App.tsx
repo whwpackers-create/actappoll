@@ -1324,6 +1324,7 @@ export default function App() {
           <SAT
             data={data}
             ops={ops}
+            reload={reload}
             showToast={(msg) => {
               setToast(msg);
               setTimeout(() => setToast(null), 2500);

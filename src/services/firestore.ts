@@ -5,6 +5,7 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  updateDoc,
   deleteDoc,
   DocumentData,
 } from 'firebase/firestore';
@@ -17,6 +18,10 @@ export async function fsGet<T extends DocumentData>(col: string): Promise<(T & {
 
 export async function fsSet(col: string, id: string, data: DocumentData): Promise<void> {
   await setDoc(doc(db, col, id), data);
+}
+
+export async function fsUpdate(col: string, id: string, data: DocumentData): Promise<void> {
+  await updateDoc(doc(db, col, id), data);
 }
 
 export async function fsDel(col: string, id: string): Promise<void> {

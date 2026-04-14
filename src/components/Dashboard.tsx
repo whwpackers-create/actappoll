@@ -670,13 +670,26 @@ export function Dashboard({
         }).sort((a, b) => b.avgVR - a.avgVR);
         if (teams.length === 0) return null;
         const NUM_HEATS = 6;
+        const teamByName = Object.fromEntries(teams.map((t) => [t.name, t]));
         const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);
-        teams.forEach((t, i) => {
-          const round = Math.floor(i / NUM_HEATS);
-          const pos = i % NUM_HEATS;
-          const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
-          seededHeats[heatIdx].push(t);
-        });
+        const parsedAssignments: string[][] | null = (sat.heatAssignmentsJson ?? '')
+          ? (() => { try { return JSON.parse(sat.heatAssignmentsJson!); } catch { return null; } })()
+          : null;
+        if (parsedAssignments && parsedAssignments.length === NUM_HEATS) {
+          parsedAssignments.forEach((slot: string[], hi: number) => {
+            slot.forEach((name: string) => {
+              const t = teamByName[name];
+              if (t) seededHeats[hi].push(t);
+            });
+          });
+        } else {
+          teams.forEach((t, i) => {
+            const round = Math.floor(i / NUM_HEATS);
+            const pos = i % NUM_HEATS;
+            const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
+            seededHeats[heatIdx].push(t);
+          });
+        }
         const heatColors = ['#f9a8d4', '#8be9fd', '#50fa7b', '#f5a623', '#c084fc', '#fbbf24'];
         const satDate = new Date(sat.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
         return (
