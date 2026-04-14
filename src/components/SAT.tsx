@@ -157,6 +157,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
   const [editingTimeVal, setEditingTimeVal] = useState('');
   const [upcomingHeatSaveIdx, setUpcomingHeatSaveIdx] = useState<number | null>(null);
   const [advancingCuts, setAdvancingCuts] = useState<number[]>([]); // indices of 3rd-place teams being cut
+  const [swapSrc, setSwapSrc] = useState<{ heatIdx: number; teamName: string } | null>(null);
 
   const allStats = useMemo(
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
@@ -1090,14 +1091,39 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
 
     // Compute seeded heats here so they're available to event handlers
     const NUM_HEATS = 6;
+    const teamByName = Object.fromEntries(teams.map((t) => [t.name, t]));
     const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);
-    teams.forEach((t, i) => {
-      const round = Math.floor(i / NUM_HEATS);
-      const pos = i % NUM_HEATS;
-      const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
-      seededHeats[heatIdx].push(t);
-    });
+    if (curSat.heatAssignments && curSat.heatAssignments.length === NUM_HEATS) {
+      curSat.heatAssignments.forEach((slot, hi) => {
+        slot.forEach((name) => {
+          const t = teamByName[name];
+          if (t) seededHeats[hi].push(t);
+        });
+      });
+    } else {
+      teams.forEach((t, i) => {
+        const round = Math.floor(i / NUM_HEATS);
+        const pos = i % NUM_HEATS;
+        const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
+        seededHeats[heatIdx].push(t);
+      });
+    }
     const heatColors = ['#f9a8d4','#8be9fd','#50fa7b','#f5a623','#c084fc','#fbbf24'];
+
+    const doSwap = (aHeat: number, aName: string, bHeat: number, bName: string) => {
+      auth.req(async () => {
+        // Build current assignments from seededHeats (already resolved from overrides or defaults)
+        const assignments: string[][] = seededHeats.map((slot) => slot.map((t) => t.name));
+        const ai = assignments[aHeat].indexOf(aName);
+        const bi = assignments[bHeat].indexOf(bName);
+        if (ai === -1 || bi === -1) return;
+        assignments[aHeat][ai] = bName;
+        assignments[bHeat][bi] = aName;
+        await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatAssignments: assignments });
+        setSwapSrc(null);
+        showToast(`Swapped ${aName} ↔ ${bName}`);
+      });
+    };
 
     const saveHeatTime = (hi: number, val: string) => {
       auth.req(async () => {
@@ -1308,6 +1334,21 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                     <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams to seed yet</div>
                   ) : (
                     <Fragment>
+                    {swapSrc && (
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#f9a8d4', background: 'rgba(249,168,212,0.08)', border: '1px solid rgba(249,168,212,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
+                        Swapping <strong>{swapSrc.teamName}</strong> — click ⇄ on a team in another heat to swap (within 500 VR). Click ✕ to cancel.
+                      </div>
+                    )}
+                    {curSat.heatAssignments && !swapSrc && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                        <button onClick={() => auth.req(async () => {
+                          await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatAssignments: undefined as unknown as string[][] });
+                          showToast('Bracket reset to default seeding');
+                        })} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 10px', fontFamily: FONT_MONO, fontSize: 10, color: '#556', cursor: 'pointer' }}>
+                          Reset to default seeding
+                        </button>
+                      </div>
+                    )}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
                       {seededHeats.map((hTeams, hi) => {
                         if (hTeams.length === 0) return null;
@@ -1371,14 +1412,42 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                                 const [p1, p2, pv1, pv2] = t.vr1 >= t.vr2
                                   ? [t.members[0], t.members[1], t.vr1, t.vr2]
                                   : [t.members[1], t.members[0], t.vr2, t.vr1];
+                                const isSrc = swapSrc?.heatIdx === hi && swapSrc?.teamName === t.name;
+                                const isTarget = swapSrc !== null && swapSrc.heatIdx !== hi;
+                                const srcTeam = swapSrc ? teamByName[swapSrc.teamName] : null;
+                                const vrDiff = srcTeam ? Math.abs(t.avgVR - srcTeam.avgVR) : 0;
+                                const withinRange = vrDiff <= 500;
                                 return (
-                                  <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                                  <div key={ti} style={{
+                                    display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
+                                    borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                    background: isSrc ? 'rgba(249,168,212,0.1)' : isTarget && withinRange ? 'rgba(80,250,123,0.05)' : 'transparent',
+                                    borderRadius: 4,
+                                    opacity: isTarget && !withinRange ? 0.35 : 1,
+                                  }}>
                                     <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
                                     <div style={{ flex: 1 }}>
-                                      <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{p1} & {p2}</div>
+                                      <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: isSrc ? '#f9a8d4' : '#f0e6d3' }}>{p1} & {p2}</div>
                                       <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
                                     </div>
                                     <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{t.avgVR}</span>
+                                    {/* Swap button — only show when no results yet */}
+                                    {isSrc ? (
+                                      <button onClick={() => setSwapSrc(null)}
+                                        style={{ background: 'rgba(249,168,212,0.15)', border: '1px solid rgba(249,168,212,0.4)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer' }}>
+                                        ✕
+                                      </button>
+                                    ) : isTarget && withinRange ? (
+                                      <button onClick={() => doSwap(swapSrc!.heatIdx, swapSrc!.teamName, hi, t.name)}
+                                        style={{ background: 'rgba(80,250,123,0.12)', border: '1px solid rgba(80,250,123,0.3)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#50fa7b', cursor: 'pointer' }}>
+                                        ⇄
+                                      </button>
+                                    ) : swapSrc === null ? (
+                                      <button onClick={() => setSwapSrc({ heatIdx: hi, teamName: t.name })}
+                                        style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#445', cursor: 'pointer' }}>
+                                        ⇄
+                                      </button>
+                                    ) : null}
                                   </div>
                                 );
                               })
