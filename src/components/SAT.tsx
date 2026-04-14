@@ -1093,8 +1093,11 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
     const NUM_HEATS = 6;
     const teamByName = Object.fromEntries(teams.map((t) => [t.name, t]));
     const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);
-    if (curSat.heatAssignments && curSat.heatAssignments.length === NUM_HEATS) {
-      curSat.heatAssignments.forEach((slot, hi) => {
+    const parsedAssignments: string[][] | null = (curSat.heatAssignmentsJson ?? '')
+      ? (() => { try { return JSON.parse(curSat.heatAssignmentsJson!); } catch { return null; } })()
+      : null;
+    if (parsedAssignments && parsedAssignments.length === NUM_HEATS) {
+      parsedAssignments.forEach((slot, hi) => {
         slot.forEach((name) => {
           const t = teamByName[name];
           if (t) seededHeats[hi].push(t);
@@ -1114,8 +1117,8 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
       auth.req(async () => {
         // Rebuild assignments fresh from curSat (avoids stale closure over seededHeats)
         const fresh: string[][] = Array.from({ length: NUM_HEATS }, () => [] as string[]);
-        if (curSat.heatAssignments && curSat.heatAssignments.length === NUM_HEATS) {
-          curSat.heatAssignments.forEach((slot, hi) => { fresh[hi] = [...slot]; });
+        if (parsedAssignments && parsedAssignments.length === NUM_HEATS) {
+          parsedAssignments.forEach((slot: string[], hi: number) => { fresh[hi] = [...slot]; });
         } else {
           // Rerun default snake seeding
           const sorted = [...teams].sort((a, b) => b.avgVR - a.avgVR);
@@ -1130,7 +1133,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
         fresh[aHeat] = fresh[aHeat].map((n) => (n === aName ? bName : n));
         fresh[bHeat] = fresh[bHeat].map((n) => (n === bName ? aName : n));
         const sid = curSat.id ?? curSat._id ?? '';
-        await ops.updateSat(sid, { heatAssignments: fresh });
+        await ops.updateSat(sid, { heatAssignmentsJson: JSON.stringify(fresh) });
         setSwapSrc(null);
         showToast(`Swapped ${aName.split(' & ')[0]} ↔ ${bName.split(' & ')[0]}`);
       });
@@ -1350,10 +1353,10 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                         Swapping <strong>{swapSrc.teamName}</strong> — click ⇄ on any team in another heat. Green = close VR match, orange = fair, red = big mismatch. Click ✕ to cancel.
                       </div>
                     )}
-                    {curSat.heatAssignments && !swapSrc && (
+                    {curSat.heatAssignmentsJson && !swapSrc && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                         <button onClick={() => auth.req(async () => {
-                          await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatAssignments: undefined as unknown as string[][] });
+                          await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: '' });
                           showToast('Bracket reset to default seeding');
                         })} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 10px', fontFamily: FONT_MONO, fontSize: 10, color: '#556', cursor: 'pointer' }}>
                           Reset to default seeding

@@ -97,7 +97,7 @@ export interface Sat extends Act {
   heats?: SatHeat[];
   upcoming?: boolean;
   heatTimes?: string[];
-  heatAssignments?: string[][];
+  heatAssignmentsJson?: string;
   day1Cuts?: string[][];
 }
 
