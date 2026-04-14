@@ -1112,16 +1112,27 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
 
     const doSwap = (aHeat: number, aName: string, bHeat: number, bName: string) => {
       auth.req(async () => {
-        // Build current assignments from seededHeats (already resolved from overrides or defaults)
-        const assignments: string[][] = seededHeats.map((slot) => slot.map((t) => t.name));
-        const ai = assignments[aHeat].indexOf(aName);
-        const bi = assignments[bHeat].indexOf(bName);
-        if (ai === -1 || bi === -1) return;
-        assignments[aHeat][ai] = bName;
-        assignments[bHeat][bi] = aName;
-        await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatAssignments: assignments });
+        // Rebuild assignments fresh from curSat (avoids stale closure over seededHeats)
+        const fresh: string[][] = Array.from({ length: NUM_HEATS }, () => [] as string[]);
+        if (curSat.heatAssignments && curSat.heatAssignments.length === NUM_HEATS) {
+          curSat.heatAssignments.forEach((slot, hi) => { fresh[hi] = [...slot]; });
+        } else {
+          // Rerun default snake seeding
+          const sorted = [...teams].sort((a, b) => b.avgVR - a.avgVR);
+          sorted.forEach((t, i) => {
+            const round = Math.floor(i / NUM_HEATS);
+            const pos = i % NUM_HEATS;
+            const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
+            fresh[heatIdx].push(t.name);
+          });
+        }
+        // Swap: replace aName in aHeat with bName and vice-versa
+        fresh[aHeat] = fresh[aHeat].map((n) => (n === aName ? bName : n));
+        fresh[bHeat] = fresh[bHeat].map((n) => (n === bName ? aName : n));
+        const sid = curSat.id ?? curSat._id ?? '';
+        await ops.updateSat(sid, { heatAssignments: fresh });
         setSwapSrc(null);
-        showToast(`Swapped ${aName} ↔ ${bName}`);
+        showToast(`Swapped ${aName.split(' & ')[0]} ↔ ${bName.split(' & ')[0]}`);
       });
     };
 
