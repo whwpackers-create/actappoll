@@ -159,6 +159,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [upcomingHeatSaveIdx, setUpcomingHeatSaveIdx] = useState<number | null>(null);
   const [advancingCuts, setAdvancingCuts] = useState<number[]>([]); // indices of 3rd-place teams being cut
   const [swapSrc, setSwapSrc] = useState<{ heatIdx: number; teamName: string } | null>(null);
+  const [editingSubKey, setEditingSubKey] = useState<string | null>(null); // "heatIdx:playerName"
+  const [editingSubVal, setEditingSubVal] = useState('');
 
   const allStats = useMemo(
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
@@ -1141,6 +1143,24 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       });
     };
 
+    const heatSubs: Record<string, string> = (() => {
+      try { return curSat.heatSubsJson ? JSON.parse(curSat.heatSubsJson) : {}; } catch { return {}; }
+    })();
+
+    const saveSub = (key: string, subName: string) => {
+      auth.req(async () => {
+        const next = { ...heatSubs };
+        if (subName.trim()) next[key] = subName.trim();
+        else delete next[key];
+        const sid = curSat.id ?? curSat._id ?? '';
+        await fsUpdate('sats', sid, { heatSubsJson: JSON.stringify(next) });
+        await reload();
+        setEditingSubKey(null);
+        setEditingSubVal('');
+        showToast(subName.trim() ? `Sub saved` : 'Sub removed');
+      });
+    };
+
     const saveHeatTime = (hi: number, val: string) => {
       auth.req(async () => {
         const times = [...(curSat.heatTimes ?? [])];
@@ -1433,38 +1453,89 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                 const isTarget = swapSrc !== null && swapSrc.heatIdx !== hi;
                                 const srcTeam = swapSrc ? teamByName[swapSrc.teamName] : null;
                                 const vrDiff = srcTeam ? Math.abs(t.avgVR - srcTeam.avgVR) : 0;
-                                // color-coded match quality — all targets are clickable
                                 const matchColor = vrDiff <= 400 ? '#50fa7b' : vrDiff <= 800 ? '#f5a623' : '#e94560';
                                 return (
                                   <div key={ti} style={{
-                                    display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
+                                    padding: '6px 0',
                                     borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
                                     background: isSrc ? 'rgba(249,168,212,0.1)' : isTarget ? 'rgba(255,255,255,0.02)' : 'transparent',
                                     borderRadius: 4,
                                   }}>
-                                    <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
-                                    <div style={{ flex: 1 }}>
-                                      <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: isSrc ? '#f9a8d4' : '#f0e6d3' }}>{p1} & {p2}</div>
-                                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: isSrc ? '#f9a8d4' : '#f0e6d3' }}>{p1} & {p2}</div>
+                                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
+                                      </div>
+                                      <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{t.avgVR}</span>
+                                      {!isTarget && swapSrc === null && (
+                                        <button onClick={() => setSwapSrc({ heatIdx: hi, teamName: t.name })}
+                                          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#445', cursor: 'pointer' }}>
+                                          ⇄
+                                        </button>
+                                      )}
+                                      {isSrc && (
+                                        <button onClick={() => setSwapSrc(null)}
+                                          style={{ background: 'rgba(249,168,212,0.15)', border: '1px solid rgba(249,168,212,0.4)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer' }}>
+                                          ✕
+                                        </button>
+                                      )}
+                                      {isTarget && (
+                                        <button onClick={() => doSwap(swapSrc!.heatIdx, swapSrc!.teamName, hi, t.name)}
+                                          style={{ background: `${matchColor}18`, border: `1px solid ${matchColor}55`, borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: matchColor, cursor: 'pointer' }}
+                                          title={vrDiff > 400 ? `${vrDiff} VR difference` : ''}>
+                                          ⇄
+                                        </button>
+                                      )}
                                     </div>
-                                    <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{t.avgVR}</span>
-                                    {isSrc ? (
-                                      <button onClick={() => setSwapSrc(null)}
-                                        style={{ background: 'rgba(249,168,212,0.15)', border: '1px solid rgba(249,168,212,0.4)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer' }}>
-                                        ✕
-                                      </button>
-                                    ) : isTarget ? (
-                                      <button onClick={() => doSwap(swapSrc!.heatIdx, swapSrc!.teamName, hi, t.name)}
-                                        style={{ background: `${matchColor}18`, border: `1px solid ${matchColor}55`, borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: matchColor, cursor: 'pointer' }}
-                                        title={vrDiff > 400 ? `${vrDiff} VR difference` : ''}>
-                                        ⇄
-                                      </button>
-                                    ) : (
-                                      <button onClick={() => setSwapSrc({ heatIdx: hi, teamName: t.name })}
-                                        style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#445', cursor: 'pointer' }}>
-                                        ⇄
-                                      </button>
-                                    )}
+                                    {/* Per-player sub rows */}
+                                    {[p1, p2].map((player, pi) => {
+                                      const subKey = `${hi}:${player}`;
+                                      const existingSub = heatSubs[subKey];
+                                      const isEditing = editingSubKey === subKey;
+                                      return (
+                                        <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 32 }}>
+                                          {isEditing ? (
+                                            <>
+                                              <input
+                                                autoFocus
+                                                style={{ ...inp, flex: 1, fontSize: 11, padding: '3px 7px' }}
+                                                value={editingSubVal}
+                                                placeholder={`Sub for ${player.split(' ')[0]}…`}
+                                                list="plist-subs"
+                                                onChange={(e) => setEditingSubVal(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter') saveSub(subKey, editingSubVal);
+                                                  if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); }
+                                                }}
+                                              />
+                                              <datalist id="plist-subs">
+                                                {rosterNames.map((n) => <option key={n} value={n} />)}
+                                              </datalist>
+                                              <button style={{ ...priBtn, padding: '3px 8px', fontSize: 10 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
+                                              <button style={{ ...secBtn, padding: '3px 7px', fontSize: 10 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
+                                            </>
+                                          ) : existingSub ? (
+                                            <>
+                                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c084fc' }}>
+                                                <span style={{ color: '#c084fc', fontWeight: 700 }}>{existingSub}</span>
+                                                <span style={{ color: '#556' }}> sub for </span>
+                                                <span style={{ color: '#8090a0' }}>{player.split(' ')[0]}</span>
+                                              </span>
+                                              <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(existingSub); }}
+                                                style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 11, padding: '0 2px' }}>✎</button>
+                                              <button onClick={() => saveSub(subKey, '')}
+                                                style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✕</button>
+                                            </>
+                                          ) : (
+                                            <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(''); }}
+                                              style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 3, padding: '1px 7px', fontFamily: FONT_MONO, fontSize: 9, color: '#445', cursor: 'pointer' }}>
+                                              + sub for {player.split(' ')[0]}
+                                            </button>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 );
                               })

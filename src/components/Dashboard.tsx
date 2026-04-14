@@ -691,6 +691,9 @@ export function Dashboard({
           });
         }
         const heatColors = ['#f9a8d4', '#8be9fd', '#50fa7b', '#f5a623', '#c084fc', '#fbbf24'];
+        const heatSubs: Record<string, string> = (() => {
+          try { return sat.heatSubsJson ? JSON.parse(sat.heatSubsJson) : {}; } catch { return {}; }
+        })();
         const satDate = new Date(sat.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
         return (
           <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
@@ -724,15 +727,28 @@ export function Dashboard({
                         </div>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {hAvg}</span>
                       </div>
-                      {hTeams.map((t, ti) => (
-                        <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0' }}>
-                            {t.members[0] && <span>{t.members[0].split(' ')[0]}</span>}
-                            {t.members[1] && <span style={{ color: '#8090a0' }}> &amp; {t.members[1].split(' ')[0]}</span>}
+                      {hTeams.map((t, ti) => {
+                        const sub0 = heatSubs[`${hi}:${t.members[0]}`];
+                        const sub1 = heatSubs[`${hi}:${t.members[1]}`];
+                        return (
+                          <div key={ti} style={{ padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0' }}>
+                                {t.members[0] && <span style={{ textDecoration: sub0 ? 'line-through' : 'none', color: sub0 ? '#556' : '#e0d4c0' }}>{t.members[0].split(' ')[0]}</span>}
+                                {t.members[1] && <span style={{ color: '#8090a0', textDecoration: sub1 ? 'line-through' : 'none' }}> &amp; {t.members[1].split(' ')[0]}</span>}
+                              </div>
+                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>{t.avgVR}</span>
+                            </div>
+                            {(sub0 || sub1) && (
+                              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c084fc', marginTop: 2 }}>
+                                {sub0 && <span>{sub0} <span style={{ color: '#556' }}>for {t.members[0].split(' ')[0]}</span></span>}
+                                {sub0 && sub1 && <span style={{ color: '#445' }}> · </span>}
+                                {sub1 && <span>{sub1} <span style={{ color: '#556' }}>for {t.members[1].split(' ')[0]}</span></span>}
+                              </div>
+                            )}
                           </div>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>{t.avgVR}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })}
