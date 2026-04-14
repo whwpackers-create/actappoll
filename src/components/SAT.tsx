@@ -1336,7 +1336,7 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                     <Fragment>
                     {swapSrc && (
                       <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#f9a8d4', background: 'rgba(249,168,212,0.08)', border: '1px solid rgba(249,168,212,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
-                        Swapping <strong>{swapSrc.teamName}</strong> — click ⇄ on a team in another heat to swap (within 500 VR). Click ✕ to cancel.
+                        Swapping <strong>{swapSrc.teamName}</strong> — click ⇄ on any team in another heat. Green = close VR match, orange = fair, red = big mismatch. Click ✕ to cancel.
                       </div>
                     )}
                     {curSat.heatAssignments && !swapSrc && (
@@ -1416,14 +1416,14 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                                 const isTarget = swapSrc !== null && swapSrc.heatIdx !== hi;
                                 const srcTeam = swapSrc ? teamByName[swapSrc.teamName] : null;
                                 const vrDiff = srcTeam ? Math.abs(t.avgVR - srcTeam.avgVR) : 0;
-                                const withinRange = vrDiff <= 500;
+                                // color-coded match quality — all targets are clickable
+                                const matchColor = vrDiff <= 400 ? '#50fa7b' : vrDiff <= 800 ? '#f5a623' : '#e94560';
                                 return (
                                   <div key={ti} style={{
                                     display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
                                     borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                                    background: isSrc ? 'rgba(249,168,212,0.1)' : isTarget && withinRange ? 'rgba(80,250,123,0.05)' : 'transparent',
+                                    background: isSrc ? 'rgba(249,168,212,0.1)' : isTarget ? 'rgba(255,255,255,0.02)' : 'transparent',
                                     borderRadius: 4,
-                                    opacity: isTarget && !withinRange ? 0.35 : 1,
                                   }}>
                                     <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
                                     <div style={{ flex: 1 }}>
@@ -1431,23 +1431,23 @@ export function SAT({ data, ops, showToast, auth, setView, setSelAct, selSat, se
                                       <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
                                     </div>
                                     <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{t.avgVR}</span>
-                                    {/* Swap button — only show when no results yet */}
                                     {isSrc ? (
                                       <button onClick={() => setSwapSrc(null)}
                                         style={{ background: 'rgba(249,168,212,0.15)', border: '1px solid rgba(249,168,212,0.4)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer' }}>
                                         ✕
                                       </button>
-                                    ) : isTarget && withinRange ? (
+                                    ) : isTarget ? (
                                       <button onClick={() => doSwap(swapSrc!.heatIdx, swapSrc!.teamName, hi, t.name)}
-                                        style={{ background: 'rgba(80,250,123,0.12)', border: '1px solid rgba(80,250,123,0.3)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#50fa7b', cursor: 'pointer' }}>
+                                        style={{ background: `${matchColor}18`, border: `1px solid ${matchColor}55`, borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: matchColor, cursor: 'pointer' }}
+                                        title={vrDiff > 400 ? `${vrDiff} VR difference` : ''}>
                                         ⇄
                                       </button>
-                                    ) : swapSrc === null ? (
+                                    ) : (
                                       <button onClick={() => setSwapSrc({ heatIdx: hi, teamName: t.name })}
                                         style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#445', cursor: 'pointer' }}>
                                         ⇄
                                       </button>
-                                    ) : null}
+                                    )}
                                   </div>
                                 );
                               })
