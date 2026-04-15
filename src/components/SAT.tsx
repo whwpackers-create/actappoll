@@ -1314,9 +1314,104 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             });
             const d2Colors = ['#c084fc','#f97316','#22d3ee','#a3e635'];
 
-            const tabs = ['STANDINGS', 'HEAT DRAW', ...(completedCount > 0 ? ['ADVANCING'] : [])];
-            const activeTab = upActiveDropdown === '__tab_heat__' ? 'HEAT DRAW'
+            // === BETTING ODDS COMPUTATION ===
+            // Build per-player SAT history from past completed SATs
+            const pastSats = sats.filter((s) => !s.upcoming && (s.id ?? s._id) !== (curSat.id ?? curSat._id));
+            // For each player: how many past SATs played, how many times they advanced day 1, made day 2, won
+            const playerHistory: Record<string, { played: number; advDay1: number; advDay2: number; won: number }> = {};
+            pastSats.forEach((ps) => {
+              if (!ps.heats?.length) return;
+              const allMembers = new Set<string>();
+              ps.heats.forEach((h) => {
+                (h.teams ?? []).forEach((t) => {
+                  (t.members ?? []).forEach((m) => { if (m) allMembers.add(m); });
+                  (t.subs ?? []).forEach((s) => { if (s) allMembers.add(s); });
+                });
+              });
+              allMembers.forEach((name) => {
+                if (!playerHistory[name]) playerHistory[name] = { played: 0, advDay1: 0, advDay2: 0, won: 0 };
+                playerHistory[name].played++;
+              });
+              // Advanced from day 1
+              ps.heats.filter((h) => h.round === 0).forEach((h) => {
+                (h.advanced ?? []).forEach((t) => {
+                  [...(t.members ?? [])].forEach((name) => {
+                    if (name && playerHistory[name]) playerHistory[name].advDay1++;
+                  });
+                });
+              });
+              // Made day 2 (appeared in a round=1 heat)
+              const day2Members = new Set<string>();
+              ps.heats.filter((h) => h.round === 1).forEach((h) => {
+                (h.teams ?? []).forEach((t) => {
+                  (t.members ?? []).forEach((m) => { if (m) day2Members.add(m); });
+                  (t.subs ?? []).forEach((s) => { if (s) day2Members.add(s); });
+                });
+              });
+              day2Members.forEach((name) => {
+                if (playerHistory[name]) playerHistory[name].advDay2++;
+              });
+              // Winners
+              if (ps.placements?.winner) {
+                ps.placements.winner.forEach((t) => {
+                  [...(t.members ?? []), ...((t.subs ?? []).filter(Boolean))].forEach((name) => {
+                    if (name && playerHistory[name]) playerHistory[name].won++;
+                  });
+                });
+              }
+            });
+
+            // For each team in the upcoming SAT, compute score = avgVR * vrWeight + history bonus
+            const totalVR = teams.reduce((s, t) => s + t.avgVR, 0);
+            const avgFieldVR = totalVR / Math.max(teams.length, 1);
+            // Assign heat slot for each team
+            const teamHeat: Record<string, number> = {};
+            seededHeats.forEach((ht, hi) => ht.forEach((t) => { teamHeat[t.name] = hi; }));
+
+            const teamOdds = teams.map((t) => {
+              // VR-based strength: relative to field average
+              const vrStrength = t.avgVR / avgFieldVR;
+              // History factor: weighted average of player history rates
+              const pNames = [t.members[0], t.members[1]].filter(Boolean);
+              let histAdvDay1 = 0.5, histAdvDay2 = 0.25, histWin = 0.05; // defaults
+              const histPlayers = pNames.filter((n) => playerHistory[n]?.played > 0);
+              if (histPlayers.length > 0) {
+                histAdvDay1 = histPlayers.reduce((s, n) => s + playerHistory[n].advDay1 / playerHistory[n].played, 0) / histPlayers.length;
+                histAdvDay2 = histPlayers.reduce((s, n) => s + playerHistory[n].advDay2 / playerHistory[n].played, 0) / histPlayers.length;
+                histWin = histPlayers.reduce((s, n) => s + playerHistory[n].won / playerHistory[n].played, 0) / histPlayers.length;
+              }
+              // Blend VR strength (70%) with history (30%)
+              const advDay1Score = vrStrength * 0.7 + histAdvDay1 * 0.3;
+              const advDay2Score = (vrStrength * 0.65 + histAdvDay2 * 0.35) * 0.7; // harder
+              const winScore = (vrStrength * 0.6 + histWin * 0.4) * 0.25; // hardest
+              return { ...t, advDay1Score, advDay2Score, winScore };
+            });
+
+            // Normalize scores to probabilities (softmax-like)
+            const normalize = (key: 'advDay1Score' | 'advDay2Score' | 'winScore', cap: number) => {
+              const total = teamOdds.reduce((s, t) => s + t[key], 0);
+              return Object.fromEntries(teamOdds.map((t) => [t.name, Math.min(cap, t[key] / total)]));
+            };
+            const probAdvDay1 = normalize('advDay1Score', 0.97);
+            const probAdvDay2 = normalize('advDay2Score', 0.85);
+            const probWin = normalize('winScore', 0.80);
+
+            // Convert probability to American odds
+            const toAmerican = (p: number): string => {
+              if (p <= 0 || p >= 1) return '—';
+              if (p >= 0.5) {
+                const odds = Math.round(-(p / (1 - p)) * 100);
+                return odds.toString();
+              } else {
+                const odds = Math.round(((1 - p) / p) * 100);
+                return '+' + odds;
+              }
+            };
+
+            const tabs = ['STANDINGS', 'ODDS', 'HEAT 1 DRAW', ...(completedCount > 0 ? ['ADVANCING'] : [])];
+            const activeTab = upActiveDropdown === '__tab_heat__' ? 'HEAT 1 DRAW'
               : upActiveDropdown === '__tab_advance__' ? 'ADVANCING'
+              : upActiveDropdown === '__tab_odds__' ? 'ODDS'
               : 'STANDINGS';
 
             return (
@@ -1325,7 +1420,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   {tabs.map((tab) => {
                     const active = activeTab === tab;
-                    const key = tab === 'HEAT DRAW' ? '__tab_heat__' : tab === 'ADVANCING' ? '__tab_advance__' : null;
+                    const key = tab === 'HEAT 1 DRAW' ? '__tab_heat__' : tab === 'ADVANCING' ? '__tab_advance__' : tab === 'ODDS' ? '__tab_odds__' : null;
                     return (
                       <button key={tab}
                         onClick={() => setUpActiveDropdown(key)}
@@ -1365,7 +1460,70 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                   )
                 )}
 
-                {activeTab === 'HEAT DRAW' && (
+                {activeTab === 'ODDS' && (
+                  teams.length === 0 ? (
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams signed up yet</div>
+                  ) : (
+                    <div>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginBottom: 12, letterSpacing: 1 }}>
+                        Based on VR ratings + past SAT history. American odds format (+200 = bet $100 to win $200, -150 = bet $150 to win $100).
+                      </div>
+                      {/* Header row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 80px', gap: 4, padding: '4px 10px', marginBottom: 4 }}>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', letterSpacing: 1 }}>TEAM</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b', textAlign: 'center', letterSpacing: 1 }}>ADV DAY 1</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#8be9fd', textAlign: 'center', letterSpacing: 1 }}>MAKE DAY 2</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#fbbf24', textAlign: 'center', letterSpacing: 1 }}>WIN</div>
+                      </div>
+                      {[...teamOdds]
+                        .sort((a, b) => b.winScore - a.winScore)
+                        .map((t, i) => {
+                          const od1 = toAmerican(probAdvDay1[t.name]);
+                          const od2 = toAmerican(probAdvDay2[t.name]);
+                          const ow = toAmerican(probWin[t.name]);
+                          const heat = teamHeat[t.name];
+                          const hColor = heat !== undefined ? (heatColors[heat] ?? '#f9a8d4') : '#445';
+                          const isFav = i === 0;
+                          return (
+                            <div key={t.name} style={{
+                              display: 'grid', gridTemplateColumns: '1fr 90px 90px 80px', gap: 4,
+                              padding: '10px 10px', marginBottom: 4, borderRadius: 7,
+                              background: isFav ? 'rgba(251,191,36,0.06)' : 'rgba(255,255,255,0.02)',
+                              border: isFav ? '1px solid rgba(251,191,36,0.2)' : '1px solid rgba(255,255,255,0.04)',
+                              alignItems: 'center',
+                            }}>
+                              <div>
+                                <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>
+                                  {isFav && <span style={{ color: '#fbbf24', fontSize: 10, marginRight: 5 }}>FAV</span>}
+                                  {t.members[0].split(' ')[0]} & {t.members[1].split(' ')[0]}
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, marginTop: 2, alignItems: 'center' }}>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{t.avgVR} avg VR</span>
+                                  {heat !== undefined && (
+                                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: hColor, background: hColor + '18', borderRadius: 3, padding: '1px 5px' }}>H{heat + 1}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'center' }}>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 14, color: od1.startsWith('+') ? '#50fa7b' : '#f9a8d4', fontWeight: 700 }}>{od1}</span>
+                              </div>
+                              <div style={{ textAlign: 'center' }}>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 14, color: od2.startsWith('+') ? '#8be9fd' : '#c084fc', fontWeight: 700 }}>{od2}</span>
+                              </div>
+                              <div style={{ textAlign: 'center' }}>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 14, color: ow.startsWith('+') ? '#fbbf24' : '#f97316', fontWeight: 700 }}>{ow}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#334', marginTop: 10, textAlign: 'center' }}>
+                        Model: 70% VR rating · 30% past SAT results · {pastSats.length} past SAT{pastSats.length !== 1 ? 's' : ''} factored in
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {activeTab === 'HEAT 1 DRAW' && (
                   teams.length === 0 ? (
                     <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams to seed yet</div>
                   ) : (
