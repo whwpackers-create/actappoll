@@ -1548,10 +1548,16 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                   onClick={() => {
                                     const n = Math.max(hTeams.length, 4);
                                     setHeatTeams(hTeams.map((t) => {
-                                      const vr0 = vrMap[t.members[0]] ?? unknownVR;
-                                      const vr1 = vrMap[t.members[1]] ?? unknownVR;
-                                      const ordered: string[] = vr0 >= vr1 ? [...t.members] : [t.members[1], t.members[0]];
-                                      return { name: t.name, members: ordered, subs: ['', ''], seed: t.seed ?? null };
+                                      const sub0 = heatSubs[`${hi}:${t.members[0]}`] || '';
+                                      const sub1 = heatSubs[`${hi}:${t.members[1]}`] || '';
+                                      const eff0 = sub0 || t.members[0];
+                                      const eff1 = sub1 || t.members[1];
+                                      const vr0 = vrMap[eff0] ?? unknownVR;
+                                      const vr1 = vrMap[eff1] ?? unknownVR;
+                                      const swap = vr1 > vr0;
+                                      const ordered: string[] = swap ? [t.members[1], t.members[0]] : [...t.members];
+                                      const orderedSubs: string[] = swap ? [sub1, sub0] : [sub0, sub1];
+                                      return { name: t.name, members: ordered, subs: orderedSubs, seed: t.seed ?? null };
                                     }));
                                     setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
                                     setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
@@ -1629,10 +1635,16 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                       onClick={() => {
                                         const n = Math.max(hTeams.length, 4);
                                         setHeatTeams(hTeams.map((t) => {
-                                          const vr0 = vrMap[t.members[0]] ?? unknownVR;
-                                          const vr1 = vrMap[t.members[1]] ?? unknownVR;
-                                          const ordered: string[] = vr0 >= vr1 ? [...t.members] : [t.members[1], t.members[0]];
-                                          return { name: t.name, members: ordered, subs: ['', ''], seed: t.seed ?? null };
+                                          const sub0 = heatSubs[`${hi}:${t.members[0]}`] || '';
+                                          const sub1 = heatSubs[`${hi}:${t.members[1]}`] || '';
+                                          const eff0 = sub0 || t.members[0];
+                                          const eff1 = sub1 || t.members[1];
+                                          const vr0 = vrMap[eff0] ?? unknownVR;
+                                          const vr1 = vrMap[eff1] ?? unknownVR;
+                                          const swap = vr1 > vr0;
+                                          const ordered: string[] = swap ? [t.members[1], t.members[0]] : [...t.members];
+                                          const orderedSubs: string[] = swap ? [sub1, sub0] : [sub0, sub1];
+                                          return { name: t.name, members: ordered, subs: orderedSubs, seed: t.seed ?? null };
                                         }));
                                         setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
                                         setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
