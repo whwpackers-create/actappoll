@@ -1427,66 +1427,72 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             // Then: displayed probability = product of all conditional stages
 
             const strengthByName = Object.fromEntries(teamStrength.map((t) => [t.name, t.strength]));
-            const totalStrength = teamStrength.reduce((s, t) => s + t.strength, 0);
 
-            // Day 1: P(advance) = 1 - P(finish last in heat)
-            // P(last) = (1/myStr) / sum(1/allHeatStr) — weakest team most likely last
-            // This keeps the floor reasonable: even the weakest team in a 4-team heat
-            // where 3 advance only has ~40-50% chance of being last → ~50-60% to advance
+            // Each column shows CONDITIONAL probability for that round only.
+            // Formula: P(top k of pool) = (myStr / poolTotalStr) * k
+            // With exponential strengths this naturally gives exactly k teams >50% per pool.
+            const condProb = (myStr: number, poolStrs: number[], topK: number): number => {
+              const total = poolStrs.reduce((s, v) => s + v, 0);
+              if (total === 0) return topK / Math.max(poolStrs.length, 1);
+              return Math.min(0.97, Math.max(0.03, (myStr / total) * topK));
+            };
+
+            // ── Day 1: actual heats, 3 of 4 advance → 3 favored per heat (18 total) ──
             const pDay1Map: Record<string, number> = {};
             seededHeats.forEach((hTeams) => {
               if (hTeams.length === 0) return;
-              const invTotal = hTeams.reduce((s, t) => s + 1 / strengthByName[t.name], 0);
+              const strs = hTeams.map((t) => strengthByName[t.name]);
               hTeams.forEach((t) => {
-                const pLast = (1 / strengthByName[t.name]) / invTotal;
-                pDay1Map[t.name] = Math.min(0.97, Math.max(0.40, 1 - pLast));
+                pDay1Map[t.name] = condProb(strengthByName[t.name], strs, 3);
               });
             });
 
-            // Win: normalize across full field so probabilities sum to 1.
-            // This guarantees at most one team can be >50% (negative odds).
-            const rawWinByName: Record<string, number> = {};
-            teams.forEach((t) => { rawWinByName[t.name] = strengthByName[t.name] / totalStrength; });
-
-            // Intermediate rounds: chain conditionally from win probability.
-            // Work backwards: if P(win) = P(Day1) * P(Day2|Day1) * P(Semis|Day2) * P(Win|Semis),
-            // then intermediate stages are scaled versions of win.
-            // P(adv semis) = P(win) / P(win | in finals)   where P(win|finals) ≈ relStr/4 * normalizer
-            // Simpler: scale win up by each conditional stage's inverse.
-            // Each later-round heat is top-2-of-4 ≈ 50% for average, scaled by relStr.
-            const teamOdds = teams.map((t) => {
-              const myStr = strengthByName[t.name];
-              const relStr = (myStr / totalStrength) * totalTeams; // relative to average = 1.0
-
-              const pDay1 = pDay1Map[t.name] ?? 0.75;
-              const pWin  = rawWinByName[t.name];
-
-              // Day 2: chalk format, 2-of-4 advance per heat (8 total).
-              // Use relStr² so strong teams clearly separate — a team 1.5x avg field
-              // strength has 2.25x the base rate, making them a solid favorite.
-              // Base rate = 0.5 (half advance), so: 0.5 * relStr²
-              const pAdvDay2Given  = Math.min(0.93, Math.max(0.07, 0.5 * relStr * relStr));
-              // Semis: same 2-of-4 structure, even chalkier since field is thinned
-              const pAdvSemisGiven = Math.min(0.92, Math.max(0.06, 0.5 * relStr * relStr));
-              // Finals: 1-of-4 base rate = 0.25
-              const pWinFinalsGiven = Math.min(0.88, Math.max(0.05, 0.25 * relStr * relStr));
-
-              // Chain forward from Day1
-              const pAdvDay2  = pDay1 * pAdvDay2Given;
-              const pAdvSemis = pAdvDay2 * pAdvSemisGiven;
-
-              // Use normalized win for final column, but scale it so it's consistent
-              // with the chain (if chain gives higher than normalized, use normalized)
-              const chainWin = pAdvSemis * pWinFinalsGiven;
-              const pWinFinal = Math.min(chainWin, pWin * 1.5); // blend: normalized win anchors it
-
-              return { ...t, pDay1, pAdvDay2, pAdvSemis, pWin: pWinFinal };
+            // ── Day 2: project top 16 advancing, snake seed into 4 heats of 4,
+            //    2 of 4 advance → 2 favored per heat (8 total) ──
+            const sortedByStr = [...teamStrength].sort((a, b) => b.strength - a.strength);
+            const top16 = sortedByStr.slice(0, 16);
+            const d2Heats: typeof top16[] = [[], [], [], []];
+            top16.forEach((t, i) => {
+              const round = Math.floor(i / 4);
+              const pos = i % 4;
+              d2Heats[round % 2 === 0 ? pos : 3 - pos].push(t);
             });
+            const pAdvDay2Map: Record<string, number> = {};
+            d2Heats.forEach((hTeams) => {
+              const strs = hTeams.map((t) => t.strength);
+              hTeams.forEach((t) => { pAdvDay2Map[t.name] = condProb(t.strength, strs, 2); });
+            });
+            sortedByStr.slice(16).forEach((t) => { pAdvDay2Map[t.name] = 0.06; });
 
-            // Re-normalize win column so it sums to ≤1 and only 1 team can be negative odds
-            const winTotal = teamOdds.reduce((s, t) => s + t.pWin, 0);
-            const winScale = winTotal > 1 ? 1 / winTotal : 1;
-            const teamOddsFinal = teamOdds.map((t) => ({ ...t, pWin: t.pWin * winScale }));
+            // ── Semis: project top 8, 2 heats of 4, 2 of 4 advance → 4 favored ──
+            const top8 = sortedByStr.slice(0, 8);
+            const semiHeats: typeof top8[] = [[], []];
+            top8.forEach((t, i) => {
+              const round = Math.floor(i / 2);
+              const pos = i % 2;
+              semiHeats[round % 2 === 0 ? pos : 1 - pos].push(t);
+            });
+            const pAdvSemisMap: Record<string, number> = {};
+            semiHeats.forEach((hTeams) => {
+              const strs = hTeams.map((t) => t.strength);
+              hTeams.forEach((t) => { pAdvSemisMap[t.name] = condProb(t.strength, strs, 2); });
+            });
+            sortedByStr.slice(8).forEach((t) => { pAdvSemisMap[t.name] = 0.04; });
+
+            // ── Finals: top 4, 1 winner → exactly 1 favored ──
+            const top4 = sortedByStr.slice(0, 4);
+            const top4Strs = top4.map((t) => t.strength);
+            const pWinMap: Record<string, number> = {};
+            top4.forEach((t) => { pWinMap[t.name] = condProb(t.strength, top4Strs, 1); });
+            sortedByStr.slice(4).forEach((t) => { pWinMap[t.name] = 0.02; });
+
+            const teamOddsFinal = teams.map((t) => ({
+              ...t,
+              pDay1:     pDay1Map[t.name]     ?? 0.75,
+              pAdvDay2:  pAdvDay2Map[t.name]  ?? 0.06,
+              pAdvSemis: pAdvSemisMap[t.name] ?? 0.04,
+              pWin:      pWinMap[t.name]      ?? 0.02,
+            }));
 
             // American odds: negative = favorite, positive = underdog
             const toAmerican = (p: number): string => {
