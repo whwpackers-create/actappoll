@@ -288,6 +288,14 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
 
   const hCurMap = heatPlayerMap ?? getDefMap4(heatOrder);
 
+  const flipHeatTeam = (ti: number) => {
+    const m = (heatPlayerMap ?? getDefMap4(heatOrder)).map((r) => r.map((t) => [...t]));
+    for (let ri = 0; ri < m.length; ri++) {
+      m[ri][ti] = m[ri][ti].map((v) => (v === 0 ? 1 : 0));
+    }
+    setHeatPlayerMap(m);
+  };
+
   const toggleHP = (ri: number, ti: number, ei: number) => {
     const m = (heatPlayerMap ?? getDefMap4(heatOrder)).map((r) => r.map((t) => [...t]));
     const cur = m[ri][ti][ei];
@@ -3093,24 +3101,35 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                         >
                           RND
                         </div>
-                        {heatTeams.map((t, ti) => (
-                          <div
-                            key={ti}
-                            style={{
-                              padding: '8px 4px',
-                              textAlign: 'center',
-                              background: 'rgba(255,255,255,0.02)',
-                              borderBottom: '3px solid ' + TC[ti],
-                            }}
-                          >
-                            <div style={{ fontFamily: FONT_HEADER, fontSize: 15, color: '#f0e6d3' }}>
-                              {autoTeamName(t.members ?? []) || t.name}
+                        {heatTeams.map((t, ti) => {
+                          const p0 = hCurMap[0]?.[ti]?.[0] === 0 ? (t.subs?.[0] || t.members?.[0]) : (t.subs?.[1] || t.members?.[1]);
+                          const p1 = hCurMap[0]?.[ti]?.[1] === 0 ? (t.subs?.[0] || t.members?.[0]) : (t.subs?.[1] || t.members?.[1]);
+                          return (
+                            <div
+                              key={ti}
+                              style={{
+                                padding: '8px 4px',
+                                textAlign: 'center',
+                                background: 'rgba(255,255,255,0.02)',
+                                borderBottom: '3px solid ' + TC[ti],
+                              }}
+                            >
+                              <div style={{ fontFamily: FONT_HEADER, fontSize: 15, color: '#f0e6d3' }}>
+                                {autoTeamName(t.members ?? []) || t.name}
+                              </div>
+                              <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#555', marginBottom: 4 }}>
+                                <span style={{ color: '#8be9fd' }}>{(p0 ?? '').split(' ')[0] || 'P1'}</span>
+                                <span style={{ color: '#445' }}> & </span>
+                                <span style={{ color: '#f5a623' }}>{(p1 ?? '').split(' ')[0] || 'P2'}</span>
+                              </div>
+                              <button
+                                onClick={() => flipHeatTeam(ti)}
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 8px', fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', cursor: 'pointer' }}
+                                title="Flip race order for this team"
+                              >⇄ flip</button>
                             </div>
-                            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#555' }}>
-                              {(t.members ?? []).join(' & ')}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         <div
                           style={{
                             padding: 8,

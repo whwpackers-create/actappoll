@@ -87,6 +87,22 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
   };
   const curMap = playerMap ?? getDefaultMap(raceOrder, actType, tSz, numTeams, tv1Idx, tv2Idx);
 
+  const flipTeam = (ti: number) => {
+    const m = (playerMap ?? getDefaultMap(raceOrder, actType, tSz, numTeams, tv1Idx, tv2Idx)).map((r) =>
+      r.map((t) => [...t])
+    );
+    for (let ri = 0; ri < m.length; ri++) {
+      if (actType === '8man' || actType === '6man') {
+        m[ri][ti] = m[ri][ti].map((v) => (v === 0 ? 1 : 0));
+      } else if (actType === '12man') {
+        // rotate A→B→C→A for all entries
+        m[ri][ti] = m[ri][ti].map((v) => (v + 1) % 3);
+      }
+      // 16man: too complex for a single flip, skip
+    }
+    setPlayerMap(m);
+  };
+
   const togglePlayer = (ri: number, ti: number, ei: number) => {
     const m = (playerMap ?? getDefaultMap(raceOrder, actType, tSz, numTeams, tv1Idx, tv2Idx)).map((r) =>
       r.map((t) => [...t])
@@ -740,7 +756,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                   <div style={{ fontFamily: FONT_HEADER, fontSize: 15, color: '#f0e6d3' }}>
                     {t.name}
                   </div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#666' }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#666', marginBottom: 4 }}>
                     {actType === '16man'
                       ? <>
                           <span style={{ color: '#8be9fd' }}>TV1: {tv1Idx.map(i => (t.members[i] ?? '').split(' ')[0] || `P${i+1}`).join(' & ')}</span>
@@ -749,6 +765,13 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                         </>
                       : t.members.join(' & ')}
                   </div>
+                  {actType !== '16man' && (
+                    <button
+                      onClick={() => flipTeam(ti)}
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 8px', fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', cursor: 'pointer' }}
+                      title="Flip race order for this team"
+                    >⇄ flip</button>
+                  )}
                 </div>
               ))}
               <div
