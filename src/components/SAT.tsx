@@ -1542,9 +1542,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px 72px 80px 72px', gap: 2, padding: '4px 10px', marginBottom: 2 }}>
                         <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', letterSpacing: 1 }}>TEAM</div>
                         <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#50fa7b', textAlign: 'center', letterSpacing: 1 }}>ADV DAY 1</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#8be9fd', textAlign: 'center', letterSpacing: 1 }}>MAKE DAY 2</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc', textAlign: 'center', letterSpacing: 1 }}>MAKE DAY 3</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#fbbf24', textAlign: 'center', letterSpacing: 1 }}>WIN</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#8be9fd', textAlign: 'center', letterSpacing: 1 }}>ADV DAY 2</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc', textAlign: 'center', letterSpacing: 1 }}>ADV SEMIS</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#fbbf24', textAlign: 'center', letterSpacing: 1 }}>WIN FINALS</div>
                       </div>
                       {[...teamOdds]
                         .sort((a, b) => b.pWin - a.pWin)
