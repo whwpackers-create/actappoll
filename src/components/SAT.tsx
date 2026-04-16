@@ -1461,11 +1461,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               const pDay1 = pDay1Map[t.name] ?? 0.75;
               const pWin  = rawWinByName[t.name];
 
-              // Conditional: P(top 2 of 4) for an avg team = 0.5; scale by relStr
-              const pAdvDay2Given  = Math.min(0.92, Math.max(0.10, 0.5 * relStr));
-              const pAdvSemisGiven = Math.min(0.90, Math.max(0.10, 0.5 * relStr));
-              // P(win 4-team final) for avg team = 0.25; scale by relStr
-              const pWinFinalsGiven = Math.min(0.88, Math.max(0.08, 0.25 * relStr));
+              // Day 2: chalk format, 2-of-4 advance per heat (8 total).
+              // Use relStr² so strong teams clearly separate — a team 1.5x avg field
+              // strength has 2.25x the base rate, making them a solid favorite.
+              // Base rate = 0.5 (half advance), so: 0.5 * relStr²
+              const pAdvDay2Given  = Math.min(0.93, Math.max(0.07, 0.5 * relStr * relStr));
+              // Semis: same 2-of-4 structure, even chalkier since field is thinned
+              const pAdvSemisGiven = Math.min(0.92, Math.max(0.06, 0.5 * relStr * relStr));
+              // Finals: 1-of-4 base rate = 0.25
+              const pWinFinalsGiven = Math.min(0.88, Math.max(0.05, 0.25 * relStr * relStr));
 
               // Chain forward from Day1
               const pAdvDay2  = pDay1 * pAdvDay2Given;
