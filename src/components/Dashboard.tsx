@@ -945,6 +945,9 @@ export function Dashboard({
                   ? (((p.jerseySwaps ?? 0) / p.actCount) * 100).toFixed(1)
                   : '0';
                 const ch30 = p.change30d ?? 0;
+                const peakVR = p.eloHistory.length > 0
+                  ? Math.round(Math.max(...p.eloHistory.map((h) => h.elo)))
+                  : Math.round(p.elo);
                 const satWins = countSatWins(data.sats ?? [], p.name);
                 const sStats = csStatsMap[p.name];
 
@@ -1077,7 +1080,7 @@ export function Dashboard({
                       ] : [
                         { l: 'VR', v: Math.round(p.elo), c: '#93c5fd' },
                         { l: '30D CHANGE', v: (ch30 > 0 ? '+' : '') + ch30, c: ch30 > 0 ? '#86efac' : ch30 < 0 ? '#fca5a5' : '#556' },
-                        { l: 'POINTS', v: p.pts, c: '#fde68a' },
+                        { l: 'PEAK VR', v: peakVR, c: '#fde68a' },
                         { l: 'WINS', v: p.wins, c: '#86efac' },
                         { l: 'JERSEY SWAPS', v: p.jerseySwaps ?? 0, c: '#f9a8d4' },
                       ]).map((c, ci) => (
