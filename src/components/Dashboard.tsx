@@ -351,6 +351,11 @@ export function Dashboard({
   } else {
     filtered.sort((a, b) => {
       if (sortBy === 'elo') return b.elo - a.elo;
+      if (sortBy === 'peakVR') {
+        const peakA = a.eloHistory.length > 0 ? Math.max(...a.eloHistory.map((h) => h.elo)) : a.elo;
+        const peakB = b.eloHistory.length > 0 ? Math.max(...b.eloHistory.map((h) => h.elo)) : b.elo;
+        return peakB - peakA;
+      }
       if (sortBy === 'points') return b.pts - a.pts;
       if (sortBy === 'wins') return b.wins - a.wins;
       if (sortBy === 'acts') return b.actCount - a.actCount;
@@ -897,6 +902,7 @@ export function Dashboard({
                   style={selS}
                 >
                   <option value="elo">VR</option>
+                  <option value="peakVR">Peak VR</option>
                   <option value="points">Points</option>
                   <option value="wins">Wins</option>
                   <option value="acts">ACTs</option>
