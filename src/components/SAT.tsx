@@ -1323,16 +1323,14 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             const d2Colors = ['#c084fc','#f97316','#22d3ee','#a3e635'];
 
             // === BETTING ODDS COMPUTATION ===
-            // SAT format: Day 1 = 6 heats (3 adv each, minus 2 worst 3rds = ~16 adv)
-            //             Day 2 = 4 heats, top 2 each = 8 adv
-            //             Day 3 morning = Semis (2 heats, top 2 each = 4 adv)
-            //             Day 3 night = Finals (winner + runner-up)
+            // SAT format: Day 1 = 6 heats, 3 adv each minus 2 worst 3rds = ~16 adv
+            //   Day 2 = 4 heats, top 2 each = 8 adv (semis)
+            //   Day 3 morning = 2 heats (semis), top 2 each = 4 adv (finals)
+            //   Day 3 night = Finals, 1 winner
+            //
+            // Model uses CONDITIONAL probabilities so later rounds are always
+            // gated on making the previous round. Win = P(Day1) × P(Semis|Day1) × P(Finals|Semis) × P(Win|Finals)
             const totalTeams = Math.max(teams.length, 1);
-            // Base rates (fraction of starting field that reaches each stage)
-            const BASE_DAY1 = (NUM_HEATS * 3 - 2) / totalTeams;   // ~16/24 ≈ 0.67
-            const BASE_SEMIS = 8 / totalTeams;                      // 8/24 ≈ 0.33
-            const BASE_FINALS = 4 / totalTeams;                     // 4/24 ≈ 0.17
-            const BASE_WIN = 1 / totalTeams;                        // 1/24 ≈ 0.04
 
             // Field VR stats
             const fieldAvg = teams.reduce((s, t) => s + t.avgVR, 0) / totalTeams;
@@ -1343,12 +1341,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             const teamHeat: Record<string, number> = {};
             seededHeats.forEach((ht, hi) => ht.forEach((t) => { teamHeat[t.name] = hi; }));
 
-            // Build per-player SAT history from past completed SATs
+            // Build per-player SAT history
             const pastSats = sats.filter((s) => !s.upcoming && (s.id ?? s._id) !== (curSat.id ?? curSat._id));
             const playerHistory: Record<string, { played: number; advDay1: number; madeSemis: number; madeFinals: number; won: number }> = {};
             pastSats.forEach((ps) => {
               if (!ps.heats?.length) return;
-              // All players who competed
               const allMembers = new Set<string>();
               ps.heats.forEach((h) => {
                 (h.teams ?? []).forEach((t) => {
@@ -1359,7 +1356,6 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 if (!playerHistory[name]) playerHistory[name] = { played: 0, advDay1: 0, madeSemis: 0, madeFinals: 0, won: 0 };
                 playerHistory[name].played++;
               });
-              // Advanced from day 1 (in advanced array of round=0 heats)
               ps.heats.filter((h) => h.round === 0).forEach((h) => {
                 (h.advanced ?? []).forEach((t) => {
                   [...(t.members ?? [])].forEach((name) => {
@@ -1367,7 +1363,6 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                   });
                 });
               });
-              // Made semis = appeared in round=1 heat
               const semiMembers = new Set<string>();
               ps.heats.filter((h) => h.round === 1).forEach((h) => {
                 (h.teams ?? []).forEach((t) => {
@@ -1375,23 +1370,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 });
               });
               semiMembers.forEach((n) => { if (playerHistory[n]) playerHistory[n].madeSemis++; });
-              // Made finals = appeared in round=2 heat
               const finalMembers = new Set<string>();
-              ps.heats.filter((h) => h.round === 2).forEach((h) => {
-                (h.teams ?? []).forEach((t) => {
-                  [...(t.members ?? []), ...(t.subs ?? [])].forEach((m) => { if (m) finalMembers.add(m); });
-                });
-              });
-              // Also check placements: finalist, winner, runnerUp = made finals
               ['winner','runnerUp','finalist'].forEach((pl) => {
                 ((ps.placements as Record<string, Array<{ members?: string[]; subs?: string[] }>> | undefined)?.[pl] ?? []).forEach((t) => {
                   [...(t.members ?? []), ...(t.subs ?? []).filter(Boolean)].forEach((name) => {
-                    if (name && playerHistory[name]) { finalMembers.add(name); }
+                    if (name) finalMembers.add(name);
                   });
                 });
               });
               finalMembers.forEach((n) => { if (playerHistory[n]) playerHistory[n].madeFinals++; });
-              // Won
               if (ps.placements?.winner) {
                 ps.placements.winner.forEach((t) => {
                   [...(t.members ?? []), ...((t.subs ?? []).filter(Boolean))].forEach((name) => {
@@ -1401,43 +1388,76 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               }
             });
 
-            // Per-team probability model.
-            // Each probability is independent (not normalized to sum to 1 across teams).
-            // Uses VR z-score within their heat (Day 1) and vs full field (later rounds),
-            // blended 70/30 with historical rates when available.
-            const teamOdds = teams.map((t) => {
-              const heat = seededHeats[teamHeat[t.name]] ?? [];
-              const heatAvg = heat.reduce((s, h) => s + h.avgVR, 0) / Math.max(heat.length, 1);
-              const heatStd = Math.sqrt(heat.reduce((s, h) => s + Math.pow(h.avgVR - heatAvg, 2), 0) / Math.max(heat.length, 1)) || 200;
-              const heatZ = (t.avgVR - heatAvg) / heatStd;
+            // Strength score per team: exponential of VR z-score so top teams
+            // pull away much faster (each std dev is ~2.7x stronger, not linear)
+            const teamStrength = teams.map((t) => {
               const fieldZ = (t.avgVR - fieldAvg) / fieldStd;
+              // Exponential so gap between top/bottom is dramatic
+              const vrStrength = Math.exp(fieldZ * 1.8);
 
-              // VR-based probabilities using tanh S-curve centered on base rates
-              const swing1 = Math.min(BASE_DAY1, 1 - BASE_DAY1) * 0.95;
-              const pDay1_vr  = Math.max(0.05, Math.min(0.97, BASE_DAY1  + swing1 * Math.tanh(heatZ  * 1.4)));
-              const pSemis_vr = Math.max(0.02, Math.min(0.90, BASE_SEMIS + BASE_SEMIS * 1.8 * Math.tanh(fieldZ * 1.2)));
-              const pFin_vr   = Math.max(0.01, Math.min(0.80, BASE_FINALS + BASE_FINALS * 2.5 * Math.tanh(fieldZ * 1.4)));
-              const pWin_vr   = Math.max(0.005, Math.min(0.70, BASE_WIN   + BASE_WIN   * 4.0 * Math.tanh(fieldZ * 1.6)));
-
-              // Historical rates (per player, averaged across both players on team)
+              // History blend: conditional rates (given you made it to that round)
               const pNames = [t.members[0], t.members[1]].filter(Boolean);
               const histPlayers = pNames.filter((n) => (playerHistory[n]?.played ?? 0) >= 2);
-              let pDay1_h = BASE_DAY1, pSemis_h = BASE_SEMIS, pFin_h = BASE_FINALS, pWin_h = BASE_WIN;
+              let histMult = 1.0;
               if (histPlayers.length > 0) {
                 const avg = (fn: (h: typeof playerHistory[string]) => number) =>
                   histPlayers.reduce((s, n) => s + fn(playerHistory[n]), 0) / histPlayers.length;
-                pDay1_h  = avg((h) => h.advDay1     / h.played);
-                pSemis_h = avg((h) => h.madeSemis   / h.played);
-                pFin_h   = avg((h) => h.madeFinals  / h.played);
-                pWin_h   = avg((h) => h.won         / h.played);
+                const hWinRate = avg((h) => h.won / h.played);
+                // Compare historical win rate to field average; use as a multiplier
+                const fieldWinRate = 1 / totalTeams;
+                histMult = hWinRate > 0 ? Math.sqrt(hWinRate / fieldWinRate) : 1.0;
+                histMult = Math.max(0.4, Math.min(3.0, histMult));
               }
+              const w = histPlayers.length > 0 ? 0.25 : 0;
+              return { name: t.name, strength: vrStrength * (1 - w) + vrStrength * histMult * w };
+            });
 
-              // Blend: 70% VR model, 30% history (history only meaningful if ≥2 SATs)
-              const w = histPlayers.length > 0 ? 0.3 : 0;
-              const pDay1   = pDay1_vr  * (1 - w) + pDay1_h  * w;
-              const pSemis  = pSemis_vr * (1 - w) + pSemis_h * w;
-              const pFinals = pFin_vr   * (1 - w) + pFin_h   * w;
-              const pWin    = pWin_vr   * (1 - w) + pWin_h   * w;
+            // Conditional probabilities via strength ratios within each pool
+            // P(adv Day1) = P(finish top 3 in heat of ~4) using softmax over heat
+            // P(make semis | adv) = P(finish top 2 in Day2 heat of ~4) using softmax over field
+            // P(make finals | semis) = P(finish top 2 in semi of ~4)
+            // P(win | finals) = P(win 4-team final)
+            // Then: displayed probability = product of all conditional stages
+
+            const strengthByName = Object.fromEntries(teamStrength.map((t) => [t.name, t.strength]));
+
+            const softmaxShare = (myStr: number, allStr: number[], topN: number): number => {
+              // Probability of finishing in top N out of allStr using Plackett-Luce model
+              const total = allStr.reduce((s, v) => s + v, 0);
+              if (total === 0) return topN / allStr.length;
+              // Approximate: proportional share, scaled by topN/poolSize
+              const raw = (myStr / total) * topN;
+              return Math.min(0.97, Math.max(0.03, raw));
+            };
+
+            const teamOdds = teams.map((t) => {
+              const myStr = strengthByName[t.name];
+
+              // Day 1: compete against ~4 teams in own heat, need top 3
+              const heatTeamList = seededHeats[teamHeat[t.name]] ?? [];
+              const heatStrs = heatTeamList.map((h) => strengthByName[h.name]);
+              const pDay1 = softmaxShare(myStr, heatStrs, 3);
+
+              // Day 2: ~16 teams compete in 4 heats of ~4, need top 2 in heat
+              // Approximate: compete against ~4 similar-strength teams from field
+              // Use full-field strengths but scale like a heat of 4
+              const allStrs = teams.map((x) => strengthByName[x.name]);
+              const totalStr = allStrs.reduce((s, v) => s + v, 0);
+              // Relative strength vs field for later rounds
+              const relStr = myStr / (totalStr / totalTeams);
+
+              // P(top 2 of 4 in Day2 heat) — approximate using relative strength
+              // A team twice as strong as average has ~2x the probability
+              const pSemisGiven = Math.min(0.92, Math.max(0.08, 0.5 * relStr));
+              // P(top 2 of 4 in semis)
+              const pFinalsGiven = Math.min(0.90, Math.max(0.06, 0.5 * relStr));
+              // P(win 4-team final)
+              const pWinGiven = Math.min(0.85, Math.max(0.05, 0.25 * relStr));
+
+              // Chain: each stage requires surviving the last
+              const pSemis  = pDay1 * pSemisGiven;
+              const pFinals = pSemis * pFinalsGiven;
+              const pWin    = pFinals * pWinGiven;
 
               return { ...t, pDay1, pSemis, pFinals, pWin };
             });
