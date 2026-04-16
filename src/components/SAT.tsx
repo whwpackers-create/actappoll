@@ -1390,14 +1390,21 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
 
             // Strength score per team: exponential of VR z-score so top teams
             // pull away much faster (each std dev is ~2.7x stronger, not linear)
+            // Uses effective VR — if a player has a sub, use the sub's VR instead
             const teamStrength = teams.map((t) => {
-              const fieldZ = (t.avgVR - fieldAvg) / fieldStd;
+              // Resolve effective players accounting for subs (keyed as "heatIdx:playerName")
+              const hi = teamHeat[t.name];
+              const eff0 = (hi !== undefined && heatSubs[`${hi}:${t.members[0]}`]) || t.members[0];
+              const eff1 = (hi !== undefined && heatSubs[`${hi}:${t.members[1]}`]) || t.members[1];
+              const effVR0 = vrMap[eff0] ?? unknownVR;
+              const effVR1 = vrMap[eff1] ?? unknownVR;
+              const effAvgVR = Math.round((effVR0 + effVR1) / 2);
+              const fieldZ = (effAvgVR - fieldAvg) / fieldStd;
               // Exponential so gap between top/bottom is dramatic
               const vrStrength = Math.exp(fieldZ * 1.8);
 
-              // History blend: conditional rates (given you made it to that round)
-              const pNames = [t.members[0], t.members[1]].filter(Boolean);
-              const histPlayers = pNames.filter((n) => (playerHistory[n]?.played ?? 0) >= 2);
+              // History blend: use effective names (subs replace originals)
+              const histPlayers = [eff0, eff1].filter((n) => (playerHistory[n]?.played ?? 0) >= 2);
               let histMult = 1.0;
               if (histPlayers.length > 0) {
                 const avg = (fn: (h: typeof playerHistory[string]) => number) =>
@@ -1535,8 +1542,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px 72px 80px 72px', gap: 2, padding: '4px 10px', marginBottom: 2 }}>
                         <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', letterSpacing: 1 }}>TEAM</div>
                         <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#50fa7b', textAlign: 'center', letterSpacing: 1 }}>ADV DAY 1</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#8be9fd', textAlign: 'center', letterSpacing: 1 }}>SEMIS</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc', textAlign: 'center', letterSpacing: 1 }}>FINALS</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#8be9fd', textAlign: 'center', letterSpacing: 1 }}>MAKE DAY 2</div>
+                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc', textAlign: 'center', letterSpacing: 1 }}>MAKE DAY 3</div>
                         <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#fbbf24', textAlign: 'center', letterSpacing: 1 }}>WIN</div>
                       </div>
                       {[...teamOdds]
