@@ -1427,47 +1427,62 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             // Then: displayed probability = product of all conditional stages
 
             const strengthByName = Object.fromEntries(teamStrength.map((t) => [t.name, t.strength]));
+            const totalStrength = teamStrength.reduce((s, t) => s + t.strength, 0);
 
-            const softmaxShare = (myStr: number, allStr: number[], topN: number): number => {
-              // Probability of finishing in top N out of allStr using Plackett-Luce model
-              const total = allStr.reduce((s, v) => s + v, 0);
-              if (total === 0) return topN / allStr.length;
-              // Approximate: proportional share, scaled by topN/poolSize
-              const raw = (myStr / total) * topN;
-              return Math.min(0.97, Math.max(0.03, raw));
-            };
+            // Day 1: P(advance) = 1 - P(finish last in heat)
+            // P(last) = (1/myStr) / sum(1/allHeatStr) — weakest team most likely last
+            // This keeps the floor reasonable: even the weakest team in a 4-team heat
+            // where 3 advance only has ~40-50% chance of being last → ~50-60% to advance
+            const pDay1Map: Record<string, number> = {};
+            seededHeats.forEach((hTeams) => {
+              if (hTeams.length === 0) return;
+              const invTotal = hTeams.reduce((s, t) => s + 1 / strengthByName[t.name], 0);
+              hTeams.forEach((t) => {
+                const pLast = (1 / strengthByName[t.name]) / invTotal;
+                pDay1Map[t.name] = Math.min(0.97, Math.max(0.40, 1 - pLast));
+              });
+            });
 
+            // Win: normalize across full field so probabilities sum to 1.
+            // This guarantees at most one team can be >50% (negative odds).
+            const rawWinByName: Record<string, number> = {};
+            teams.forEach((t) => { rawWinByName[t.name] = strengthByName[t.name] / totalStrength; });
+
+            // Intermediate rounds: chain conditionally from win probability.
+            // Work backwards: if P(win) = P(Day1) * P(Day2|Day1) * P(Semis|Day2) * P(Win|Semis),
+            // then intermediate stages are scaled versions of win.
+            // P(adv semis) = P(win) / P(win | in finals)   where P(win|finals) ≈ relStr/4 * normalizer
+            // Simpler: scale win up by each conditional stage's inverse.
+            // Each later-round heat is top-2-of-4 ≈ 50% for average, scaled by relStr.
             const teamOdds = teams.map((t) => {
               const myStr = strengthByName[t.name];
+              const relStr = (myStr / totalStrength) * totalTeams; // relative to average = 1.0
 
-              // Day 1: compete against ~4 teams in own heat, need top 3
-              const heatTeamList = seededHeats[teamHeat[t.name]] ?? [];
-              const heatStrs = heatTeamList.map((h) => strengthByName[h.name]);
-              const pDay1 = softmaxShare(myStr, heatStrs, 3);
+              const pDay1 = pDay1Map[t.name] ?? 0.75;
+              const pWin  = rawWinByName[t.name];
 
-              // Day 2: ~16 teams compete in 4 heats of ~4, need top 2 in heat
-              // Approximate: compete against ~4 similar-strength teams from field
-              // Use full-field strengths but scale like a heat of 4
-              const allStrs = teams.map((x) => strengthByName[x.name]);
-              const totalStr = allStrs.reduce((s, v) => s + v, 0);
-              // Relative strength vs field for later rounds
-              const relStr = myStr / (totalStr / totalTeams);
+              // Conditional: P(top 2 of 4) for an avg team = 0.5; scale by relStr
+              const pAdvDay2Given  = Math.min(0.92, Math.max(0.10, 0.5 * relStr));
+              const pAdvSemisGiven = Math.min(0.90, Math.max(0.10, 0.5 * relStr));
+              // P(win 4-team final) for avg team = 0.25; scale by relStr
+              const pWinFinalsGiven = Math.min(0.88, Math.max(0.08, 0.25 * relStr));
 
-              // P(top 2 of 4 in Day2 heat) — approximate using relative strength
-              // A team twice as strong as average has ~2x the probability
-              const pSemisGiven = Math.min(0.92, Math.max(0.08, 0.5 * relStr));
-              // P(top 2 of 4 in semis)
-              const pFinalsGiven = Math.min(0.90, Math.max(0.06, 0.5 * relStr));
-              // P(win 4-team final)
-              const pWinGiven = Math.min(0.85, Math.max(0.05, 0.25 * relStr));
+              // Chain forward from Day1
+              const pAdvDay2  = pDay1 * pAdvDay2Given;
+              const pAdvSemis = pAdvDay2 * pAdvSemisGiven;
 
-              // Chain: each stage requires surviving the last
-              const pSemis  = pDay1 * pSemisGiven;
-              const pFinals = pSemis * pFinalsGiven;
-              const pWin    = pFinals * pWinGiven;
+              // Use normalized win for final column, but scale it so it's consistent
+              // with the chain (if chain gives higher than normalized, use normalized)
+              const chainWin = pAdvSemis * pWinFinalsGiven;
+              const pWinFinal = Math.min(chainWin, pWin * 1.5); // blend: normalized win anchors it
 
-              return { ...t, pDay1, pSemis, pFinals, pWin };
+              return { ...t, pDay1, pAdvDay2, pAdvSemis, pWin: pWinFinal };
             });
+
+            // Re-normalize win column so it sums to ≤1 and only 1 team can be negative odds
+            const winTotal = teamOdds.reduce((s, t) => s + t.pWin, 0);
+            const winScale = winTotal > 1 ? 1 / winTotal : 1;
+            const teamOddsFinal = teamOdds.map((t) => ({ ...t, pWin: t.pWin * winScale }));
 
             // American odds: negative = favorite, positive = underdog
             const toAmerican = (p: number): string => {
@@ -1546,12 +1561,12 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                         <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc', textAlign: 'center', letterSpacing: 1 }}>ADV SEMIS</div>
                         <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#fbbf24', textAlign: 'center', letterSpacing: 1 }}>WIN FINALS</div>
                       </div>
-                      {[...teamOdds]
+                      {[...teamOddsFinal]
                         .sort((a, b) => b.pWin - a.pWin)
                         .map((t, i) => {
                           const od1 = toAmerican(t.pDay1);
-                          const os  = toAmerican(t.pSemis);
-                          const of_ = toAmerican(t.pFinals);
+                          const os  = toAmerican(t.pAdvDay2);
+                          const of_ = toAmerican(t.pAdvSemis);
                           const ow  = toAmerican(t.pWin);
                           const heat = teamHeat[t.name];
                           const hColor = heat !== undefined ? (heatColors[heat] ?? '#f9a8d4') : '#445';
