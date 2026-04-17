@@ -1353,8 +1353,12 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     ) => {
       const n = Math.max(hTeams.length, 4);
       setHeatTeams(hTeams.map((t) => {
-        const sub0 = round === 0 ? (heatSubs[`${slotIdx}:${t.members[0]}`] || '') : (t.subs?.[0] || '');
-        const sub1 = round === 0 ? (heatSubs[`${slotIdx}:${t.members[1]}`] || '') : (t.subs?.[1] || '');
+        const sub0 = round === 0
+          ? (heatSubs[`${slotIdx}:${t.members[0]}`] || '')
+          : (heatSubs[`r${round}:${slotIdx}:${t.members[0]}`] || t.subs?.[0] || '');
+        const sub1 = round === 0
+          ? (heatSubs[`${slotIdx}:${t.members[1]}`] || '')
+          : (heatSubs[`r${round}:${slotIdx}:${t.members[1]}`] || t.subs?.[1] || '');
         const eff0 = sub0 || t.members[0]; const eff1 = sub1 || t.members[1];
         const vr0 = vrMap[eff0] ?? unknownVR; const vr1 = vrMap[eff1] ?? unknownVR;
         const swap = vr1 > vr0;
@@ -1424,6 +1428,45 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               </div>
             );
           })
+        )}
+        {!teamRankings && round > 0 && hTeams.length > 0 && (
+          <div style={{ marginTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6 }}>
+            {hTeams.map((t, ti) => (
+              <div key={ti} style={{ marginBottom: ti < hTeams.length - 1 ? 6 : 0 }}>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginBottom: 2 }}>{t.name}</div>
+                {t.members.map((member, pi) => {
+                  const subKey = `r${round}:${hi}:${member}`;
+                  const existingSub = heatSubs[subKey];
+                  const isEditing = editingSubKey === subKey;
+                  return (
+                    <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, paddingLeft: 8 }}>
+                      <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
+                      {isEditing ? (
+                        <>
+                          <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                            placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
+                            onChange={(e) => setEditingSubVal(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
+                          <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                          <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
+                          <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
+                        </>
+                      ) : existingSub ? (
+                        <>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>{existingSub} <span style={{ color: '#556' }}>for {member.split(' ')[0]}</span></span>
+                          <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(existingSub); }} style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✎</button>
+                          <button onClick={() => saveSub(subKey, '')} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 9 }}>✕</button>
+                        </>
+                      ) : (
+                        <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(''); }}
+                          style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 2, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 8, color: '#445', cursor: 'pointer' }}>+ sub</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         )}
         {!teamRankings && hTeams.length > 0 && (
           <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
