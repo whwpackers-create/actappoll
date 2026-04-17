@@ -1525,7 +1525,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                   </div>
                   {teamRankings ? (
                     teamRankings.map((t, ri) => {
-                      const adv = ri < 2;
+                      const adv = ri < 2 || (ri === 2 && day2Teams.some((d) => d.name === t.name));
                       const rc = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
                       return (
                         <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: adv ? 1 : 0.5 }}>
