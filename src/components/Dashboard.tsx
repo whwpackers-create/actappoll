@@ -664,6 +664,115 @@ export function Dashboard({
         const upcomingSats = (data.sats ?? []).filter((s) => s.upcoming);
         if (upcomingSats.length === 0) return null;
         const sat = upcomingSats.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+        const satDate = new Date(sat.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+        const viewBtn = (
+          <button
+            onClick={() => { setSelSat?.(sat.id ?? sat._id ?? ''); setView('sat'); }}
+            style={{ marginLeft: 'auto', background: 'rgba(249,168,212,0.1)', border: '1px solid rgba(249,168,212,0.25)', borderRadius: 4, padding: '3px 10px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer', letterSpacing: 1 }}
+          >
+            VIEW →
+          </button>
+        );
+
+        // Check if all 6 Day 1 heats are complete — if so, show Day 2 bracket
+        const day1Heats = (sat.heats ?? []).filter((h) => (h.round ?? 0) === 0);
+        const day1Done = day1Heats.length === 6;
+
+        if (day1Done) {
+          // Build advancing teams from saved Day 1 heat data
+          type D2Team = { name: string; members: string[]; subs: string[]; score: number };
+          const allAdvancing: D2Team[] = [];
+          day1Heats.forEach((h) => {
+            (h.scores ?? []).slice(0, 3).forEach((s) => {
+              const tm = (h.teams ?? []).find((t) => t.name === s.name);
+              if (tm && s.name) {
+                allAdvancing.push({ name: s.name, members: tm.members ?? [], subs: tm.subs ?? [], score: s.score ?? 0 });
+              }
+            });
+          });
+
+          // Apply saved cuts or default to cutting 2 lowest-scoring 3rd-placers
+          const cutMembers = sat.day1Cuts;
+          let d2Teams: D2Team[];
+          if (cutMembers) {
+            d2Teams = allAdvancing.filter((t) => !cutMembers.some((c) => c.join(',') === t.members.join(',')));
+          } else {
+            const thirdPlace = day1Heats
+              .map((h) => {
+                const s = (h.scores ?? [])[2];
+                const tm = (h.teams ?? []).find((t) => t.name === s?.name);
+                return s && tm ? { name: s.name ?? '', members: tm.members ?? [], score: s.score ?? 0 } : null;
+              })
+              .filter((x): x is { name: string; members: string[]; score: number } => x !== null);
+            thirdPlace.sort((a, b) => a.score - b.score);
+            const cutNames = new Set(thirdPlace.slice(0, 2).map((t) => t.name));
+            d2Teams = allAdvancing.filter((t) => !cutNames.has(t.name));
+          }
+
+          // Sort by Day 1 score descending, snake-seed into 4 heats
+          d2Teams.sort((a, b) => b.score - a.score);
+          const NUM_D2 = 4;
+          const d2Heats: D2Team[][] = [[], [], [], []];
+          d2Teams.forEach((t, i) => {
+            const round = Math.floor(i / NUM_D2);
+            const pos = i % NUM_D2;
+            const heatIdx = round % 2 === 0 ? pos : NUM_D2 - 1 - pos;
+            d2Heats[heatIdx].push(t);
+          });
+          const d2Colors = ['#c084fc', '#f97316', '#22d3ee', '#a3e635'];
+          const dashUnknownVR2 = Math.min(4300, ...d2Teams.flatMap((t) => t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)));
+
+          return (
+            <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
+              <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c084fc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 2v4M16 2v4M3 10h18M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/>
+                  </svg>
+                  <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#c084fc', letterSpacing: 2 }}>UPCOMING DAY 2 HEATS</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · {satDate}</span>
+                  {viewBtn}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                  {d2Heats.map((hTeams, hi) => {
+                    if (hTeams.length === 0) return null;
+                    const hColor = d2Colors[hi] ?? '#c084fc';
+                    const hAvg = Math.round(hTeams.reduce((s, t) => s + Math.round(((vrMap[t.members[0]] ?? dashUnknownVR2) + (vrMap[t.members[1]] ?? dashUnknownVR2)) / 2), 0) / Math.max(hTeams.length, 1));
+                    return (
+                      <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}33`, borderRadius: 6, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>DAY 2 · HEAT {hi + 1}</span>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {hAvg}</span>
+                        </div>
+                        {hTeams.map((t, ti) => {
+                          const vr1 = vrMap[t.members[0]] ?? dashUnknownVR2;
+                          const vr2 = vrMap[t.members[1]] ?? dashUnknownVR2;
+                          const avgVR = Math.round((vr1 + vr2) / 2);
+                          return (
+                            <div key={ti} style={{ padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0' }}>
+                                  {t.members[0] && <span>{t.members[0].split(' ')[0]}</span>}
+                                  {t.members[1] && <span style={{ color: '#8090a0' }}> &amp; {t.members[1].split(' ')[0]}</span>}
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{t.score}pts</span>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>{avgVR}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Day 1 not done — show Day 1 heat bracket
         const dashVRs = (sat.roster ?? []).flatMap((t) =>
           t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
         );
@@ -699,7 +808,6 @@ export function Dashboard({
         const heatSubs: Record<string, string> = (() => {
           try { return sat.heatSubsJson ? JSON.parse(sat.heatSubsJson) : {}; } catch { return {}; }
         })();
-        const satDate = new Date(sat.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
         return (
           <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
             <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
@@ -709,12 +817,7 @@ export function Dashboard({
                 </svg>
                 <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4', letterSpacing: 2 }}>UPCOMING SAT HEATS</span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · {satDate}</span>
-                <button
-                  onClick={() => { setSelSat?.(sat.id ?? sat._id ?? ''); setView('sat'); }}
-                  style={{ marginLeft: 'auto', background: 'rgba(249,168,212,0.1)', border: '1px solid rgba(249,168,212,0.25)', borderRadius: 4, padding: '3px 10px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer', letterSpacing: 1 }}
-                >
-                  VIEW →
-                </button>
+                {viewBtn}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
                 {seededHeats.map((hTeams, hi) => {

@@ -58,9 +58,11 @@ function getHeatTeamRankings(act: Act) {
     (t.subs ?? []).forEach((s) => { if (s) playerToTeam[s] = ti; });
   });
   const teamScores: Record<number, number> = {};
-  (act.races[0]?.results ?? []).forEach((r) => {
-    const ti = playerToTeam[r.player];
-    if (ti !== undefined) teamScores[ti] = (teamScores[ti] ?? 0) + r.points;
+  act.races.forEach((race) => {
+    (race.results ?? []).forEach((r) => {
+      const ti = playerToTeam[r.player];
+      if (ti !== undefined) teamScores[ti] = (teamScores[ti] ?? 0) + r.points;
+    });
   });
   return act.teams
     .map((t, ti) => ({
@@ -1503,8 +1505,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               return '+' + String(Math.round(((1 - clamped) / clamped) * 100));
             };
 
-            const tabs = ['STANDINGS', 'ODDS', 'HEAT 1 DRAW', ...(completedCount > 0 ? ['ADVANCING'] : [])];
-            const activeTab = upActiveDropdown === '__tab_heat__' ? 'HEAT 1 DRAW'
+            const tabs = ['STANDINGS', 'ODDS', 'DAY 1 DRAW', ...(day2Teams.length > 0 ? ['DAY 2 DRAW'] : []), ...(completedCount > 0 ? ['ADVANCING'] : [])];
+            const activeTab = upActiveDropdown === '__tab_heat__' ? 'DAY 1 DRAW'
+              : upActiveDropdown === '__tab_d2__' ? 'DAY 2 DRAW'
               : upActiveDropdown === '__tab_advance__' ? 'ADVANCING'
               : upActiveDropdown === '__tab_odds__' ? 'ODDS'
               : 'STANDINGS';
@@ -1515,7 +1518,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   {tabs.map((tab) => {
                     const active = activeTab === tab;
-                    const key = tab === 'HEAT 1 DRAW' ? '__tab_heat__' : tab === 'ADVANCING' ? '__tab_advance__' : tab === 'ODDS' ? '__tab_odds__' : null;
+                    const key = tab === 'DAY 1 DRAW' ? '__tab_heat__' : tab === 'DAY 2 DRAW' ? '__tab_d2__' : tab === 'ADVANCING' ? '__tab_advance__' : tab === 'ODDS' ? '__tab_odds__' : null;
                     return (
                       <button key={tab}
                         onClick={() => setUpActiveDropdown(key)}
@@ -1624,7 +1627,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                   )
                 )}
 
-                {activeTab === 'HEAT 1 DRAW' && (
+                {activeTab === 'DAY 1 DRAW' && (
                   teams.length === 0 ? (
                     <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams to seed yet</div>
                   ) : (
@@ -1835,97 +1838,101 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                         );
                       })}
                     </div>
-                    {/* Day 2 heats — shown once all Day 1 heats are complete */}
-                    {day2Teams.length > 0 && (
-                      <div style={{ marginTop: 24 }}>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                          Day 2 · {day2Teams.length} teams · seeded by Day 1 pts · 1.1× SAT multiplier
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
-                          {d2SeededHeats.map((hTeams, hi) => {
-                            if (hTeams.length === 0) return null;
-                            const hColor = d2Colors[hi] ?? '#c084fc';
-                            const teamRankings = d2HeatResults[hi];
-                            return (
-                              <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}33`, borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: '12px 14px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: hColor, letterSpacing: 1 }}>DAY 2 · HEAT {hi + 1}</span>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', background: 'rgba(192,132,252,0.1)', border: '1px solid rgba(192,132,252,0.2)', borderRadius: 4, padding: '2px 6px' }}>1.1× VR</span>
-                                </div>
-                                {teamRankings ? (
-                                  <div>
-                                    {teamRankings.map((t, ri) => {
-                                      const rankColor = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
-                                      return (
-                                        <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: ri < 2 ? 1 : 0.55 }}>
-                                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: rankColor, minWidth: 24 }}>{ri + 1}{['st','nd','rd'][ri] ?? 'th'}</span>
-                                          <div style={{ flex: 1 }}>
-                                            <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.name}</div>
-                                            {t.subs?.some(s => s) && <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>sub: {t.subs.filter(Boolean).join(', ')}</div>}
-                                          </div>
-                                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{t.score}pts</span>
-                                          {ri < 2 ? <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b' }}>✓ ADV</span>
-                                                 : <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560' }}>✗ OUT</span>}
-                                        </div>
-                                      );
-                                    })}
-                                    <button onClick={() => deleteHeatResults(1, hi)} style={{ ...delBtn, fontSize: 10, padding: '3px 8px', marginTop: 8 }}>Clear Results</button>
-                                  </div>
-                                ) : (
-                                  hTeams.map((t, ti) => {
-                                    const vr1 = vrMap[t.members[0]] ?? unknownVR;
-                                    const vr2 = vrMap[t.members[1]] ?? unknownVR;
-                                    const [p1, p2, pv1, pv2] = vr1 >= vr2 ? [t.members[0], t.members[1], vr1, vr2] : [t.members[1], t.members[0], vr2, vr1];
+                    </Fragment>
+                  )
+                )}
+
+                {activeTab === 'DAY 2 DRAW' && (
+                  day2Teams.length === 0 ? (
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>Day 2 bracket not yet available — complete all Day 1 heats and save cuts</div>
+                  ) : (
+                    <div>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
+                        Day 2 · {day2Teams.length} teams · seeded by Day 1 pts · 1.2× SAT multiplier
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+                        {d2SeededHeats.map((hTeams, hi) => {
+                          if (hTeams.length === 0) return null;
+                          const hColor = d2Colors[hi] ?? '#c084fc';
+                          const teamRankings = d2HeatResults[hi];
+                          return (
+                            <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}33`, borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: '12px 14px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: hColor, letterSpacing: 1 }}>DAY 2 · HEAT {hi + 1}</span>
+                                <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', background: 'rgba(192,132,252,0.1)', border: '1px solid rgba(192,132,252,0.2)', borderRadius: 4, padding: '2px 6px' }}>1.2× VR</span>
+                              </div>
+                              {teamRankings ? (
+                                <div>
+                                  {teamRankings.map((t, ri) => {
+                                    const rankColor = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
                                     return (
-                                      <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{t.seed}</span>
+                                      <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: ri < 2 ? 1 : 0.55 }}>
+                                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: rankColor, minWidth: 24 }}>{ri + 1}{['st','nd','rd'][ri] ?? 'th'}</span>
                                         <div style={{ flex: 1 }}>
-                                          <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{p1} & {p2}</div>
-                                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
+                                          <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.name}</div>
+                                          {t.subs?.some(s => s) && <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>sub: {t.subs.filter(Boolean).join(', ')}</div>}
                                         </div>
-                                        <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{Math.round((vr1 + vr2) / 2)}</span>
+                                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{t.score}pts</span>
+                                        {ri < 2 ? <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b' }}>✓ ADV</span>
+                                               : <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560' }}>✗ OUT</span>}
                                       </div>
                                     );
-                                  })
-                                )}
-                                {!teamRankings && (
-                                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                    <button style={{ ...secBtn, width: '100%', fontSize: 11 }}
-                                      onClick={() => {
-                                        const n = Math.max(hTeams.length, 4);
-                                        setHeatTeams(hTeams.map((t) => {
-                                          const sub0 = heatSubs[`${hi}:${t.members[0]}`] || '';
-                                          const sub1 = heatSubs[`${hi}:${t.members[1]}`] || '';
-                                          const eff0 = sub0 || t.members[0];
-                                          const eff1 = sub1 || t.members[1];
-                                          const vr0 = vrMap[eff0] ?? unknownVR;
-                                          const vr1 = vrMap[eff1] ?? unknownVR;
-                                          const swap = vr1 > vr0;
-                                          const ordered: string[] = swap ? [t.members[1], t.members[0]] : [...t.members];
-                                          const orderedSubs: string[] = swap ? [sub1, sub0] : [sub0, sub1];
-                                          return { name: t.name, members: ordered, subs: orderedSubs, seed: t.seed ?? null };
-                                        }));
-                                        setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
-                                        setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
-                                        setHeatOrder('A');
-                                        setAdvCount(2);
-                                        setHeatStep(0);
-                                        setHeatRound(1);
-                                        setUpcomingHeatSaveIdx(hi);
-                                        setHeatPlayerMap(null);
-                                        setShowHeatEntry(true);
-                                      }}>
-                                      + Enter Results
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                                  })}
+                                  <button onClick={() => deleteHeatResults(1, hi)} style={{ ...delBtn, fontSize: 10, padding: '3px 8px', marginTop: 8 }}>Clear Results</button>
+                                </div>
+                              ) : (
+                                hTeams.map((t, ti) => {
+                                  const vr1 = vrMap[t.members[0]] ?? unknownVR;
+                                  const vr2 = vrMap[t.members[1]] ?? unknownVR;
+                                  const [p1, p2, pv1, pv2] = vr1 >= vr2 ? [t.members[0], t.members[1], vr1, vr2] : [t.members[1], t.members[0], vr2, vr1];
+                                  return (
+                                    <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{t.seed}</span>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{p1} & {p2}</div>
+                                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
+                                      </div>
+                                      <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{Math.round((vr1 + vr2) / 2)}</span>
+                                    </div>
+                                  );
+                                })
+                              )}
+                              {!teamRankings && (
+                                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                  <button style={{ ...secBtn, width: '100%', fontSize: 11 }}
+                                    onClick={() => {
+                                      const n = Math.max(hTeams.length, 4);
+                                      setHeatTeams(hTeams.map((t) => {
+                                        const sub0 = heatSubs[`${hi}:${t.members[0]}`] || '';
+                                        const sub1 = heatSubs[`${hi}:${t.members[1]}`] || '';
+                                        const eff0 = sub0 || t.members[0];
+                                        const eff1 = sub1 || t.members[1];
+                                        const vr0 = vrMap[eff0] ?? unknownVR;
+                                        const vr1 = vrMap[eff1] ?? unknownVR;
+                                        const swap = vr1 > vr0;
+                                        const ordered: string[] = swap ? [t.members[1], t.members[0]] : [...t.members];
+                                        const orderedSubs: string[] = swap ? [sub1, sub0] : [sub0, sub1];
+                                        return { name: t.name, members: ordered, subs: orderedSubs, seed: t.seed ?? null };
+                                      }));
+                                      setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
+                                      setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
+                                      setHeatOrder('A');
+                                      setAdvCount(2);
+                                      setHeatStep(0);
+                                      setHeatRound(1);
+                                      setUpcomingHeatSaveIdx(hi);
+                                      setHeatPlayerMap(null);
+                                      setShowHeatEntry(true);
+                                    }}>
+                                    + Enter Results
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    )}
-                    </Fragment>
+                    </div>
                   )
                 )}
 
