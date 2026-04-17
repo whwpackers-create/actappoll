@@ -49,6 +49,7 @@ export interface SATProps {
 }
 
 const RN = ['Round 1', 'Round 2', 'Semifinals', 'Final', 'Round 5'];
+type BracketTeam = { name: string; members: string[]; subs: string[]; score: number; seed: number };
 
 // Compute per-team score from an 8-man heat act's race results
 function getHeatTeamRankings(act: Act) {
@@ -167,6 +168,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [upcomingHeatSaveIdx, setUpcomingHeatSaveIdx] = useState<number | null>(null);
 
   const [swapSrc, setSwapSrc] = useState<{ heatIdx: number; teamName: string } | null>(null);
+  const [editingBracket, setEditingBracket] = useState(false);
+  const [bracketSel, setBracketSel] = useState<{ hi: number; ti: number } | null>(null);
+  const [bracketEdits, setBracketEdits] = useState<BracketTeam[][] | null>(null);
   const [editingSubKey, setEditingSubKey] = useState<string | null>(null); // "heatIdx:playerName"
   const [editingSubVal, setEditingSubVal] = useState('');
 
@@ -1243,24 +1247,47 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     });
     const completedCount = allD1Rankings.filter(Boolean).length;
 
-    // Original roster seed map for tiebreaking cross-heat sorts
+    // Roster seed map — by name AND by sorted members (resilient to team name mismatches)
     const seedMap: Record<string, number> = {};
-    seededHeats.forEach((heat) => { heat.forEach((t) => { if (t.seed) seedMap[t.name] = t.seed; }); });
-    const seedTie = (a: { name: string }, b: { name: string }) => (seedMap[a.name] ?? 999) - (seedMap[b.name] ?? 999);
+    const memberSeedMap: Record<string, number> = {};
+    seededHeats.forEach((heat) => {
+      heat.forEach((t) => {
+        if (t.seed) {
+          seedMap[t.name] = t.seed;
+          if (t.members) memberSeedMap[[...t.members].sort().join('\x00')] = t.seed;
+        }
+      });
+    });
+    const lookupSeed = (t: { name: string; members: string[] }) => {
+      if (seedMap[t.name]) return seedMap[t.name];
+      return memberSeedMap[[...t.members].sort().join('\x00')] ?? 0;
+    };
+    const seedTie = (a: { name: string; members: string[] }, b: { name: string; members: string[] }) => {
+      const sa = lookupSeed(a), sb = lookupSeed(b);
+      if (sa && sb) return sa - sb;
+      return [...a.members].sort().join('') < [...b.members].sort().join('') ? -1 : 1;
+    };
 
     type SeededTeam = { name: string; members: string[]; subs: string[]; score: number; seed: number };
+
+    // All 3rd-placers sorted (top 4 advance, rest are alternates)
+    const allThirdPlace: Omit<SeededTeam, 'seed'>[] = completedCount === NUM_HEATS ? (() => {
+      const tp: Omit<SeededTeam, 'seed'>[] = [];
+      allD1Rankings.forEach((rankings) => {
+        if (rankings?.[2]) { const t = rankings[2]; tp.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); }
+      });
+      return tp.sort((a, b) => b.score - a.score || seedTie(a, b));
+    })() : [];
+    const alternateTeams: SeededTeam[] = allThirdPlace.slice(4).map((t, i) => ({ ...t, seed: 17 + i }));
 
     // Day 2: top 2 per heat + top 4 third-place finishers (16 total, 4 per Day 2 heat)
     const day2Teams: SeededTeam[] = completedCount === NUM_HEATS ? (() => {
       const adv: Omit<SeededTeam, 'seed'>[] = [];
-      const thirdPlace: Omit<SeededTeam, 'seed'>[] = [];
       allD1Rankings.forEach((rankings) => {
         if (!rankings) return;
         rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
-        if (rankings[2]) { const t = rankings[2]; thirdPlace.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); }
       });
-      thirdPlace.sort((a, b) => b.score - a.score || seedTie(a, b));
-      thirdPlace.slice(0, 4).forEach((t) => adv.push(t));
+      allThirdPlace.slice(0, 4).forEach((t) => adv.push(t));
       return adv.sort((a, b) => b.score - a.score || seedTie(a, b)).map((t, i) => ({ ...t, seed: i + 1 }));
     })() : [];
     const NUM_D2 = 4;
@@ -1269,7 +1296,12 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       const r = Math.floor(i / NUM_D2), p = i % NUM_D2;
       d2SeededHeats[r % 2 === 0 ? p : NUM_D2 - 1 - p].push(t);
     });
-    const d2HeatResults = d2SeededHeats.map((_, hi) => {
+    // Apply any saved bracket override (or in-progress edits)
+    const parsedD2Bracket: SeededTeam[][] | null = curSat.d2BracketJson
+      ? (() => { try { return JSON.parse(curSat.d2BracketJson) as SeededTeam[][]; } catch { return null; } })()
+      : null;
+    const effectiveD2Heats: SeededTeam[][] = bracketEdits ?? parsedD2Bracket ?? d2SeededHeats;
+    const d2HeatResults = effectiveD2Heats.map((_, hi) => {
       const heat = (curSat.heats ?? []).find(h => h.round === 1 && h.slotIdx === hi);
       const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
       return act ? getHeatTeamRankings(act) : null;
@@ -1630,13 +1662,89 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>🏁 Round 2</span>
-            <span style={cSub}>{day2Teams.length > 0 ? `${d2CompletedCount}/${NUM_D2} heats` : `Complete Round 1 first (${completedCount}/${NUM_HEATS})`}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={cSub}>{day2Teams.length > 0 ? `${d2CompletedCount}/${NUM_D2} heats` : `Complete Round 1 first (${completedCount}/${NUM_HEATS})`}</span>
+              {day2Teams.length > 0 && d2CompletedCount === 0 && !editingBracket && (
+                <button onClick={() => { setBracketEdits(effectiveD2Heats.map(h => [...h])); setEditingBracket(true); setBracketSel(null); }}
+                  style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(139,233,253,0.08)', border: '1px solid rgba(139,233,253,0.2)', borderRadius: 4, padding: '3px 8px', color: '#8be9fd', cursor: 'pointer' }}>
+                  ✏ Edit Bracket
+                </button>
+              )}
+              {editingBracket && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => {
+                    if (bracketEdits) {
+                      auth.req(async () => {
+                        await ops.updateSat(curSat.id ?? curSat._id ?? '', { d2BracketJson: JSON.stringify(bracketEdits) });
+                        setEditingBracket(false); setBracketSel(null); setBracketEdits(null);
+                        showToast('Bracket saved!');
+                      });
+                    }
+                  }} style={{ fontFamily: FONT_MONO, fontSize: 9, background: '#50fa7b22', border: '1px solid #50fa7b44', borderRadius: 4, padding: '3px 8px', color: '#50fa7b', cursor: 'pointer' }}>✓ Save</button>
+                  <button onClick={() => {
+                    auth.req(async () => {
+                      await ops.updateSat(curSat.id ?? curSat._id ?? '', { d2BracketJson: undefined });
+                      setEditingBracket(false); setBracketSel(null); setBracketEdits(null);
+                      showToast('Bracket reset');
+                    });
+                  }} style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(255,60,60,0.08)', border: '1px solid rgba(255,60,60,0.2)', borderRadius: 4, padding: '3px 8px', color: '#ff6b6b', cursor: 'pointer' }}>↺ Reset</button>
+                  <button onClick={() => { setEditingBracket(false); setBracketSel(null); setBracketEdits(null); }}
+                    style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 8px', color: '#666', cursor: 'pointer' }}>✕ Cancel</button>
+                </div>
+              )}
+            </div>
           </div>
           {day2Teams.length === 0 ? (
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
+          ) : editingBracket ? (
+            <>
+              {bracketSel && <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8be9fd', marginBottom: 8 }}>Selected: {(bracketEdits ?? effectiveD2Heats)[bracketSel.hi]?.[bracketSel.ti]?.name} — click another team or alternate to swap</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 8, marginBottom: 12 }}>
+                {(bracketEdits ?? effectiveD2Heats).map((hTeams, hi) => (
+                  <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${d2Colors[hi] ?? '#c084fc'}44`, borderRadius: 6, padding: '8px 10px' }}>
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: d2Colors[hi] ?? '#c084fc', marginBottom: 6, letterSpacing: 1 }}>HEAT {hi + 1}</div>
+                    {hTeams.map((t, ti) => {
+                      const isSel = bracketSel?.hi === hi && bracketSel?.ti === ti;
+                      return (
+                        <div key={ti} onClick={() => {
+                          if (!bracketSel) { setBracketSel({ hi, ti }); return; }
+                          if (bracketSel.hi === hi && bracketSel.ti === ti) { setBracketSel(null); return; }
+                          const base = (bracketEdits ?? effectiveD2Heats).map(h => [...h]);
+                          const tmp = base[bracketSel.hi][bracketSel.ti];
+                          base[bracketSel.hi][bracketSel.ti] = base[hi][ti];
+                          base[hi][ti] = tmp;
+                          setBracketEdits(base); setBracketSel(null);
+                        }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', marginBottom: 3, borderRadius: 4, cursor: 'pointer', background: isSel ? 'rgba(139,233,253,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? '#8be9fd' : 'rgba(255,255,255,0.06)'}`, transition: 'background 0.1s' }}>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: isSel ? '#8be9fd' : '#f0e6d3' }}>{t.name}</span>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#666' }}>{t.score}pts</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+              {alternateTeams.length > 0 && (
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 6, padding: '8px 10px' }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', letterSpacing: 1, marginBottom: 6 }}>ALTERNATES — click after selecting a heat team to replace them</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {alternateTeams.map((t, altIdx) => (
+                      <div key={altIdx} onClick={() => {
+                        if (!bracketSel) return;
+                        const base = (bracketEdits ?? effectiveD2Heats).map(h => [...h]);
+                        base[bracketSel.hi][bracketSel.ti] = { ...t };
+                        setBracketEdits(base); setBracketSel(null);
+                      }} style={{ padding: '4px 8px', borderRadius: 4, cursor: bracketSel ? 'pointer' : 'default', background: bracketSel ? 'rgba(80,250,123,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${bracketSel ? 'rgba(80,250,123,0.3)' : 'rgba(255,255,255,0.06)'}` }}>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: bracketSel ? '#50fa7b' : '#555' }}>{t.name}</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#444', marginLeft: 6 }}>{t.score}pts</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
-              {d2SeededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, d2HeatResults[hi], hi, 1, d2Colors[hi] ?? '#c084fc', 2, roundFlatBase(1) + hi))}
+              {effectiveD2Heats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, d2HeatResults[hi], hi, 1, d2Colors[hi] ?? '#c084fc', 2, roundFlatBase(1) + hi))}
             </div>
           )}
         </div>

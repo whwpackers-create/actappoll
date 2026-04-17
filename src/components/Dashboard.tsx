@@ -716,13 +716,17 @@ export function Dashboard({
           // Sort by Day 1 score descending, seed tiebreak, snake-seed into 4 heats
           d2Teams.sort((a, b) => b.score - a.score || satSeedTie(a, b));
           const NUM_D2 = 4;
-          const d2Heats: D2Team[][] = [[], [], [], []];
+          const computedD2Heats: D2Team[][] = [[], [], [], []];
           d2Teams.forEach((t, i) => {
             const round = Math.floor(i / NUM_D2);
             const pos = i % NUM_D2;
             const heatIdx = round % 2 === 0 ? pos : NUM_D2 - 1 - pos;
-            d2Heats[heatIdx].push(t);
+            computedD2Heats[heatIdx].push(t);
           });
+          const parsedD2Bracket: D2Team[][] | null = sat.d2BracketJson
+            ? (() => { try { return JSON.parse(sat.d2BracketJson) as D2Team[][]; } catch { return null; } })()
+            : null;
+          const d2Heats = parsedD2Bracket ?? computedD2Heats;
           const d2Colors = ['#c084fc', '#f97316', '#22d3ee', '#a3e635'];
           const dashUnknownVR2 = Math.min(4300, ...d2Teams.flatMap((t) => t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)));
 
