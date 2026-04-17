@@ -70,8 +70,14 @@ function getHeatTeamRankings(act: Act) {
       members: t.members ?? [],
       subs: t.subs ?? [],
       score: teamScores[ti] ?? 0,
+      origIdx: ti,
     }))
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (act.tiebreaker === a.name) return -1;
+      if (act.tiebreaker === b.name) return 1;
+      return a.origIdx - b.origIdx;
+    })
     .map((t, i) => ({ ...t, rank: i + 1 }));
 }
 
@@ -1230,6 +1236,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     });
     const completedCount = heatResults.filter(Boolean).length;
 
+    // Original roster seed map for tiebreaking cross-heat sorts
+    const seedMap: Record<string, number> = {};
+    seededHeats.forEach((heat) => { heat.forEach((t) => { if (t.seed) seedMap[t.name] = t.seed; }); });
+    const seedTie = (a: { name: string }, b: { name: string }) => (seedMap[a.name] ?? 999) - (seedMap[b.name] ?? 999);
+
     type SeededTeam = { name: string; members: string[]; subs: string[]; score: number; seed: number };
 
     // Day 2: top 2 per heat + top 4 third-place finishers (16 total, 4 per Day 2 heat)
@@ -1241,9 +1252,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
         if (rankings[2]) { const t = rankings[2]; thirdPlace.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); }
       });
-      thirdPlace.sort((a, b) => b.score - a.score);
+      thirdPlace.sort((a, b) => b.score - a.score || seedTie(a, b));
       thirdPlace.slice(0, 4).forEach((t) => adv.push(t));
-      return adv.sort((a, b) => b.score - a.score).map((t, i) => ({ ...t, seed: i + 1 }));
+      return adv.sort((a, b) => b.score - a.score || seedTie(a, b)).map((t, i) => ({ ...t, seed: i + 1 }));
     })() : [];
     const NUM_D2 = 4;
     const d2SeededHeats: SeededTeam[][] = Array.from({ length: NUM_D2 }, () => []);
@@ -1266,7 +1277,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         if (!rankings) return;
         rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
       });
-      return adv.sort((a, b) => b.score - a.score).map((t, i) => ({ ...t, seed: i + 1 }));
+      return adv.sort((a, b) => b.score - a.score || seedTie(a, b)).map((t, i) => ({ ...t, seed: i + 1 }));
     })() : [];
     const NUM_SEMI = 2;
     const semiSeededHeats: SeededTeam[][] = Array.from({ length: NUM_SEMI }, () => []);
@@ -1289,7 +1300,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         if (!rankings) return;
         rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
       });
-      return adv.sort((a, b) => b.score - a.score).map((t, i) => ({ ...t, seed: i + 1 }));
+      return adv.sort((a, b) => b.score - a.score || seedTie(a, b)).map((t, i) => ({ ...t, seed: i + 1 }));
     })() : [];
     const finalsHeatResult = finalsTeams.length > 0 ? (() => {
       const heat = (curSat.heats ?? []).find(h => h.round === 3 && h.slotIdx === 0);

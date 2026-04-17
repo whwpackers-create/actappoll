@@ -681,14 +681,23 @@ export function Dashboard({
         if (day1Done) {
           // Use live act scores (same as SAT tab) so corrections are reflected
           type D2Team = { name: string; members: string[]; subs: string[]; score: number };
+          const satSeedMap: Record<string, number> = {};
+          (sat.roster ?? []).forEach((t) => { if (t.seed) satSeedMap[t.name] = t.seed; });
+          const satSeedTie = (a: { name: string }, b: { name: string }) => (satSeedMap[a.name] ?? 999) - (satSeedMap[b.name] ?? 999);
           const liveRankings = day1Heats.map((h) => {
             const act = data.acts.find((a) => (a.id ?? a._id) === h.actId);
-            if (!act) return (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0 }));
+            if (!act) return (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0, origIdx: 0 }));
             const playerToTeam: Record<string, number> = {};
             act.teams.forEach((t, ti) => { (t.members ?? []).forEach((m) => { if (m) playerToTeam[m] = ti; }); (t.subs ?? []).forEach((s) => { if (s) playerToTeam[s] = ti; }); });
             const teamScores: Record<number, number> = {};
             act.races.forEach((race) => { (race.results ?? []).forEach((r) => { const ti = playerToTeam[r.player]; if (ti !== undefined) teamScores[ti] = (teamScores[ti] ?? 0) + r.points; }); });
-            return act.teams.map((t, ti) => ({ name: t.name, members: t.members ?? [], subs: t.subs ?? [], score: teamScores[ti] ?? 0 })).sort((a, b) => b.score - a.score);
+            return act.teams.map((t, ti) => ({ name: t.name, members: t.members ?? [], subs: t.subs ?? [], score: teamScores[ti] ?? 0, origIdx: ti }))
+              .sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                if (act.tiebreaker === a.name) return -1;
+                if (act.tiebreaker === b.name) return 1;
+                return a.origIdx - b.origIdx;
+              });
           });
 
           // Top 2 per heat + top 4 third-place = 16 teams in 4 Day 2 heats
@@ -700,12 +709,12 @@ export function Dashboard({
             });
             if (rankings[2]) { const t = rankings[2]; thirdPlacers.push({ name: t.name, members: t.members, subs: t.subs, score: t.score }); }
           });
-          thirdPlacers.sort((a, b) => b.score - a.score);
+          thirdPlacers.sort((a, b) => b.score - a.score || satSeedTie(a, b));
           thirdPlacers.slice(0, 4).forEach((t) => allAdvancing.push(t));
           let d2Teams = allAdvancing;
 
-          // Sort by Day 1 score descending, snake-seed into 4 heats
-          d2Teams.sort((a, b) => b.score - a.score);
+          // Sort by Day 1 score descending, seed tiebreak, snake-seed into 4 heats
+          d2Teams.sort((a, b) => b.score - a.score || satSeedTie(a, b));
           const NUM_D2 = 4;
           const d2Heats: D2Team[][] = [[], [], [], []];
           d2Teams.forEach((t, i) => {
