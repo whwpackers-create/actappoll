@@ -380,6 +380,26 @@ export function ActDetail({
       caretColor: '#e94560',
     };
 
+    // Swap player order within a team (0↔1) and mirror in playerMap
+    const swapTeamPlayers = (ti: number) => {
+      const newMembers = eMembers.map((x) => [...x]);
+      [newMembers[ti][0], newMembers[ti][1]] = [newMembers[ti][1], newMembers[ti][0]];
+      setEMembers(newMembers);
+      const newSubs = eSubs.map((x) => [...x]);
+      [newSubs[ti][0], newSubs[ti][1]] = [newSubs[ti][1], newSubs[ti][0]];
+      setESubs(newSubs);
+      const map = (ePlayerMap ?? savedPM ??
+        (is16man ? defaultMap16(eTv1Pair === '02' ? [0,2] : eTv1Pair === '01' ? [0,1] : [0,3], eTv1Pair === '02' ? [1,3] : eTv1Pair === '01' ? [2,3] : [1,2], act.raceOrder ?? 'A', eNumTeams) : [])
+      ).map((r) => r.map((t) => [...t]));
+      for (let r = 0; r < map.length; r++) {
+        for (let e = 0; e < (map[r][ti]?.length ?? 0); e++) {
+          if (map[r][ti][e] === 0) map[r][ti][e] = 1;
+          else if (map[r][ti][e] === 1) map[r][ti][e] = 0;
+        }
+      }
+      setEPlayerMap(map);
+    };
+
     // TV1 pair indices for 16man
     const eTv1Idx = eTv1Pair === '02' ? [0, 2] : eTv1Pair === '01' ? [0, 1] : [0, 3];
     const eTv2Idx = eTv1Pair === '02' ? [1, 3] : eTv1Pair === '01' ? [2, 3] : [1, 2];
@@ -669,6 +689,25 @@ export function ActDetail({
                     </div>
                   );
                 })}
+                {/* Swap player order button */}
+                <button
+                  onClick={() => swapTeamPlayers(ti)}
+                  style={{
+                    marginTop: 6,
+                    width: '100%',
+                    background: 'rgba(139,233,253,0.08)',
+                    border: '1px solid rgba(139,233,253,0.2)',
+                    borderRadius: 4,
+                    padding: '3px 0',
+                    fontSize: 10,
+                    fontFamily: FONT_MONO,
+                    color: '#8be9fd',
+                    cursor: 'pointer',
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  ↕ Swap Order
+                </button>
                 {/* Sub inputs */}
                 {(eSubs[ti] ?? ['', '']).map((s, si) => (
                   <input
@@ -846,6 +885,7 @@ export function ActDetail({
                                     const val = gridRow ? (gridRow[ei] ?? null) : null;
                                     const penVal = getEPenVal(ri, ti, ei);
                                     const pLabel = getEPLabel(ri, ti, ei);
+                                    const isDup = eGrid ? isGridCellDup(eGrid as (number | null)[][][], ri, ti, ei) : false;
                                     return (
                                       <div
                                         key={ei}
@@ -903,7 +943,8 @@ export function ActDetail({
                                             ...scInpEdit,
                                             background: eValBg(val),
                                             color: eValColor(val),
-                                            borderColor: eValBorder(val),
+                                            borderColor: isDup ? 'rgba(249,115,22,0.7)' : eValBorder(val),
+                                            boxShadow: isDup ? '0 0 0 2px rgba(249,115,22,0.35)' : undefined,
                                           }}
                                         />
                                         {/* Penalty button */}
