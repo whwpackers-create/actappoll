@@ -1228,13 +1228,20 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       });
     };
 
-    // Compute results and advancing
+    // Compute per-heat results for display (keyed by seededHeats slot)
     const heatResults = seededHeats.map((_, hi) => {
       const heat = (curSat.heats ?? []).find(h => h.round === 0 && h.slotIdx === hi);
       const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
       return act ? getHeatTeamRankings(act) : null;
     });
-    const completedCount = heatResults.filter(Boolean).length;
+
+    // For advancing computation, iterate ALL round=0 heats (matches Dashboard logic)
+    const allD1Heats = (curSat.heats ?? []).filter(h => h.round === 0);
+    const allD1Rankings = allD1Heats.map((h) => {
+      const act = h.actId ? data.acts.find((a) => (a.id ?? a._id) === h.actId) : null;
+      return act ? getHeatTeamRankings(act) : null;
+    });
+    const completedCount = allD1Rankings.filter(Boolean).length;
 
     // Original roster seed map for tiebreaking cross-heat sorts
     const seedMap: Record<string, number> = {};
@@ -1247,7 +1254,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const day2Teams: SeededTeam[] = completedCount === NUM_HEATS ? (() => {
       const adv: Omit<SeededTeam, 'seed'>[] = [];
       const thirdPlace: Omit<SeededTeam, 'seed'>[] = [];
-      heatResults.forEach((rankings) => {
+      allD1Rankings.forEach((rankings) => {
         if (!rankings) return;
         rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
         if (rankings[2]) { const t = rankings[2]; thirdPlace.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); }
