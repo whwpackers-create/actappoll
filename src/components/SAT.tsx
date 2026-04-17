@@ -1750,17 +1750,51 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                     {hTeams.map((t, ti) => {
                       const isSel = bracketSel?.hi === hi && bracketSel?.ti === ti;
                       return (
-                        <div key={ti} onClick={() => {
-                          if (!bracketSel) { setBracketSel({ hi, ti }); return; }
-                          if (bracketSel.hi === hi && bracketSel.ti === ti) { setBracketSel(null); return; }
-                          const base = (bracketEdits ?? effectiveD2Heats).map(h => [...h]);
-                          const tmp = base[bracketSel.hi][bracketSel.ti];
-                          base[bracketSel.hi][bracketSel.ti] = base[hi][ti];
-                          base[hi][ti] = tmp;
-                          setBracketEdits(base); setBracketSel(null);
-                        }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', marginBottom: 3, borderRadius: 4, cursor: 'pointer', background: isSel ? 'rgba(139,233,253,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? '#8be9fd' : 'rgba(255,255,255,0.06)'}`, transition: 'background 0.1s' }}>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: isSel ? '#8be9fd' : '#f0e6d3' }}>{t.name}</span>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#666' }}>{t.score}pts</span>
+                        <div key={ti}>
+                          <div onClick={() => {
+                            if (!bracketSel) { setBracketSel({ hi, ti }); return; }
+                            if (bracketSel.hi === hi && bracketSel.ti === ti) { setBracketSel(null); return; }
+                            const base = (bracketEdits ?? effectiveD2Heats).map(h => [...h]);
+                            const tmp = base[bracketSel.hi][bracketSel.ti];
+                            base[bracketSel.hi][bracketSel.ti] = base[hi][ti];
+                            base[hi][ti] = tmp;
+                            setBracketEdits(base); setBracketSel(null);
+                          }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', marginBottom: 2, borderRadius: 4, cursor: 'pointer', background: isSel ? 'rgba(139,233,253,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? '#8be9fd' : 'rgba(255,255,255,0.06)'}`, transition: 'background 0.1s' }}>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: isSel ? '#8be9fd' : '#f0e6d3' }}>{t.name}</span>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#666' }}>{t.score}pts</span>
+                          </div>
+                          <div style={{ paddingLeft: 6, marginBottom: 4 }}>
+                            {t.members.map((member, pi) => {
+                              const subKey = `r1:${hi}:${member}`;
+                              const existingSub = heatSubs[subKey];
+                              const isEditing = editingSubKey === subKey;
+                              return (
+                                <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
+                                  {isEditing ? (
+                                    <>
+                                      <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                        placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
+                                        onChange={(e) => setEditingSubVal(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
+                                      <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                                      <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
+                                      <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
+                                    </>
+                                  ) : existingSub ? (
+                                    <>
+                                      <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>{existingSub} <span style={{ color: '#556' }}>for {member.split(' ')[0]}</span></span>
+                                      <button onClick={(e) => { e.stopPropagation(); setEditingSubKey(subKey); setEditingSubVal(existingSub); }} style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✎</button>
+                                      <button onClick={(e) => { e.stopPropagation(); saveSub(subKey, ''); }} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 9 }}>✕</button>
+                                    </>
+                                  ) : (
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingSubKey(subKey); setEditingSubVal(''); }}
+                                      style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 2, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 8, color: '#445', cursor: 'pointer' }}>+ sub</button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
