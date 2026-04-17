@@ -159,7 +159,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [editingTimeIdx, setEditingTimeIdx] = useState<number | null>(null);
   const [editingTimeVal, setEditingTimeVal] = useState('');
   const [upcomingHeatSaveIdx, setUpcomingHeatSaveIdx] = useState<number | null>(null);
-  const [advancingCuts, setAdvancingCuts] = useState<number[]>([]); // indices of 3rd-place teams being cut
+
   const [swapSrc, setSwapSrc] = useState<{ heatIdx: number; teamName: string } | null>(null);
   const [editingSubKey, setEditingSubKey] = useState<string | null>(null); // "heatIdx:playerName"
   const [editingSubVal, setEditingSubVal] = useState('');
@@ -1090,7 +1090,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     );
   }
 
-  // === UPCOMING DETAIL ===
+  // === UPCOMING DETAIL — REPLACED BELOW ===
   if (curSat?.upcoming && !showHeatEntry) {
     const rosterVRs = (curSat.roster ?? []).flatMap((t) =>
       t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
@@ -1193,868 +1193,414 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       });
     };
 
+    // Compute results and advancing
+    const heatResults = seededHeats.map((_, hi) => {
+      const heat = (curSat.heats ?? []).find(h => h.round === 0 && h.slotIdx === hi);
+      const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
+      return act ? getHeatTeamRankings(act) : null;
+    });
+    const completedCount = heatResults.filter(Boolean).length;
+
+    type SeededTeam = { name: string; members: string[]; subs: string[]; score: number; seed: number };
+
+    // Day 2: top 2 per heat
+    const day2Teams: SeededTeam[] = completedCount === NUM_HEATS ? (() => {
+      const adv: Omit<SeededTeam, 'seed'>[] = [];
+      heatResults.forEach((rankings) => {
+        if (!rankings) return;
+        rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
+      });
+      return adv.sort((a, b) => b.score - a.score).map((t, i) => ({ ...t, seed: i + 1 }));
+    })() : [];
+    const NUM_D2 = 4;
+    const d2SeededHeats: SeededTeam[][] = Array.from({ length: NUM_D2 }, () => []);
+    day2Teams.forEach((t, i) => {
+      const r = Math.floor(i / NUM_D2), p = i % NUM_D2;
+      d2SeededHeats[r % 2 === 0 ? p : NUM_D2 - 1 - p].push(t);
+    });
+    const d2HeatResults = d2SeededHeats.map((_, hi) => {
+      const heat = (curSat.heats ?? []).find(h => h.round === 1 && h.slotIdx === hi);
+      const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
+      return act ? getHeatTeamRankings(act) : null;
+    });
+    const d2CompletedCount = d2HeatResults.filter(Boolean).length;
+    const d2Colors = ['#c084fc', '#f97316', '#22d3ee', '#a3e635'];
+
+    // Semis: top 2 per Day 2 heat
+    const semiTeams: SeededTeam[] = d2CompletedCount === NUM_D2 ? (() => {
+      const adv: Omit<SeededTeam, 'seed'>[] = [];
+      d2HeatResults.forEach((rankings) => {
+        if (!rankings) return;
+        rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
+      });
+      return adv.sort((a, b) => b.score - a.score).map((t, i) => ({ ...t, seed: i + 1 }));
+    })() : [];
+    const NUM_SEMI = 2;
+    const semiSeededHeats: SeededTeam[][] = Array.from({ length: NUM_SEMI }, () => []);
+    semiTeams.forEach((t, i) => {
+      const r = Math.floor(i / NUM_SEMI), p = i % NUM_SEMI;
+      semiSeededHeats[r % 2 === 0 ? p : NUM_SEMI - 1 - p].push(t);
+    });
+    const semiHeatResults = semiSeededHeats.map((_, hi) => {
+      const heat = (curSat.heats ?? []).find(h => h.round === 2 && h.slotIdx === hi);
+      const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
+      return act ? getHeatTeamRankings(act) : null;
+    });
+    const semiCompletedCount = semiHeatResults.filter(Boolean).length;
+    const semiColors = ['#fbbf24', '#8be9fd'];
+
+    // Finals: top 2 per semi heat
+    const finalsTeams: SeededTeam[] = semiCompletedCount === NUM_SEMI ? (() => {
+      const adv: Omit<SeededTeam, 'seed'>[] = [];
+      semiHeatResults.forEach((rankings) => {
+        if (!rankings) return;
+        rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
+      });
+      return adv.sort((a, b) => b.score - a.score).map((t, i) => ({ ...t, seed: i + 1 }));
+    })() : [];
+    const finalsHeatResult = finalsTeams.length > 0 ? (() => {
+      const heat = (curSat.heats ?? []).find(h => h.round === 3 && h.slotIdx === 0);
+      const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
+      return act ? getHeatTeamRankings(act) : null;
+    })() : null;
+
+    const enterResults = (
+      hTeams: { name: string; members: string[]; subs?: string[]; seed?: number | null }[],
+      round: number, slotIdx: number, advCount: number
+    ) => {
+      const n = Math.max(hTeams.length, 4);
+      setHeatTeams(hTeams.map((t) => {
+        const sub0 = round === 0 ? (heatSubs[`${slotIdx}:${t.members[0]}`] || '') : '';
+        const sub1 = round === 0 ? (heatSubs[`${slotIdx}:${t.members[1]}`] || '') : '';
+        const eff0 = sub0 || t.members[0]; const eff1 = sub1 || t.members[1];
+        const vr0 = vrMap[eff0] ?? unknownVR; const vr1 = vrMap[eff1] ?? unknownVR;
+        const swap = vr1 > vr0;
+        return { name: t.name, members: swap ? [t.members[1], t.members[0]] : [...t.members], subs: swap ? [sub1, sub0] : [sub0, sub1], seed: t.seed ?? null };
+      }));
+      setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
+      setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
+      setHeatOrder('A'); setAdvCount(advCount); setHeatStep(0);
+      setHeatRound(round); setUpcomingHeatSaveIdx(slotIdx); setHeatPlayerMap(null); setShowHeatEntry(true);
+    };
+
+    const renderRoundHeat = (
+      hTeams: { name: string; members: string[]; subs?: string[]; seed?: number | null; score?: number }[],
+      teamRankings: ReturnType<typeof getHeatTeamRankings> | null,
+      hi: number, round: number, hColor: string, advCount: number
+    ) => (
+      <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(106,96,64,0.25)', borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>Heat {hi + 1}</span>
+          {teamRankings && <button onClick={() => deleteHeatResults(round, hi)} style={{ ...delBtn, fontSize: 9, padding: '2px 6px' }}>✕</button>}
+        </div>
+        {teamRankings ? (
+          teamRankings.map((t, ri) => {
+            const adv = ri < advCount;
+            const rc = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
+            return (
+              <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: adv ? 1 : 0.5 }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: rc, minWidth: 20 }}>{ri + 1}{['st','nd','rd'][ri] ?? 'th'}</span>
+                <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#f0e6d3', flex: 1 }}>{t.name}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{t.score}pts</span>
+                {adv ? <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b' }}>✓</span> : <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560' }}>✗</span>}
+              </div>
+            );
+          })
+        ) : (
+          hTeams.map((t, ti) => {
+            const vr1 = vrMap[t.members[0]] ?? unknownVR; const vr2 = vrMap[t.members[1]] ?? unknownVR;
+            const [p1, p2] = vr1 >= vr2 ? [t.members[0], t.members[1]] : [t.members[1], t.members[0]];
+            return (
+              <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', minWidth: 20 }}>{t.seed != null ? `S${t.seed}` : `#${ti + 1}`}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#f0e6d3' }}>{p1.split(' ')[0]} & {p2.split(' ')[0]}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#556' }}>{Math.round((vr1 + vr2) / 2)} VR</div>
+                </div>
+                {'score' in t && t.score != null && <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{(t as { score: number }).score}pts</span>}
+              </div>
+            );
+          })
+        )}
+        {!teamRankings && hTeams.length > 0 && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <button style={{ ...secBtn, width: '100%', fontSize: 11 }} onClick={() => enterResults(hTeams, round, hi, advCount)}>
+              + Enter Results
+            </button>
+          </div>
+        )}
+      </div>
+    );
+
     return (
       <div style={{ width: '100%' }}>
         <button style={{ background: 'none', border: 'none', color: '#e94560', fontFamily: FONT_HEADER, fontSize: 14, cursor: 'pointer', marginBottom: 16 }}
           onClick={() => { setSelSat(null); setMode('list'); }}>
           {'←'} Back
         </button>
-        <div style={{ ...card, borderLeft: '3px solid #f9a8d4' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-            <div>
-              <div style={{ fontFamily: FONT_HEADER, fontSize: 24, color: '#f9a8d4', letterSpacing: 2 }}>{curSat.name}</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#556', marginTop: 4 }}>{curSat.date} · {teams.length} teams</div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button style={secBtn} onClick={() => { setEditUpTeams(teams.map(t => ({ p1: t.members[0], p2: t.members[1] }))); setEditingUpcoming(true); }}>Edit</button>
-              <button style={delBtn} onClick={() => deleteSat(curSat.id ?? curSat._id ?? '')}>Delete</button>
-            </div>
+
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg, rgba(249,168,212,0.15) 0%, rgba(233,69,96,0.1) 100%)', border: '2px solid rgba(249,168,212,0.3)', borderRadius: 14, padding: '20px 24px', marginBottom: 16, textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 36 }}>{'🏆'}</div>
+            <button onClick={() => { setEditUpTeams(teams.map(t => ({ p1: t.members[0], p2: t.members[1] }))); setEditingUpcoming(true); }}
+              style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '4px 10px', fontSize: 9, fontFamily: FONT_MONO, color: '#888', cursor: 'pointer' }}>
+              Edit Roster
+            </button>
+            <button onClick={() => deleteSat(curSat.id ?? curSat._id ?? '')} style={{ ...delBtn, fontSize: 9, padding: '4px 8px' }}>Delete</button>
           </div>
+          <div style={{ fontFamily: FONT_HEADER, fontSize: 28, color: '#f9a8d4', letterSpacing: 3 }}>{curSat.name}</div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#a09880', marginTop: 6 }}>{curSat.date} · {teams.length} teams</div>
+        </div>
 
-          {editingUpcoming ? (
-            <div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, marginBottom: 8 }}>TEAMS</div>
-              {editUpTeams.map((t, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
-                  {(['p1', 'p2'] as const).map((pk) => {
-                    const dk = `edit-${i}-${pk}`;
-                    const val = t[pk];
-                    const suggs = val.trim() ? rosterNames.filter(n => n.toLowerCase().includes(val.toLowerCase()) && n !== val).slice(0, 6) : [];
-                    return (
-                      <div key={pk} style={{ flex: 1, position: 'relative' }}>
-                        <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
-                          value={val}
-                          placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
-                          onFocus={() => setUpActiveDropdown(dk)}
-                          onBlur={() => setTimeout(() => setUpActiveDropdown(null), 150)}
-                          onChange={(e) => { const c = [...editUpTeams]; c[i] = { ...c[i], [pk]: e.target.value }; setEditUpTeams(c); }} />
-                        {upActiveDropdown === dk && suggs.length > 0 && (
-                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 100, marginTop: 2, overflow: 'hidden' }}>
-                            {suggs.map(n => (
-                              <div key={n} onMouseDown={() => { const c = [...editUpTeams]; c[i] = { ...c[i], [pk]: n }; setEditUpTeams(c); setUpActiveDropdown(null); }}
-                                style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.12)')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                {n} <span style={{ color: '#c8a030', fontSize: 10 }}>{vrMap[n] ? vrMap[n] + ' VR' : ''}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {editUpTeams.length > 1 && <button onClick={() => setEditUpTeams(editUpTeams.filter((_, j) => j !== i))} style={{ ...delBtn, padding: '4px 8px' }}>✕</button>}
-                </div>
-              ))}
-              <button onClick={() => setEditUpTeams([...editUpTeams, { p1: '', p2: '' }])} style={{ ...secBtn, fontSize: 11, marginBottom: 14 }}>+ Add Team</button>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button style={secBtn} onClick={() => setEditingUpcoming(false)}>Cancel</button>
-                <button style={priBtn} onClick={() => {
-                  auth.req(async () => {
-                    const roster = editUpTeams.filter(t => t.p1.trim() || t.p2.trim()).map((t) => ({
-                      name: (t.p1.split(' ')[0] ?? '') + (t.p2 ? ' & ' + t.p2.split(' ')[0] : ''),
-                      members: [t.p1.trim(), t.p2.trim()],
-                    }));
-                    await ops.updateSat(curSat.id ?? curSat._id ?? '', { roster });
-                    setEditingUpcoming(false);
-                    showToast('Updated!');
-                  });
-                }}>Save</button>
-              </div>
-            </div>
-          ) : (() => {
-            // Compute completed heat count and per-heat team rankings
-            const heatResults = seededHeats.map((_, hi) => {
-              const heat = (curSat.heats ?? []).find(h => h.round === 0 && h.slotIdx === hi);
-              const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
-              return act ? getHeatTeamRankings(act) : null;
-            });
-            const completedCount = heatResults.filter(Boolean).length;
-
-            // Collect 3rd-place teams for the advancement comparison
-            const thirdPlaceTeams: { name: string; members: string[]; score: number; heatIdx: number }[] = [];
-            heatResults.forEach((rankings, hi) => {
-              if (rankings && rankings.length >= 3) {
-                const third = rankings[2]; // 0-based, so index 2 = 3rd
-                thirdPlaceTeams.push({ name: third.name, members: third.members, score: third.score, heatIdx: hi });
-              }
-            });
-            thirdPlaceTeams.sort((a, b) => b.score - a.score);
-
-            // Default cuts = bottom 2 (unless saved)
-            const savedCuts = curSat.day1Cuts ?? null;
-            const defaultCutIdxs = thirdPlaceTeams.length >= 2
-              ? [thirdPlaceTeams.length - 2, thirdPlaceTeams.length - 1]
-              : [];
-            // Active cut selection: use advancingCuts if non-empty, else savedCuts, else defaults
-            const activeCutIdxs = advancingCuts.length > 0
-              ? advancingCuts
-              : savedCuts
-                ? thirdPlaceTeams.map((t, i) =>
-                    savedCuts.some((c) => c.join(',') === t.members.join(',')) ? i : -1
-                  ).filter((i) => i >= 0)
-                : defaultCutIdxs;
-
-            // Day 2 seedings computed on-the-fly from Day 1 results
-            const day2Teams = completedCount === NUM_HEATS ? (() => {
-              const cutMembers = savedCuts ?? thirdPlaceTeams.slice(-2).map(t => t.members);
-              const advancing: { name: string; members: string[]; subs: string[]; score: number }[] = [];
-              heatResults.forEach((rankings) => {
-                if (!rankings) return;
-                rankings.slice(0, 3).forEach((t, rank) => {
-                  if (rank === 2 && cutMembers.some(c => c.join(',') === t.members.join(','))) return;
-                  advancing.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score });
-                });
-              });
-              return advancing.sort((a, b) => b.score - a.score).map((t, i) => ({ ...t, seed: i + 1 }));
-            })() : [];
-            const NUM_D2 = 4;
-            const d2SeededHeats: (typeof day2Teams[0])[][] = Array.from({ length: NUM_D2 }, () => []);
-            day2Teams.forEach((t, i) => {
-              const round = Math.floor(i / NUM_D2);
-              const pos = i % NUM_D2;
-              const heatIdx = round % 2 === 0 ? pos : NUM_D2 - 1 - pos;
-              d2SeededHeats[heatIdx].push(t);
-            });
-            const d2HeatResults = d2SeededHeats.map((_, hi) => {
-              const heat = (curSat.heats ?? []).find(h => h.round === 1 && h.slotIdx === hi);
-              const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
-              return act ? getHeatTeamRankings(act) : null;
-            });
-            const d2Colors = ['#c084fc','#f97316','#22d3ee','#a3e635'];
-
-            // === BETTING ODDS COMPUTATION ===
-            // SAT format: Day 1 = 6 heats, 3 adv each minus 2 worst 3rds = ~16 adv
-            //   Day 2 = 4 heats, top 2 each = 8 adv (semis)
-            //   Day 3 morning = 2 heats (semis), top 2 each = 4 adv (finals)
-            //   Day 3 night = Finals, 1 winner
-            //
-            // Model uses CONDITIONAL probabilities so later rounds are always
-            // gated on making the previous round. Win = P(Day1) × P(Semis|Day1) × P(Finals|Semis) × P(Win|Finals)
-            const totalTeams = Math.max(teams.length, 1);
-
-            // Field VR stats
-            const fieldAvg = teams.reduce((s, t) => s + t.avgVR, 0) / totalTeams;
-            const fieldVar = teams.reduce((s, t) => s + Math.pow(t.avgVR - fieldAvg, 2), 0) / totalTeams;
-            const fieldStd = Math.sqrt(fieldVar) || 200;
-
-            // Assign heat slot for each team
-            const teamHeat: Record<string, number> = {};
-            seededHeats.forEach((ht, hi) => ht.forEach((t) => { teamHeat[t.name] = hi; }));
-
-            // Build per-player SAT history
-            const pastSats = sats.filter((s) => !s.upcoming && (s.id ?? s._id) !== (curSat.id ?? curSat._id));
-            const playerHistory: Record<string, { played: number; advDay1: number; madeSemis: number; madeFinals: number; won: number }> = {};
-            pastSats.forEach((ps) => {
-              if (!ps.heats?.length) return;
-              const allMembers = new Set<string>();
-              ps.heats.forEach((h) => {
-                (h.teams ?? []).forEach((t) => {
-                  [...(t.members ?? []), ...(t.subs ?? [])].forEach((m) => { if (m) allMembers.add(m); });
-                });
-              });
-              allMembers.forEach((name) => {
-                if (!playerHistory[name]) playerHistory[name] = { played: 0, advDay1: 0, madeSemis: 0, madeFinals: 0, won: 0 };
-                playerHistory[name].played++;
-              });
-              ps.heats.filter((h) => h.round === 0).forEach((h) => {
-                (h.advanced ?? []).forEach((t) => {
-                  [...(t.members ?? [])].forEach((name) => {
-                    if (name && playerHistory[name]) playerHistory[name].advDay1++;
-                  });
-                });
-              });
-              const semiMembers = new Set<string>();
-              ps.heats.filter((h) => h.round === 1).forEach((h) => {
-                (h.teams ?? []).forEach((t) => {
-                  [...(t.members ?? []), ...(t.subs ?? [])].forEach((m) => { if (m) semiMembers.add(m); });
-                });
-              });
-              semiMembers.forEach((n) => { if (playerHistory[n]) playerHistory[n].madeSemis++; });
-              const finalMembers = new Set<string>();
-              ['winner','runnerUp','finalist'].forEach((pl) => {
-                ((ps.placements as Record<string, Array<{ members?: string[]; subs?: string[] }>> | undefined)?.[pl] ?? []).forEach((t) => {
-                  [...(t.members ?? []), ...(t.subs ?? []).filter(Boolean)].forEach((name) => {
-                    if (name) finalMembers.add(name);
-                  });
-                });
-              });
-              finalMembers.forEach((n) => { if (playerHistory[n]) playerHistory[n].madeFinals++; });
-              if (ps.placements?.winner) {
-                ps.placements.winner.forEach((t) => {
-                  [...(t.members ?? []), ...((t.subs ?? []).filter(Boolean))].forEach((name) => {
-                    if (name && playerHistory[name]) playerHistory[name].won++;
-                  });
-                });
-              }
-            });
-
-            // Strength score per team: exponential of VR z-score so top teams
-            // pull away much faster (each std dev is ~2.7x stronger, not linear)
-            // Uses effective VR — if a player has a sub, use the sub's VR instead
-            const teamStrength = teams.map((t) => {
-              // Resolve effective players accounting for subs (keyed as "heatIdx:playerName")
-              const hi = teamHeat[t.name];
-              const eff0 = (hi !== undefined && heatSubs[`${hi}:${t.members[0]}`]) || t.members[0];
-              const eff1 = (hi !== undefined && heatSubs[`${hi}:${t.members[1]}`]) || t.members[1];
-              const effVR0 = vrMap[eff0] ?? unknownVR;
-              const effVR1 = vrMap[eff1] ?? unknownVR;
-              const effAvgVR = Math.round((effVR0 + effVR1) / 2);
-              const fieldZ = (effAvgVR - fieldAvg) / fieldStd;
-              // Exponential so gap between top/bottom is dramatic
-              const vrStrength = Math.exp(fieldZ * 1.8);
-
-              // History blend: use effective names (subs replace originals)
-              const histPlayers = [eff0, eff1].filter((n) => (playerHistory[n]?.played ?? 0) >= 2);
-              let histMult = 1.0;
-              if (histPlayers.length > 0) {
-                const avg = (fn: (h: typeof playerHistory[string]) => number) =>
-                  histPlayers.reduce((s, n) => s + fn(playerHistory[n]), 0) / histPlayers.length;
-                const hWinRate = avg((h) => h.won / h.played);
-                // Compare historical win rate to field average; use as a multiplier
-                const fieldWinRate = 1 / totalTeams;
-                histMult = hWinRate > 0 ? Math.sqrt(hWinRate / fieldWinRate) : 1.0;
-                histMult = Math.max(0.4, Math.min(3.0, histMult));
-              }
-              const w = histPlayers.length > 0 ? 0.25 : 0;
-              return { name: t.name, strength: vrStrength * (1 - w) + vrStrength * histMult * w };
-            });
-
-            // Conditional probabilities via strength ratios within each pool
-            // P(adv Day1) = P(finish top 3 in heat of ~4) using softmax over heat
-            // P(make semis | adv) = P(finish top 2 in Day2 heat of ~4) using softmax over field
-            // P(make finals | semis) = P(finish top 2 in semi of ~4)
-            // P(win | finals) = P(win 4-team final)
-            // Then: displayed probability = product of all conditional stages
-
-            const strengthByName = Object.fromEntries(teamStrength.map((t) => [t.name, t.strength]));
-
-            // Each column shows CONDITIONAL probability for that round only.
-            // Formula: P(top k of pool) = (myStr / poolTotalStr) * k
-            // With exponential strengths this naturally gives exactly k teams >50% per pool.
-            const condProb = (myStr: number, poolStrs: number[], topK: number): number => {
-              const total = poolStrs.reduce((s, v) => s + v, 0);
-              if (total === 0) return topK / Math.max(poolStrs.length, 1);
-              return Math.min(0.97, Math.max(0.03, (myStr / total) * topK));
-            };
-
-            // ── Day 1: actual heats, 3 of 4 advance → 3 favored per heat (18 total) ──
-            const pDay1Map: Record<string, number> = {};
-            seededHeats.forEach((hTeams) => {
-              if (hTeams.length === 0) return;
-              const strs = hTeams.map((t) => strengthByName[t.name]);
-              hTeams.forEach((t) => {
-                pDay1Map[t.name] = condProb(strengthByName[t.name], strs, 3);
-              });
-            });
-
-            // ── Day 2: project top 16 advancing, snake seed into 4 heats of 4,
-            //    2 of 4 advance → 2 favored per heat (8 total) ──
-            const sortedByStr = [...teamStrength].sort((a, b) => b.strength - a.strength);
-            const top16 = sortedByStr.slice(0, 16);
-            const d2Heats: typeof top16[] = [[], [], [], []];
-            top16.forEach((t, i) => {
-              const round = Math.floor(i / 4);
-              const pos = i % 4;
-              d2Heats[round % 2 === 0 ? pos : 3 - pos].push(t);
-            });
-            const pAdvDay2Map: Record<string, number> = {};
-            d2Heats.forEach((hTeams) => {
-              const strs = hTeams.map((t) => t.strength);
-              hTeams.forEach((t) => { pAdvDay2Map[t.name] = condProb(t.strength, strs, 2); });
-            });
-            sortedByStr.slice(16).forEach((t) => { pAdvDay2Map[t.name] = 0.06; });
-
-            // ── Semis: project top 8, 2 heats of 4, 2 of 4 advance → 4 favored ──
-            const top8 = sortedByStr.slice(0, 8);
-            const semiHeats: typeof top8[] = [[], []];
-            top8.forEach((t, i) => {
-              const round = Math.floor(i / 2);
-              const pos = i % 2;
-              semiHeats[round % 2 === 0 ? pos : 1 - pos].push(t);
-            });
-            const pAdvSemisMap: Record<string, number> = {};
-            semiHeats.forEach((hTeams) => {
-              const strs = hTeams.map((t) => t.strength);
-              hTeams.forEach((t) => { pAdvSemisMap[t.name] = condProb(t.strength, strs, 2); });
-            });
-            sortedByStr.slice(8).forEach((t) => { pAdvSemisMap[t.name] = 0.04; });
-
-            // ── Finals: top 4, 1 winner → exactly 1 favored ──
-            const top4 = sortedByStr.slice(0, 4);
-            const top4Strs = top4.map((t) => t.strength);
-            const pWinMap: Record<string, number> = {};
-            top4.forEach((t) => { pWinMap[t.name] = condProb(t.strength, top4Strs, 1); });
-            sortedByStr.slice(4).forEach((t) => { pWinMap[t.name] = 0.02; });
-
-            const teamOddsFinal = teams.map((t) => ({
-              ...t,
-              pDay1:     pDay1Map[t.name]     ?? 0.75,
-              pAdvDay2:  pAdvDay2Map[t.name]  ?? 0.06,
-              pAdvSemis: pAdvSemisMap[t.name] ?? 0.04,
-              pWin:      pWinMap[t.name]      ?? 0.02,
-            }));
-
-            // American odds: negative = favorite, positive = underdog
-            const toAmerican = (p: number): string => {
-              const clamped = Math.max(0.005, Math.min(0.995, p));
-              if (clamped >= 0.5) {
-                return String(Math.round(-(clamped / (1 - clamped)) * 100));
-              }
-              return '+' + String(Math.round(((1 - clamped) / clamped) * 100));
-            };
-
-            const tabs = ['STANDINGS', 'ODDS', 'DAY 1 DRAW', ...(day2Teams.length > 0 ? ['DAY 2 DRAW'] : []), ...(completedCount > 0 ? ['ADVANCING'] : [])];
-            const activeTab = upActiveDropdown === '__tab_heat__' ? 'DAY 1 DRAW'
-              : upActiveDropdown === '__tab_d2__' ? 'DAY 2 DRAW'
-              : upActiveDropdown === '__tab_advance__' ? 'ADVANCING'
-              : upActiveDropdown === '__tab_odds__' ? 'ODDS'
-              : 'STANDINGS';
-
-            return (
-              <div>
-                {/* Tab bar */}
-                <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {tabs.map((tab) => {
-                    const active = activeTab === tab;
-                    const key = tab === 'DAY 1 DRAW' ? '__tab_heat__' : tab === 'DAY 2 DRAW' ? '__tab_d2__' : tab === 'ADVANCING' ? '__tab_advance__' : tab === 'ODDS' ? '__tab_odds__' : null;
-                    return (
-                      <button key={tab}
-                        onClick={() => setUpActiveDropdown(key)}
-                        style={{ background: 'none', border: 'none', borderBottom: active ? '2px solid #f9a8d4' : '2px solid transparent', padding: '6px 16px', fontFamily: FONT_MONO, fontSize: 11, color: active ? '#f9a8d4' : '#556', cursor: 'pointer', letterSpacing: 1 }}>
-                        {tab}{tab === 'ADVANCING' && completedCount < NUM_HEATS && ` (${completedCount}/${NUM_HEATS})`}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {activeTab === 'STANDINGS' && (
-                  teams.length === 0 ? (
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams signed up yet</div>
-                  ) : (
-                    teams.map((t, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '12px 14px', marginBottom: 6, borderRadius: 8,
-                        background: i === 0 ? 'rgba(251,191,36,0.08)' : i === 1 ? 'rgba(148,163,184,0.06)' : i === 2 ? 'rgba(205,127,50,0.06)' : 'rgba(255,255,255,0.02)',
-                        borderLeft: `3px solid ${i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#334'}`,
-                      }}>
-                        <span style={{ fontFamily: FONT_HEADER, fontSize: 20, color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#445', minWidth: 32 }}>#{i + 1}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: FONT_HEADER, fontSize: 16, color: '#f0e6d3' }}>{t.members[0]} & {t.members[1]}</div>
-                          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginTop: 2 }}>
-                            {t.members[0]}: <span style={{ color: '#c8a030' }}>{t.vr1}</span>
-                            <span style={{ margin: '0 6px', color: '#334' }}>·</span>
-                            {t.members[1]}: <span style={{ color: '#c8a030' }}>{t.vr2}</span>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4' }}>{t.avgVR}</div>
-                          <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>avg VR</div>
-                        </div>
-                      </div>
-                    ))
-                  )
-                )}
-
-                {activeTab === 'ODDS' && (
-                  teams.length === 0 ? (
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams signed up yet</div>
-                  ) : (
-                    <div>
-                      <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginBottom: 12, letterSpacing: 1 }}>
-                        American odds: -150 = bet $150 to win $100 (favorite) · +200 = bet $100 to win $200 (underdog)
-                      </div>
-                      {/* Header row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px 72px 80px 72px', gap: 2, padding: '4px 10px', marginBottom: 2 }}>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#445', letterSpacing: 1 }}>TEAM</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#50fa7b', textAlign: 'center', letterSpacing: 1 }}>ADV DAY 1</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#8be9fd', textAlign: 'center', letterSpacing: 1 }}>ADV DAY 2</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc', textAlign: 'center', letterSpacing: 1 }}>ADV SEMIS</div>
-                        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#fbbf24', textAlign: 'center', letterSpacing: 1 }}>WIN FINALS</div>
-                      </div>
-                      {[...teamOddsFinal]
-                        .sort((a, b) => b.pWin - a.pWin)
-                        .map((t, i) => {
-                          const od1 = toAmerican(t.pDay1);
-                          const os  = toAmerican(t.pAdvDay2);
-                          const of_ = toAmerican(t.pAdvSemis);
-                          const ow  = toAmerican(t.pWin);
-                          const heat = teamHeat[t.name];
-                          const hColor = heat !== undefined ? (heatColors[heat] ?? '#f9a8d4') : '#445';
-                          const isFav = i === 0;
-                          const odColor = (o: string, pos: string, neg: string) => o.startsWith('+') ? pos : neg;
-                          return (
-                            <div key={t.name} style={{
-                              display: 'grid', gridTemplateColumns: '1fr 72px 72px 80px 72px', gap: 2,
-                              padding: '9px 10px', marginBottom: 3, borderRadius: 7,
-                              background: isFav ? 'rgba(251,191,36,0.06)' : 'rgba(255,255,255,0.02)',
-                              border: isFav ? '1px solid rgba(251,191,36,0.2)' : '1px solid rgba(255,255,255,0.04)',
-                              alignItems: 'center',
-                            }}>
-                              <div>
-                                <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>
-                                  {isFav && <span style={{ color: '#fbbf24', fontSize: 9, marginRight: 5, letterSpacing: 1 }}>FAV</span>}
-                                  {t.members[0].split(' ')[0]} & {t.members[1].split(' ')[0]}
-                                </div>
-                                <div style={{ display: 'flex', gap: 6, marginTop: 2, alignItems: 'center' }}>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{t.avgVR} VR</span>
-                                  {heat !== undefined && (
-                                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: hColor, background: hColor + '18', borderRadius: 3, padding: '1px 5px' }}>H{heat + 1}</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div style={{ textAlign: 'center' }}>
-                                <span style={{ fontFamily: FONT_MONO, fontSize: 13, color: odColor(od1, '#50fa7b', '#f9a8d4'), fontWeight: 700 }}>{od1}</span>
-                              </div>
-                              <div style={{ textAlign: 'center' }}>
-                                <span style={{ fontFamily: FONT_MONO, fontSize: 13, color: odColor(os, '#8be9fd', '#c084fc'), fontWeight: 700 }}>{os}</span>
-                              </div>
-                              <div style={{ textAlign: 'center' }}>
-                                <span style={{ fontFamily: FONT_MONO, fontSize: 13, color: odColor(of_, '#c084fc', '#f97316'), fontWeight: 700 }}>{of_}</span>
-                              </div>
-                              <div style={{ textAlign: 'center' }}>
-                                <span style={{ fontFamily: FONT_MONO, fontSize: 13, color: odColor(ow, '#fbbf24', '#e94560'), fontWeight: 700 }}>{ow}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#334', marginTop: 10, textAlign: 'center' }}>
-                        70% VR vs. field · 30% past SAT history · {pastSats.length} past SAT{pastSats.length !== 1 ? 's' : ''} factored in
-                      </div>
-                    </div>
-                  )
-                )}
-
-                {activeTab === 'DAY 1 DRAW' && (
-                  teams.length === 0 ? (
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>No teams to seed yet</div>
-                  ) : (
-                    <Fragment>
-                    {swapSrc && (
-                      <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#f9a8d4', background: 'rgba(249,168,212,0.08)', border: '1px solid rgba(249,168,212,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
-                        Swapping <strong>{swapSrc.teamName}</strong> — click ⇄ on any team in another heat. Green = close VR match, orange = fair, red = big mismatch. Click ✕ to cancel.
-                      </div>
-                    )}
-                    {curSat.heatAssignmentsJson && !swapSrc && (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                        <button onClick={() => auth.req(async () => {
-                          await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: '' });
-                          await reload();
-                          showToast('Bracket reset to default seeding');
-                        })} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 10px', fontFamily: FONT_MONO, fontSize: 10, color: '#556', cursor: 'pointer' }}>
-                          Reset to default seeding
-                        </button>
-                      </div>
-                    )}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
-                      {seededHeats.map((hTeams, hi) => {
-                        if (hTeams.length === 0) return null;
-                        const hColor = heatColors[hi] ?? '#f9a8d4';
-                        const hAvg = Math.round(hTeams.reduce((s, t) => s + t.avgVR, 0) / hTeams.length);
-                        const savedTime = curSat.heatTimes?.[hi] ?? '';
-                        const teamRankings = heatResults[hi];
-
-                        return (
-                          <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}33`, borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: '12px 14px' }}>
-                            {/* Heat header */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: hColor, letterSpacing: 1 }}>HEAT {hi + 1}</span>
-                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>avg {hAvg} VR</span>
-                            </div>
-
-                            {/* Time field */}
-                            <div style={{ marginBottom: 10 }}>
-                              {editingTimeIdx === hi ? (
-                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                  <input style={{ ...inp, flex: 1, fontSize: 12, padding: '4px 8px' }}
-                                    value={editingTimeVal} placeholder="e.g. 10:30 AM" autoFocus
-                                    onChange={(e) => setEditingTimeVal(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') saveHeatTime(hi, editingTimeVal); if (e.key === 'Escape') setEditingTimeIdx(null); }} />
-                                  <button style={{ ...priBtn, padding: '4px 10px', fontSize: 11 }} onClick={() => saveHeatTime(hi, editingTimeVal)}>✓</button>
-                                  <button style={{ ...secBtn, padding: '4px 8px', fontSize: 11 }} onClick={() => setEditingTimeIdx(null)}>✕</button>
-                                </div>
-                              ) : (
-                                <button onClick={() => { setEditingTimeIdx(hi); setEditingTimeVal(savedTime); }}
-                                  style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 8px', fontFamily: FONT_MONO, fontSize: 11, color: savedTime ? '#c8a030' : '#445', cursor: 'pointer' }}>
-                                  {savedTime ? `🕐 ${savedTime}` : '+ Set time'}
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Seeded team list (or results if entered) */}
-                            {teamRankings ? (
-                              <div>
-                                {teamRankings.map((t, ri) => {
-                                  const rankColor = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
-                                  const advancing = ri < 3;
-                                  return (
-                                    <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: advancing ? 1 : 0.5 }}>
-                                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: rankColor, minWidth: 24 }}>{ri + 1}{['st','nd','rd'][ri] ?? 'th'}</span>
-                                      <div style={{ flex: 1 }}>
-                                        <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.name}</div>
-                                        {t.subs?.some(s => s) && <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>sub: {t.subs.filter(Boolean).join(', ')}</div>}
-                                      </div>
-                                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{t.score}pts</span>
-                                      {advancing
-                                        ? <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b' }}>✓ ADV</span>
-                                        : <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560' }}>✗ OUT</span>}
-                                    </div>
-                                  );
-                                })}
-                                <button onClick={() => deleteHeatResults(0, hi)} style={{ ...delBtn, fontSize: 10, padding: '3px 8px', marginTop: 8 }}>Clear Results</button>
-                              </div>
-                            ) : (
-                              hTeams.map((t, ti) => {
-                                const globalSeed = teams.indexOf(t) + 1;
-                                const [p1, p2, pv1, pv2] = t.vr1 >= t.vr2
-                                  ? [t.members[0], t.members[1], t.vr1, t.vr2]
-                                  : [t.members[1], t.members[0], t.vr2, t.vr1];
-                                const isSrc = swapSrc?.heatIdx === hi && swapSrc?.teamName === t.name;
-                                const isTarget = swapSrc !== null && swapSrc.heatIdx !== hi;
-                                const srcTeam = swapSrc ? teamByName[swapSrc.teamName] : null;
-                                const vrDiff = srcTeam ? Math.abs(t.avgVR - srcTeam.avgVR) : 0;
-                                const matchColor = vrDiff <= 400 ? '#50fa7b' : vrDiff <= 800 ? '#f5a623' : '#e94560';
-                                return (
-                                  <div key={ti} style={{
-                                    padding: '6px 0',
-                                    borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                                    background: isSrc ? 'rgba(249,168,212,0.1)' : isTarget ? 'rgba(255,255,255,0.02)' : 'transparent',
-                                    borderRadius: 4,
-                                  }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{globalSeed}</span>
-                                      <div style={{ flex: 1 }}>
-                                        <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: isSrc ? '#f9a8d4' : '#f0e6d3' }}>{p1} & {p2}</div>
-                                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
-                                      </div>
-                                      <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{t.avgVR}</span>
-                                      {!isTarget && swapSrc === null && (
-                                        <button onClick={() => setSwapSrc({ heatIdx: hi, teamName: t.name })}
-                                          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#445', cursor: 'pointer' }}>
-                                          ⇄
-                                        </button>
-                                      )}
-                                      {isSrc && (
-                                        <button onClick={() => setSwapSrc(null)}
-                                          style={{ background: 'rgba(249,168,212,0.15)', border: '1px solid rgba(249,168,212,0.4)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: '#f9a8d4', cursor: 'pointer' }}>
-                                          ✕
-                                        </button>
-                                      )}
-                                      {isTarget && (
-                                        <button onClick={() => doSwap(swapSrc!.heatIdx, swapSrc!.teamName, hi, t.name)}
-                                          style={{ background: `${matchColor}18`, border: `1px solid ${matchColor}55`, borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 10, color: matchColor, cursor: 'pointer' }}
-                                          title={vrDiff > 400 ? `${vrDiff} VR difference` : ''}>
-                                          ⇄
-                                        </button>
-                                      )}
-                                    </div>
-                                    {/* Per-player sub rows */}
-                                    {[p1, p2].map((player, pi) => {
-                                      const subKey = `${hi}:${player}`;
-                                      const existingSub = heatSubs[subKey];
-                                      const isEditing = editingSubKey === subKey;
-                                      return (
-                                        <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 32 }}>
-                                          {isEditing ? (
-                                            <>
-                                              <input
-                                                autoFocus
-                                                style={{ ...inp, flex: 1, fontSize: 11, padding: '3px 7px' }}
-                                                value={editingSubVal}
-                                                placeholder={`Sub for ${player.split(' ')[0]}…`}
-                                                list="plist-subs"
-                                                onChange={(e) => setEditingSubVal(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                  if (e.key === 'Enter') saveSub(subKey, editingSubVal);
-                                                  if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); }
-                                                }}
-                                              />
-                                              <datalist id="plist-subs">
-                                                {rosterNames.map((n) => <option key={n} value={n} />)}
-                                              </datalist>
-                                              <button style={{ ...priBtn, padding: '3px 8px', fontSize: 10 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
-                                              <button style={{ ...secBtn, padding: '3px 7px', fontSize: 10 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
-                                            </>
-                                          ) : existingSub ? (
-                                            <>
-                                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c084fc' }}>
-                                                <span style={{ color: '#c084fc', fontWeight: 700 }}>{existingSub}</span>
-                                                <span style={{ color: '#556' }}> sub for </span>
-                                                <span style={{ color: '#8090a0' }}>{player.split(' ')[0]}</span>
-                                              </span>
-                                              <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(existingSub); }}
-                                                style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 11, padding: '0 2px' }}>✎</button>
-                                              <button onClick={() => saveSub(subKey, '')}
-                                                style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✕</button>
-                                            </>
-                                          ) : (
-                                            <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(''); }}
-                                              style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 3, padding: '1px 7px', fontFamily: FONT_MONO, fontSize: 9, color: '#445', cursor: 'pointer' }}>
-                                              + sub for {player.split(' ')[0]}
-                                            </button>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                              })
-                            )}
-
-                            {/* Enter Results button */}
-                            {!teamRankings && (
-                              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                <button style={{ ...secBtn, width: '100%', fontSize: 11 }}
-                                  onClick={() => {
-                                    const n = Math.max(hTeams.length, 4);
-                                    setHeatTeams(hTeams.map((t) => {
-                                      const sub0 = heatSubs[`${hi}:${t.members[0]}`] || '';
-                                      const sub1 = heatSubs[`${hi}:${t.members[1]}`] || '';
-                                      const eff0 = sub0 || t.members[0];
-                                      const eff1 = sub1 || t.members[1];
-                                      const vr0 = vrMap[eff0] ?? unknownVR;
-                                      const vr1 = vrMap[eff1] ?? unknownVR;
-                                      const swap = vr1 > vr0;
-                                      const ordered: string[] = swap ? [t.members[1], t.members[0]] : [...t.members];
-                                      const orderedSubs: string[] = swap ? [sub1, sub0] : [sub0, sub1];
-                                      return { name: t.name, members: ordered, subs: orderedSubs, seed: t.seed ?? null };
-                                    }));
-                                    setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
-                                    setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
-                                    setHeatOrder('A');
-                                    setAdvCount(3);
-                                    setHeatStep(0);
-                                    setHeatRound(0);
-                                    setUpcomingHeatSaveIdx(hi);
-                                    setShowHeatEntry(true);
-                                  }}>
-                                  + Enter Results
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    </Fragment>
-                  )
-                )}
-
-                {activeTab === 'DAY 2 DRAW' && (
-                  day2Teams.length === 0 ? (
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: '#445', textAlign: 'center', padding: '20px 0' }}>Day 2 bracket not yet available — complete all Day 1 heats and save cuts</div>
-                  ) : (
-                    <div>
-                      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
-                        Day 2 · {day2Teams.length} teams · seeded by Day 1 pts · 1.2× SAT multiplier
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
-                        {d2SeededHeats.map((hTeams, hi) => {
-                          if (hTeams.length === 0) return null;
-                          const hColor = d2Colors[hi] ?? '#c084fc';
-                          const teamRankings = d2HeatResults[hi];
-                          return (
-                            <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}33`, borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: '12px 14px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                <span style={{ fontFamily: FONT_HEADER, fontSize: 14, color: hColor, letterSpacing: 1 }}>DAY 2 · HEAT {hi + 1}</span>
-                                <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', background: 'rgba(192,132,252,0.1)', border: '1px solid rgba(192,132,252,0.2)', borderRadius: 4, padding: '2px 6px' }}>1.2× VR</span>
-                              </div>
-                              {teamRankings ? (
-                                <div>
-                                  {teamRankings.map((t, ri) => {
-                                    const rankColor = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
-                                    return (
-                                      <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: ri < 2 ? 1 : 0.55 }}>
-                                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: rankColor, minWidth: 24 }}>{ri + 1}{['st','nd','rd'][ri] ?? 'th'}</span>
-                                        <div style={{ flex: 1 }}>
-                                          <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.name}</div>
-                                          {t.subs?.some(s => s) && <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>sub: {t.subs.filter(Boolean).join(', ')}</div>}
-                                        </div>
-                                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445' }}>{t.score}pts</span>
-                                        {ri < 2 ? <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b' }}>✓ ADV</span>
-                                               : <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560' }}>✗ OUT</span>}
-                                      </div>
-                                    );
-                                  })}
-                                  <button onClick={() => deleteHeatResults(1, hi)} style={{ ...delBtn, fontSize: 10, padding: '3px 8px', marginTop: 8 }}>Clear Results</button>
-                                </div>
-                              ) : (
-                                hTeams.map((t, ti) => {
-                                  const vr1 = vrMap[t.members[0]] ?? unknownVR;
-                                  const vr2 = vrMap[t.members[1]] ?? unknownVR;
-                                  const [p1, p2, pv1, pv2] = vr1 >= vr2 ? [t.members[0], t.members[1], vr1, vr2] : [t.members[1], t.members[0], vr2, vr1];
-                                  return (
-                                    <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#445', minWidth: 24 }}>S{t.seed}</span>
-                                      <div style={{ flex: 1 }}>
-                                        <div style={{ fontFamily: FONT_HEADER, fontSize: 13, color: '#f0e6d3' }}>{p1} & {p2}</div>
-                                        <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{pv1} · {pv2}</div>
-                                      </div>
-                                      <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>{Math.round((vr1 + vr2) / 2)}</span>
-                                    </div>
-                                  );
-                                })
-                              )}
-                              {!teamRankings && (
-                                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                  <button style={{ ...secBtn, width: '100%', fontSize: 11 }}
-                                    onClick={() => {
-                                      const n = Math.max(hTeams.length, 4);
-                                      setHeatTeams(hTeams.map((t) => {
-                                        const sub0 = heatSubs[`${hi}:${t.members[0]}`] || '';
-                                        const sub1 = heatSubs[`${hi}:${t.members[1]}`] || '';
-                                        const eff0 = sub0 || t.members[0];
-                                        const eff1 = sub1 || t.members[1];
-                                        const vr0 = vrMap[eff0] ?? unknownVR;
-                                        const vr1 = vrMap[eff1] ?? unknownVR;
-                                        const swap = vr1 > vr0;
-                                        const ordered: string[] = swap ? [t.members[1], t.members[0]] : [...t.members];
-                                        const orderedSubs: string[] = swap ? [sub1, sub0] : [sub0, sub1];
-                                        return { name: t.name, members: ordered, subs: orderedSubs, seed: t.seed ?? null };
-                                      }));
-                                      setHeatGrid(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(null))));
-                                      setHeatPen(Array.from({ length: 4 }, () => Array.from({ length: n }, () => Array(4).fill(0))));
-                                      setHeatOrder('A');
-                                      setAdvCount(2);
-                                      setHeatStep(0);
-                                      setHeatRound(1);
-                                      setUpcomingHeatSaveIdx(hi);
-                                      setHeatPlayerMap(null);
-                                      setShowHeatEntry(true);
-                                    }}>
-                                    + Enter Results
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )
-                )}
-
-                {activeTab === 'ADVANCING' && (() => {
-                  const advancingTeams: { name: string; members: string[]; heatIdx: number; rank: number }[] = [];
-                  heatResults.forEach((rankings, hi) => {
-                    if (!rankings) return;
-                    rankings.slice(0, 3).forEach((t, ri) => {
-                      advancingTeams.push({ name: t.name, members: t.members, heatIdx: hi, rank: ri + 1 });
-                    });
-                  });
-
-                  const day2Date = curSat.date
-                    ? new Date(new Date(curSat.date + 'T12:00:00').getTime() + 86400000 * 3)
-                        .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                    : 'Day 2';
-
-                  const finalAdvCount = advancingTeams.length - activeCutIdxs.length;
-
+        {/* Edit roster form */}
+        {editingUpcoming && (
+          <div style={{ ...card, marginBottom: 16 }}>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 1, marginBottom: 8 }}>EDIT ROSTER</div>
+            {editUpTeams.map((t, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
+                {(['p1', 'p2'] as const).map((pk) => {
+                  const dk = `edit-${i}-${pk}`; const val = t[pk];
+                  const suggs = val.trim() ? rosterNames.filter(n => n.toLowerCase().includes(val.toLowerCase()) && n !== val).slice(0, 6) : [];
                   return (
-                    <div>
-                      <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginBottom: 14 }}>
-                        {completedCount}/{NUM_HEATS} heats complete · {finalAdvCount} teams advancing to Day 2 ({day2Date})
-                      </div>
-
-                      {/* Per-heat summary */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, marginBottom: 20 }}>
-                        {seededHeats.map((_, hi) => {
-                          const rankings = heatResults[hi];
-                          const hColor = heatColors[hi] ?? '#f9a8d4';
-                          return (
-                            <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${hColor}22`, borderRadius: 6, padding: '8px 10px' }}>
-                              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, marginBottom: 6, letterSpacing: 1 }}>
-                                HEAT {hi + 1} {curSat.heatTimes?.[hi] ? `· 🕐 ${curSat.heatTimes[hi]}` : ''}
-                              </div>
-                              {rankings ? rankings.map((t, ri) => (
-                                <div key={ri} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '2px 0', opacity: ri < 3 ? 1 : 0.4 }}>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560', minWidth: 22 }}>
-                                    {ri + 1}{['st','nd','rd'][ri] ?? 'th'}
-                                  </span>
-                                  <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#e0d4c0', flex: 1 }}>{t.name}</span>
-                                </div>
-                              )) : (
-                                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#334' }}>No results yet</div>
-                              )}
+                    <div key={pk} style={{ flex: 1, position: 'relative' }}>
+                      <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }} value={val}
+                        placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
+                        onFocus={() => setUpActiveDropdown(dk)} onBlur={() => setTimeout(() => setUpActiveDropdown(null), 150)}
+                        onChange={(e) => { const c = [...editUpTeams]; c[i] = { ...c[i], [pk]: e.target.value }; setEditUpTeams(c); }} />
+                      {upActiveDropdown === dk && suggs.length > 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 100, marginTop: 2, overflow: 'hidden' }}>
+                          {suggs.map(n => (
+                            <div key={n} onMouseDown={() => { const c = [...editUpTeams]; c[i] = { ...c[i], [pk]: n }; setEditUpTeams(c); setUpActiveDropdown(null); }}
+                              style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.12)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                              {n} <span style={{ color: '#c8a030', fontSize: 10 }}>{vrMap[n] ? vrMap[n] + ' VR' : ''}</span>
                             </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* 3rd-place cutoff section */}
-                      {thirdPlaceTeams.length > 0 && (
-                        <div>
-                          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, marginBottom: 10 }}>
-                            3RD PLACE COMPARISON — select 2 to cut
-                          </div>
-                          {thirdPlaceTeams.map((t, i) => {
-                            const isCut = activeCutIdxs.includes(i);
-                            return (
-                              <div key={i} style={{
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                padding: '8px 12px', marginBottom: 6, borderRadius: 6,
-                                background: isCut ? 'rgba(233,69,96,0.06)' : 'rgba(80,250,123,0.05)',
-                                border: `1px solid ${isCut ? 'rgba(233,69,96,0.2)' : 'rgba(80,250,123,0.15)'}`,
-                                opacity: isCut ? 0.7 : 1,
-                              }}>
-                                <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556', minWidth: 24 }}>#{i + 1}</span>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontFamily: FONT_HEADER, fontSize: 14, color: '#f0e6d3' }}>{t.name}</div>
-                                  <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>Heat {t.heatIdx + 1} · {t.score} pts</div>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    let next = [...activeCutIdxs];
-                                    if (isCut) {
-                                      next = next.filter((x) => x !== i);
-                                    } else {
-                                      if (next.length >= 2) next = [next[1], i]; // replace oldest
-                                      else next = [...next, i];
-                                    }
-                                    setAdvancingCuts(next);
-                                  }}
-                                  style={{
-                                    background: isCut ? 'rgba(233,69,96,0.15)' : 'rgba(80,250,123,0.1)',
-                                    border: `1px solid ${isCut ? 'rgba(233,69,96,0.3)' : 'rgba(80,250,123,0.2)'}`,
-                                    borderRadius: 4, padding: '4px 10px',
-                                    fontFamily: FONT_MONO, fontSize: 10,
-                                    color: isCut ? '#e94560' : '#50fa7b',
-                                    cursor: 'pointer',
-                                  }}>
-                                  {isCut ? '✗ CUT' : '✓ ADV'}
-                                </button>
-                              </div>
-                            );
-                          })}
-                          <button style={{ ...priBtn, marginTop: 10 }} onClick={() => {
-                            auth.req(async () => {
-                              const cuts = activeCutIdxs.map((i) => thirdPlaceTeams[i].members);
-                              await ops.updateSat(curSat.id ?? curSat._id ?? '', { day1Cuts: cuts });
-                              setAdvancingCuts([]);
-                              showToast('Advancement saved!');
-                            });
-                          }}>
-                            Save Advancement Selection
-                          </button>
-                          {completedCount === NUM_HEATS && (
-                            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#50fa7b', marginTop: 8 }}>
-                              ✓ Day 2 bracket auto-generated in HEAT DRAW tab once cuts are saved
-                            </div>
-                          )}
+                          ))}
                         </div>
                       )}
                     </div>
                   );
-                })()}
+                })}
+                {editUpTeams.length > 1 && <button onClick={() => setEditUpTeams(editUpTeams.filter((_, j) => j !== i))} style={{ ...delBtn, padding: '4px 8px' }}>✕</button>}
               </div>
-            );
-          })()}
+            ))}
+            <button onClick={() => setEditUpTeams([...editUpTeams, { p1: '', p2: '' }])} style={{ ...secBtn, fontSize: 11, marginBottom: 14 }}>+ Add Team</button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button style={secBtn} onClick={() => setEditingUpcoming(false)}>Cancel</button>
+              <button style={priBtn} onClick={() => {
+                auth.req(async () => {
+                  const roster = editUpTeams.filter(t => t.p1.trim() || t.p2.trim()).map((t) => ({
+                    name: (t.p1.split(' ')[0] ?? '') + (t.p2 ? ' & ' + t.p2.split(' ')[0] : ''),
+                    members: [t.p1.trim(), t.p2.trim()],
+                  }));
+                  await ops.updateSat(curSat.id ?? curSat._id ?? '', { roster });
+                  setEditingUpcoming(false); showToast('Updated!');
+                });
+              }}>Save</button>
+            </div>
+          </div>
+        )}
+
+        {/* Team Roster */}
+        {curSat.roster && curSat.roster.length > 0 && (
+          <div style={{ ...card, marginBottom: 16 }}>
+            <div style={cTitle}>Team Roster ({curSat.roster.length} teams)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 6, marginTop: 8 }}>
+              {[...curSat.roster].sort((a, b) => (a.seed ?? 99) - (b.seed ?? 99)).map((t, i) => (
+                <div key={i} style={{ padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.seed ? `(${t.seed}) ` : ''}{t.name}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#555' }}>{(t.members ?? []).join(' & ')}</div>
+                  {(t.subs ?? []).filter(Boolean).length > 0 && <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc' }}>Subs: {t.subs!.filter(Boolean).join(', ')}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Round 1 */}
+        <div style={{ ...card, marginBottom: 12 }}>
+          <div style={cHead}>
+            <span style={cTitle}>🏁 Round 1</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={cSub}>{completedCount}/{NUM_HEATS} heats</span>
+              {curSat.heatAssignmentsJson && !swapSrc && (
+                <button onClick={() => auth.req(async () => { await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: '' }); await reload(); showToast('Reset to default seeding'); })}
+                  style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 9, color: '#556', cursor: 'pointer' }}>
+                  Reset seeding
+                </button>
+              )}
+            </div>
+          </div>
+          {swapSrc && (
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#f9a8d4', background: 'rgba(249,168,212,0.08)', border: '1px solid rgba(249,168,212,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
+              Swapping <strong>{swapSrc.teamName}</strong> — click ⇄ on a team in another heat to swap. Click ✕ to cancel.
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
+            {seededHeats.map((hTeams, hi) => {
+              if (hTeams.length === 0) return null;
+              const hColor = heatColors[hi] ?? '#f9a8d4';
+              const teamRankings = heatResults[hi];
+              const savedTime = curSat.heatTimes?.[hi] ?? '';
+              return (
+                <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(106,96,64,0.25)', borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>Heat {hi + 1}</span>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {editingTimeIdx === hi ? (
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          <input style={{ ...inp, width: 80, fontSize: 10, padding: '2px 5px' }}
+                            value={editingTimeVal} placeholder="10:30 AM" autoFocus
+                            onChange={(e) => setEditingTimeVal(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveHeatTime(hi, editingTimeVal); if (e.key === 'Escape') setEditingTimeIdx(null); }} />
+                          <button style={{ ...priBtn, padding: '2px 6px', fontSize: 9 }} onClick={() => saveHeatTime(hi, editingTimeVal)}>✓</button>
+                          <button style={{ ...secBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => setEditingTimeIdx(null)}>✕</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setEditingTimeIdx(hi); setEditingTimeVal(savedTime); }}
+                          style={{ background: 'none', border: 'none', fontFamily: FONT_MONO, fontSize: 9, color: savedTime ? '#c8a030' : '#445', cursor: 'pointer' }}>
+                          {savedTime ? `🕐 ${savedTime}` : '+ time'}
+                        </button>
+                      )}
+                      {teamRankings && <button onClick={() => deleteHeatResults(0, hi)} style={{ ...delBtn, fontSize: 9, padding: '2px 6px' }}>✕</button>}
+                    </div>
+                  </div>
+                  {teamRankings ? (
+                    teamRankings.map((t, ri) => {
+                      const adv = ri < 2;
+                      const rc = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
+                      return (
+                        <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: adv ? 1 : 0.5 }}>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: rc, minWidth: 20 }}>{ri + 1}{['st','nd','rd'][ri] ?? 'th'}</span>
+                          <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#f0e6d3', flex: 1 }}>{t.name}</span>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{t.score}pts</span>
+                          {adv ? <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b' }}>✓</span> : <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560' }}>✗</span>}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    hTeams.map((t, ti) => {
+                      const isSrc = swapSrc?.heatIdx === hi && swapSrc?.teamName === t.name;
+                      const isTarget = swapSrc !== null && swapSrc.heatIdx !== hi;
+                      const srcTeam = swapSrc ? teamByName[swapSrc.teamName] : null;
+                      const vrDiff = srcTeam ? Math.abs(t.avgVR - srcTeam.avgVR) : 0;
+                      const matchColor = vrDiff <= 400 ? '#50fa7b' : vrDiff <= 800 ? '#f5a623' : '#e94560';
+                      const sub0 = heatSubs[`${hi}:${t.members[0]}`];
+                      const sub1 = heatSubs[`${hi}:${t.members[1]}`];
+                      return (
+                        <div key={ti} style={{ padding: '4px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', background: isSrc ? 'rgba(249,168,212,0.08)' : 'transparent', borderRadius: 3 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', minWidth: 22 }}>S{teams.indexOf(t) + 1}</span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontFamily: FONT_HEADER, fontSize: 11, color: isSrc ? '#f9a8d4' : '#f0e6d3' }}>
+                                {sub0 ? <span style={{ textDecoration: 'line-through', color: '#556' }}>{t.members[0].split(' ')[0]}</span> : t.members[0].split(' ')[0]}
+                                {' & '}
+                                {sub1 ? <span style={{ textDecoration: 'line-through', color: '#556' }}>{t.members[1].split(' ')[0]}</span> : t.members[1].split(' ')[0]}
+                              </div>
+                              {(sub0 || sub1) && (
+                                <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc' }}>
+                                  {sub0 && `${sub0}→${t.members[0].split(' ')[0]}`}{sub0 && sub1 && ' · '}{sub1 && `${sub1}→${t.members[1].split(' ')[0]}`}
+                                </div>
+                              )}
+                            </div>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030' }}>{t.avgVR}</span>
+                            {!isTarget && !swapSrc && <button onClick={() => setSwapSrc({ heatIdx: hi, teamName: t.name })} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 3, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 9, color: '#445', cursor: 'pointer' }}>⇄</button>}
+                            {isSrc && <button onClick={() => setSwapSrc(null)} style={{ background: 'rgba(249,168,212,0.15)', border: '1px solid rgba(249,168,212,0.4)', borderRadius: 3, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 9, color: '#f9a8d4', cursor: 'pointer' }}>✕</button>}
+                            {isTarget && <button onClick={() => doSwap(swapSrc!.heatIdx, swapSrc!.teamName, hi, t.name)} style={{ background: `${matchColor}18`, border: `1px solid ${matchColor}55`, borderRadius: 3, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 9, color: matchColor, cursor: 'pointer' }}>⇄</button>}
+                          </div>
+                          {[t.members[0], t.members[1]].map((player, pi) => {
+                            const subKey = `${hi}:${player}`; const existingSub = heatSubs[subKey]; const isEditing = editingSubKey === subKey;
+                            return (
+                              <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, paddingLeft: 22 }}>
+                                {isEditing ? (
+                                  <>
+                                    <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                      placeholder={`Sub for ${player.split(' ')[0]}…`} list="plist-subs"
+                                      onChange={(e) => setEditingSubVal(e.target.value)}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
+                                    <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                                    <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
+                                    <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
+                                  </>
+                                ) : existingSub ? (
+                                  <>
+                                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>{existingSub} <span style={{ color: '#556' }}>for {player.split(' ')[0]}</span></span>
+                                    <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(existingSub); }} style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✎</button>
+                                    <button onClick={() => saveSub(subKey, '')} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 9 }}>✕</button>
+                                  </>
+                                ) : (
+                                  <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(''); }}
+                                    style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 2, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 8, color: '#445', cursor: 'pointer' }}>+ sub</button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })
+                  )}
+                  {!teamRankings && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <button style={{ ...secBtn, width: '100%', fontSize: 11 }} onClick={() => enterResults(hTeams, 0, hi, 2)}>+ Enter Results</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Round 2 */}
+        <div style={{ ...card, marginBottom: 12 }}>
+          <div style={cHead}>
+            <span style={cTitle}>🏁 Round 2</span>
+            <span style={cSub}>{day2Teams.length > 0 ? `${d2CompletedCount}/${NUM_D2} heats` : `Complete Round 1 first (${completedCount}/${NUM_HEATS})`}</span>
+          </div>
+          {day2Teams.length === 0 ? (
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
+              {d2SeededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, d2HeatResults[hi], hi, 1, d2Colors[hi] ?? '#c084fc', 2))}
+            </div>
+          )}
+        </div>
+
+        {/* Semifinals */}
+        <div style={{ ...card, marginBottom: 12 }}>
+          <div style={cHead}>
+            <span style={cTitle}>🔥 Semifinals</span>
+            <span style={cSub}>{semiTeams.length > 0 ? `${semiCompletedCount}/${NUM_SEMI} heats` : 'Complete Round 2 first'}</span>
+          </div>
+          {semiTeams.length === 0 ? (
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
+              {semiSeededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, semiHeatResults[hi], hi, 2, semiColors[hi] ?? '#fbbf24', 2))}
+            </div>
+          )}
+        </div>
+
+        {/* Finals */}
+        <div style={{ ...card, marginBottom: 12 }}>
+          <div style={cHead}>
+            <span style={cTitle}>👑 Final</span>
+            <span style={cSub}>{finalsTeams.length > 0 ? (finalsHeatResult ? '1/1 heats' : '0/1 heats') : 'Complete Semifinals first'}</span>
+          </div>
+          {finalsTeams.length === 0 ? (
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
+              {renderRoundHeat(finalsTeams, finalsHeatResult, 0, 3, '#f5a623', 1)}
+            </div>
+          )}
         </div>
       </div>
     );
   }
+
 
   // === DETAIL ===
   if (curSat) {
