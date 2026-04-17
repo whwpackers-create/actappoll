@@ -108,8 +108,23 @@ export function ActDetail({
     });
   };
 
+  const isGridCellDup = (g: (number | null)[][][], ri: number, ti: number, ei: number): boolean => {
+    const val = g[ri]?.[ti]?.[ei];
+    if (val === null || val === undefined) return false;
+    const nT = act.teams.length;
+    for (let t = 0; t < nT; t++) {
+      if (t !== ti && g[ri]?.[t]?.[ei] === val) return true;
+    }
+    return false;
+  };
   const setECell = (ri: number, ti: number, ei: number, val: number | null) => {
     if (!eGrid) return;
+    if (val !== null) {
+      const nT = act.teams.length;
+      for (let t = 0; t < nT; t++) {
+        if (t !== ti && eGrid[ri]?.[t]?.[ei] === val) return;
+      }
+    }
     const g = eGrid.map((r) => r.map((t) => [...t]));
     g[ri][ti][ei] = val;
     setEGrid(g);
@@ -444,8 +459,9 @@ export function ActDetail({
       } else {
         mi = 0;
       }
-      const name = eMembers[ti]?.[mi] ?? act.teams[ti]?.members[mi] ?? '';
-      return name.split(' ')[0]?.slice(0, 5) || `P${mi + 1}`;
+      const sub = eSubs[ti]?.[mi];
+      const name = sub || (eMembers[ti]?.[mi] ?? act.teams[ti]?.members[mi] ?? '');
+      return name.split(' ')[0] || `P${mi + 1}`;
     };
 
     return (
@@ -1478,7 +1494,7 @@ export function ActDetail({
                       </div>
                     ) : (
                       <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#555' }}>
-                        {t.members.join(' & ')}
+                        {t.members.map((m, mi) => t.subs?.[mi] ? <span key={mi}><span style={{ color: '#c084fc' }}>{t.subs[mi]}</span><span style={{ color: '#444' }}> ({m})</span></span> : <span key={mi}>{m}</span>).reduce((acc, el, i) => i === 0 ? [el] : [...acc, ' & ', el], [] as React.ReactNode[])}
                       </div>
                     )}
                   </div>
@@ -1549,6 +1565,7 @@ export function ActDetail({
                             }}
                           >
                             {(useGrid[ri][ti] as (number | null)[]).map((val: number | null, ei: number) => {
+                              const isDup = isGridCellDup(useGrid as (number | null)[][][], ri, ti, ei);
                               if (editing) {
                                 const penArr =
                                   usePen?.[ri] && Array.isArray(usePen[ri][ti])
@@ -1600,6 +1617,8 @@ export function ActDetail({
                                               : val === 1
                                                 ? '#8be9fd'
                                                 : '#555',
+                                        borderColor: isDup ? 'rgba(249,115,22,0.7)' : undefined,
+                                        boxShadow: isDup ? '0 0 0 2px rgba(249,115,22,0.35)' : undefined,
                                       }}
                                     />
                                     <button
@@ -1648,6 +1667,7 @@ export function ActDetail({
                                           : val === 1
                                             ? '#8be9fd'
                                             : '#555',
+                                    outline: isDup ? '2px solid rgba(249,115,22,0.6)' : undefined,
                                   }}
                                 >
                                   {val ?? ''}
