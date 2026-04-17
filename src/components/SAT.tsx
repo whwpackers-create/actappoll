@@ -1211,6 +1211,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const saveHeatTime = (flatIdx: number, val: string) => {
       auth.req(async () => {
         const times = [...(curSat.heatTimes ?? [])];
+        while (times.length <= flatIdx) times.push('');
         times[flatIdx] = val;
         await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatTimes: times });
         setEditingTimeIdx(null);
