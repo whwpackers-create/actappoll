@@ -211,9 +211,24 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
     return false;
   };
   const setCell = (ri: number, ti: number, ei: number, val: number | null) => {
+    if (val !== null) {
+      for (let t = 0; t < numTeams; t++) {
+        if (t !== ti && grid[ri]?.[t]?.[ei] === val) return;
+      }
+    }
     const g = grid.map((r) => r.map((t) => [...t]));
     g[ri][ti][ei] = val;
     setGrid(g);
+  };
+  const anyDup = (): boolean => {
+    for (let ri = 0; ri < 4; ri++) {
+      for (let ei = 0; ei < (grid[ri]?.[0]?.length ?? 0); ei++) {
+        const vals = Array.from({ length: numTeams }, (_, t) => grid[ri]?.[t]?.[ei]);
+        const filled = vals.filter((v) => v !== null && v !== undefined) as number[];
+        if (filled.length !== new Set(filled).size) return true;
+      }
+    }
+    return false;
   };
   const setPen = (ri: number, ti: number, ei: number, val: number) => {
     const p = penalties.map((r) => r.map((t) => [...t]));
@@ -1346,13 +1361,14 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
             <button
               style={{
                 ...priBtn,
-                background: allF ? '#50fa7b' : '#333',
-                color: allF ? '#0d0d0d' : '#666',
+                background: allF && !anyDup() ? '#50fa7b' : '#333',
+                color: allF && !anyDup() ? '#0d0d0d' : '#666',
               }}
-              disabled={!allF}
+              disabled={!allF || anyDup()}
+              title={anyDup() ? 'Fix duplicate scores before saving' : undefined}
               onClick={save}
             >
-              Save ACT 🏁
+              {anyDup() ? '⚠️ Duplicate scores' : 'Save ACT 🏁'}
             </button>
           </div>
         </div>

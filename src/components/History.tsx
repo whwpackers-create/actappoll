@@ -235,6 +235,10 @@ export function History({
           const ts = teamScores(act);
           const w = ts[0];
           const aid = act.id || act._id;
+          const hasDupScores = act.races.some((race) => {
+            const pts = race.results.map((r) => r.points);
+            return pts.length !== new Set(pts).size;
+          });
 
           // Parse saved grid/playerMap/penalties
           let savedGrid = act.grid as (number | null)[][][] | null | undefined;
@@ -421,6 +425,24 @@ export function History({
                         }}
                       >
                         SAT
+                      </span>
+                    )}
+                    {hasDupScores && (
+                      <span
+                        title="Duplicate scores detected in one or more races"
+                        style={{
+                          fontFamily: FONT_MONO,
+                          fontSize: 9,
+                          color: '#f97316',
+                          background: 'rgba(249,115,22,0.12)',
+                          border: '1px solid rgba(249,115,22,0.3)',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          marginLeft: 4,
+                          cursor: 'help',
+                        }}
+                      >
+                        ⚠ DUP
                       </span>
                     )}
                   </div>

@@ -312,9 +312,35 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   };
 
   const setHC = (ri: number, ti: number, ei: number, val: number | null) => {
+    if (val !== null) {
+      const numT = heatTeams.length;
+      for (let t = 0; t < numT; t++) {
+        if (t !== ti && heatGrid[ri]?.[t]?.[ei] === val) return;
+      }
+    }
     const g = heatGrid.map((r) => r.map((t) => [...t]));
     g[ri][ti][ei] = val;
     setHeatGrid(g);
+  };
+  const isHeatCellDup = (ri: number, ti: number, ei: number): boolean => {
+    const val = heatGrid[ri]?.[ti]?.[ei];
+    if (val === null || val === undefined) return false;
+    const numT = heatTeams.length;
+    for (let t = 0; t < numT; t++) {
+      if (t !== ti && heatGrid[ri]?.[t]?.[ei] === val) return true;
+    }
+    return false;
+  };
+  const heatHasAnyDup = (): boolean => {
+    for (let ri = 0; ri < 4; ri++) {
+      for (let ei = 0; ei < (heatGrid[ri]?.[0]?.length ?? 0); ei++) {
+        const numT = heatTeams.length;
+        const vals = Array.from({ length: numT }, (_, t) => heatGrid[ri]?.[t]?.[ei]);
+        const filled = vals.filter((v) => v !== null && v !== undefined) as number[];
+        if (filled.length !== new Set(filled).size) return true;
+      }
+    }
+    return false;
   };
   const setHP = (ri: number, ti: number, ei: number, val: number) => {
     const p = heatPen.map((r) => r.map((t) => [...t]));
@@ -1206,13 +1232,17 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
 
     type SeededTeam = { name: string; members: string[]; subs: string[]; score: number; seed: number };
 
-    // Day 2: top 2 per heat
+    // Day 2: top 2 per heat + top 4 third-place finishers (16 total, 4 per Day 2 heat)
     const day2Teams: SeededTeam[] = completedCount === NUM_HEATS ? (() => {
       const adv: Omit<SeededTeam, 'seed'>[] = [];
+      const thirdPlace: Omit<SeededTeam, 'seed'>[] = [];
       heatResults.forEach((rankings) => {
         if (!rankings) return;
         rankings.slice(0, 2).forEach((t) => { adv.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); });
+        if (rankings[2]) { const t = rankings[2]; thirdPlace.push({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score }); }
       });
+      thirdPlace.sort((a, b) => b.score - a.score);
+      thirdPlace.slice(0, 4).forEach((t) => adv.push(t));
       return adv.sort((a, b) => b.score - a.score).map((t, i) => ({ ...t, seed: i + 1 }));
     })() : [];
     const NUM_D2 = 4;
@@ -2906,7 +2936,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                                     : val === 1
                                                       ? '#8be9fd'
                                                       : '#555',
-                                            borderColor: 'rgba(255,255,255,0.08)',
+                                            borderColor: isHeatCellDup(ri, ti, ei) ? 'rgba(249,115,22,0.7)' : 'rgba(255,255,255,0.08)',
+                                            boxShadow: isHeatCellDup(ri, ti, ei) ? '0 0 0 2px rgba(249,115,22,0.35)' : undefined,
                                           }}
                                         />
                                         <button
@@ -3042,13 +3073,14 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       <button
                         style={{
                           ...priBtn,
-                          background: allHF ? '#50fa7b' : '#333',
-                          color: allHF ? '#0d0d0d' : '#666',
+                          background: allHF && !heatHasAnyDup() ? '#50fa7b' : '#333',
+                          color: allHF && !heatHasAnyDup() ? '#0d0d0d' : '#666',
                         }}
-                        disabled={!allHF}
+                        disabled={!allHF || heatHasAnyDup()}
+                        title={heatHasAnyDup() ? 'Fix duplicate scores before saving' : undefined}
                         onClick={saveHeat}
                       >
-                        Save Heat {'🏁'}
+                        {heatHasAnyDup() ? '⚠️ Duplicate scores' : 'Save Heat 🏁'}
                       </button>
                     </div>
                   </div>

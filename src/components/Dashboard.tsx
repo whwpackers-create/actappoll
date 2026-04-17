@@ -691,13 +691,17 @@ export function Dashboard({
             return act.teams.map((t, ti) => ({ name: t.name, members: t.members ?? [], subs: t.subs ?? [], score: teamScores[ti] ?? 0 })).sort((a, b) => b.score - a.score);
           });
 
-          // Top 2 per heat advance
+          // Top 2 per heat + top 4 third-place = 16 teams in 4 Day 2 heats
           const allAdvancing: D2Team[] = [];
+          const thirdPlacers: D2Team[] = [];
           liveRankings.forEach((rankings) => {
             rankings.slice(0, 2).forEach((t) => {
               allAdvancing.push({ name: t.name, members: t.members, subs: t.subs, score: t.score });
             });
+            if (rankings[2]) { const t = rankings[2]; thirdPlacers.push({ name: t.name, members: t.members, subs: t.subs, score: t.score }); }
           });
+          thirdPlacers.sort((a, b) => b.score - a.score);
+          thirdPlacers.slice(0, 4).forEach((t) => allAdvancing.push(t));
           let d2Teams = allAdvancing;
 
           // Sort by Day 1 score descending, snake-seed into 4 heats
