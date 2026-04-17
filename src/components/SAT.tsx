@@ -457,8 +457,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       const actId = gid();
       const rn = heatRound < RN.length ? RN[heatRound] : 'Round ' + (heatRound + 1);
       const hNum = (curSat.heats ?? []).filter((h) => h.round === heatRound).length + 1;
+      const roundLabel = heatRound === 0 ? 'Day 1' : heatRound === 1 ? 'Day 2' : heatRound === 2 ? 'Semis' : 'Finals';
       const upcomingActName = upcomingHeatSaveIdx !== null
-        ? `${curSat.name} - ${heatRound === 0 ? 'Day 1' : 'Day 2'} H${upcomingHeatSaveIdx + 1}`
+        ? `${curSat.name} - ${roundLabel} H${upcomingHeatSaveIdx + 1}`
         : null;
       const actData = {
         id: actId,
@@ -466,7 +467,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         date: getRoundDate(curSat.date, heatRound),
         type: '8man' as const,
         satId: curSat.id ?? curSat._id,
-        satRound: heatRound,
+        satRound: heatRound + 1,
         teams: finalTeams.map((t) => ({
           name: t.name,
           members: [...(t.members ?? [])],
@@ -684,7 +685,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             </div>
           </div>
         ) : (
-          sats.map((sat) => {
+          sats.filter((s) => !s.upcoming).map((sat) => {
             const sid = sat.id ?? sat._id ?? '';
             const hc = (sat.heats ?? []).length;
             const w = sat.placements?.winner?.[0];
@@ -1171,15 +1172,17 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       });
     };
 
-    const saveHeatTime = (hi: number, val: string) => {
+    const saveHeatTime = (flatIdx: number, val: string) => {
       auth.req(async () => {
         const times = [...(curSat.heatTimes ?? [])];
-        times[hi] = val;
+        times[flatIdx] = val;
         await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatTimes: times });
         setEditingTimeIdx(null);
         showToast('Time saved!');
       });
     };
+    // flat index: Day 1 = 0-5, Day 2 = 6-9, Semis = 10-11, Finals = 12
+    const roundFlatBase = (round: number) => round === 0 ? 0 : round === 1 ? 6 : round === 2 ? 10 : 12;
 
     const deleteHeatResults = (round: number, slotIdx: number) => {
       auth.req(async () => {
@@ -1286,12 +1289,32 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const renderRoundHeat = (
       hTeams: { name: string; members: string[]; subs?: string[]; seed?: number | null; score?: number }[],
       teamRankings: ReturnType<typeof getHeatTeamRankings> | null,
-      hi: number, round: number, hColor: string, advCount: number
-    ) => (
+      hi: number, round: number, hColor: string, advCount: number,
+      flatTimeIdx?: number
+    ) => {
+      const savedTime = flatTimeIdx != null ? (curSat.heatTimes?.[flatTimeIdx] ?? '') : '';
+      return (
       <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(106,96,64,0.25)', borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>Heat {hi + 1}</span>
-          {teamRankings && <button onClick={() => deleteHeatResults(round, hi)} style={{ ...delBtn, fontSize: 9, padding: '2px 6px' }}>✕</button>}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {flatTimeIdx != null && (editingTimeIdx === flatTimeIdx ? (
+              <div style={{ display: 'flex', gap: 3 }}>
+                <input style={{ ...inp, width: 80, fontSize: 10, padding: '2px 5px' }}
+                  value={editingTimeVal} placeholder="10:30 AM" autoFocus
+                  onChange={(e) => setEditingTimeVal(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveHeatTime(flatTimeIdx, editingTimeVal); if (e.key === 'Escape') setEditingTimeIdx(null); }} />
+                <button style={{ ...priBtn, padding: '2px 6px', fontSize: 9 }} onClick={() => saveHeatTime(flatTimeIdx, editingTimeVal)}>✓</button>
+                <button style={{ ...secBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => setEditingTimeIdx(null)}>✕</button>
+              </div>
+            ) : (
+              <button onClick={() => { setEditingTimeIdx(flatTimeIdx); setEditingTimeVal(savedTime); }}
+                style={{ background: 'none', border: 'none', fontFamily: FONT_MONO, fontSize: 9, color: savedTime ? '#c8a030' : '#445', cursor: 'pointer' }}>
+                {savedTime ? `🕐 ${savedTime}` : '+ time'}
+              </button>
+            ))}
+            {teamRankings && <button onClick={() => deleteHeatResults(round, hi)} style={{ ...delBtn, fontSize: 9, padding: '2px 6px' }}>✕</button>}
+          </div>
         </div>
         {teamRankings ? (
           teamRankings.map((t, ri) => {
@@ -1331,6 +1354,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         )}
       </div>
     );
+    };
 
     return (
       <div style={{ width: '100%' }}>
@@ -1444,7 +1468,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               if (hTeams.length === 0) return null;
               const hColor = heatColors[hi] ?? '#f9a8d4';
               const teamRankings = heatResults[hi];
-              const savedTime = curSat.heatTimes?.[hi] ?? '';
+              const savedTime = curSat.heatTimes?.[hi] ?? ''; // Day 1 flat index = hi (0-5)
               return (
                 <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(106,96,64,0.25)', borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -1466,6 +1490,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                         </button>
                       )}
                       {teamRankings && <button onClick={() => deleteHeatResults(0, hi)} style={{ ...delBtn, fontSize: 9, padding: '2px 6px' }}>✕</button>}
+
                     </div>
                   </div>
                   {teamRankings ? (
@@ -1563,7 +1588,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
-              {d2SeededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, d2HeatResults[hi], hi, 1, d2Colors[hi] ?? '#c084fc', 2))}
+              {d2SeededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, d2HeatResults[hi], hi, 1, d2Colors[hi] ?? '#c084fc', 2, roundFlatBase(1) + hi))}
             </div>
           )}
         </div>
@@ -1578,7 +1603,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
-              {semiSeededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, semiHeatResults[hi], hi, 2, semiColors[hi] ?? '#fbbf24', 2))}
+              {semiSeededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, semiHeatResults[hi], hi, 2, semiColors[hi] ?? '#fbbf24', 2, roundFlatBase(2) + hi))}
             </div>
           )}
         </div>
@@ -1593,7 +1618,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
-              {renderRoundHeat(finalsTeams, finalsHeatResult, 0, 3, '#f5a623', 1)}
+              {renderRoundHeat(finalsTeams, finalsHeatResult, 0, 3, '#f5a623', 1, roundFlatBase(3))}
             </div>
           )}
         </div>

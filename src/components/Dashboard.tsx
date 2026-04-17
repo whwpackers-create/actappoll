@@ -679,35 +679,26 @@ export function Dashboard({
         const day1Done = day1Heats.length === 6;
 
         if (day1Done) {
-          // Build advancing teams from saved Day 1 heat data
+          // Use live act scores (same as SAT tab) so corrections are reflected
           type D2Team = { name: string; members: string[]; subs: string[]; score: number };
-          const allAdvancing: D2Team[] = [];
-          day1Heats.forEach((h) => {
-            (h.scores ?? []).slice(0, 3).forEach((s) => {
-              const tm = (h.teams ?? []).find((t) => t.name === s.name);
-              if (tm && s.name) {
-                allAdvancing.push({ name: s.name, members: tm.members ?? [], subs: tm.subs ?? [], score: s.score ?? 0 });
-              }
-            });
+          const liveRankings = day1Heats.map((h) => {
+            const act = data.acts.find((a) => (a.id ?? a._id) === h.actId);
+            if (!act) return (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0 }));
+            const playerToTeam: Record<string, number> = {};
+            act.teams.forEach((t, ti) => { (t.members ?? []).forEach((m) => { if (m) playerToTeam[m] = ti; }); (t.subs ?? []).forEach((s) => { if (s) playerToTeam[s] = ti; }); });
+            const teamScores: Record<number, number> = {};
+            act.races.forEach((race) => { (race.results ?? []).forEach((r) => { const ti = playerToTeam[r.player]; if (ti !== undefined) teamScores[ti] = (teamScores[ti] ?? 0) + r.points; }); });
+            return act.teams.map((t, ti) => ({ name: t.name, members: t.members ?? [], subs: t.subs ?? [], score: teamScores[ti] ?? 0 })).sort((a, b) => b.score - a.score);
           });
 
-          // Apply saved cuts or default to cutting 2 lowest-scoring 3rd-placers
-          const cutMembers = sat.day1Cuts;
-          let d2Teams: D2Team[];
-          if (cutMembers) {
-            d2Teams = allAdvancing.filter((t) => !cutMembers.some((c) => c.join(',') === t.members.join(',')));
-          } else {
-            const thirdPlace = day1Heats
-              .map((h) => {
-                const s = (h.scores ?? [])[2];
-                const tm = (h.teams ?? []).find((t) => t.name === s?.name);
-                return s && tm ? { name: s.name ?? '', members: tm.members ?? [], score: s.score ?? 0 } : null;
-              })
-              .filter((x): x is { name: string; members: string[]; score: number } => x !== null);
-            thirdPlace.sort((a, b) => a.score - b.score);
-            const cutNames = new Set(thirdPlace.slice(0, 2).map((t) => t.name));
-            d2Teams = allAdvancing.filter((t) => !cutNames.has(t.name));
-          }
+          // Top 2 per heat advance
+          const allAdvancing: D2Team[] = [];
+          liveRankings.forEach((rankings) => {
+            rankings.slice(0, 2).forEach((t) => {
+              allAdvancing.push({ name: t.name, members: t.members, subs: t.subs, score: t.score });
+            });
+          });
+          let d2Teams = allAdvancing;
 
           // Sort by Day 1 score descending, snake-seed into 4 heats
           d2Teams.sort((a, b) => b.score - a.score);
