@@ -1303,8 +1303,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     ) => {
       const n = Math.max(hTeams.length, 4);
       setHeatTeams(hTeams.map((t) => {
-        const sub0 = round === 0 ? (heatSubs[`${slotIdx}:${t.members[0]}`] || '') : '';
-        const sub1 = round === 0 ? (heatSubs[`${slotIdx}:${t.members[1]}`] || '') : '';
+        const sub0 = round === 0 ? (heatSubs[`${slotIdx}:${t.members[0]}`] || '') : (t.subs?.[0] || '');
+        const sub1 = round === 0 ? (heatSubs[`${slotIdx}:${t.members[1]}`] || '') : (t.subs?.[1] || '');
         const eff0 = sub0 || t.members[0]; const eff1 = sub1 || t.members[1];
         const vr0 = vrMap[eff0] ?? unknownVR; const vr1 = vrMap[eff1] ?? unknownVR;
         const swap = vr1 > vr0;
@@ -2851,10 +2851,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                     const hDefMi = heatOrder === 'A' ? ei % 2 : 1 - (ei % 2);
                                     const hSwap = hmi !== hDefMi;
                                     const hSubs = t.subs ?? ['', ''];
+                                    const hIsSub = hmi < 2 && !!hSubs[hmi];
                                     const hEffective =
-                                      hmi < 2 && hSubs[hmi] ? hSubs[hmi] : (t.members ?? [])[hmi];
+                                      hIsSub ? hSubs[hmi] : (t.members ?? [])[hmi];
                                     const hpLbl =
-                                      (hEffective ?? '').split(' ')[0]?.slice(0, 4) || 'P' + (hmi + 1);
+                                      (hEffective ?? '').split(' ')[0] || 'P' + (hmi + 1);
                                     return (
                                       <div
                                         key={ei}
@@ -2874,21 +2875,21 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                           style={{
                                             fontFamily: FONT_MONO,
                                             fontSize: 10,
-                                            color: hSwap ? '#c084fc' : '#666',
+                                            color: hIsSub ? '#c084fc' : hSwap ? '#c084fc' : '#666',
                                             cursor: 'grab',
                                             userSelect: 'none',
-                                            background: hSwap ? 'rgba(192,132,252,0.15)' : 'rgba(255,255,255,0.03)',
+                                            background: hIsSub ? 'rgba(192,132,252,0.18)' : hSwap ? 'rgba(192,132,252,0.15)' : 'rgba(255,255,255,0.03)',
                                             borderRadius: 3,
                                             padding: '2px 4px',
                                             minWidth: 28,
                                             textAlign: 'center',
-                                            border: hSwap ? '1px solid rgba(192,132,252,0.3)' : '1px solid transparent',
+                                            border: (hIsSub || hSwap) ? '1px solid rgba(192,132,252,0.3)' : '1px solid transparent',
                                             lineHeight: '12px',
                                             touchAction: 'none',
                                           }}
                                         >
                                           {hpLbl}
-                                          {hSwap && ' ↺'}
+                                          {hSwap && !hIsSub && ' ↺'}
                                         </div>
                                         <input
                                           id={cid}
