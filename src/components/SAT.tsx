@@ -98,11 +98,10 @@ const scI = {
 };
 
 function getRoundDate(satDate: string, round: number): string {
-  // satDate = Day 2 date; Day 1 is night before, Semis/Finals are day after
+  // satDate = Day 1 date; Day 2 = +1, Semis/Finals = +2
   const d = new Date(satDate + 'T12:00:00');
-  if (round === 0) d.setDate(d.getDate() - 1);       // Day 1: day before SAT date
-  else if (round >= 2) d.setDate(d.getDate() + 1);   // Semis/Finals: day after
-  // round === 1 (Day 2): SAT date as-is
+  if (round === 1) d.setDate(d.getDate() + 1);
+  else if (round >= 2) d.setDate(d.getDate() + 2);
   return d.toISOString().slice(0, 10);
 }
 

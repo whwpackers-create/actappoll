@@ -278,12 +278,10 @@ export default function App() {
           if (act.satId && satMap[act.satId]) {
             const sat = satMap[act.satId];
             const rd = act.satRound ?? 0;
-            // satRound is 1-indexed: 1=Day1, 2=Day2, 3=Semis, 4=Finals
-            // sat.date is Day 2 date; Day 1 = -1 day, Semis/Finals = +1 day
+            // satRound 1-indexed: 1=Day1 (+0), 2=Day2 (+1), 3=Semis (+2), 4=Finals (+2)
+            const offset = rd <= 1 ? 0 : rd === 2 ? 1 : 2;
             const dd = new Date(sat.date + 'T12:00:00');
-            if (rd === 1) dd.setDate(dd.getDate() - 1);       // Day 1: night before
-            else if (rd >= 3) dd.setDate(dd.getDate() + 1);   // Semis/Finals: day after
-            // rd === 2 (Day 2): sat.date as-is
+            dd.setDate(dd.getDate() + offset);
             const correctDate = dd.toISOString().slice(0, 10);
             if (act.date !== correctDate) {
               const aid = act.id ?? act._id ?? '';
