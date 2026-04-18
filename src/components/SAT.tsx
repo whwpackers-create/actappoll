@@ -1418,14 +1418,22 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           hTeams.map((t, ti) => {
             const vr1 = vrMap[t.members[0]] ?? unknownVR; const vr2 = vrMap[t.members[1]] ?? unknownVR;
             const [p1, p2] = vr1 >= vr2 ? [t.members[0], t.members[1]] : [t.members[1], t.members[0]];
+            const sub1 = round === 0 ? (heatSubs[`${hi}:${p1}`] || '') : (heatSubs[`r${round}:${hi}:${p1}`] || '');
+            const sub2 = round === 0 ? (heatSubs[`${hi}:${p2}`] || '') : (heatSubs[`r${round}:${hi}:${p2}`] || '');
             return (
-              <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', minWidth: 20 }}>{t.seed != null ? `S${t.seed}` : `#${ti + 1}`}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#f0e6d3' }}>{p1.split(' ')[0]} & {p2.split(' ')[0]}</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#556' }}>{Math.round((vr1 + vr2) / 2)} VR</div>
+              <div key={ti} style={{ padding: '3px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', minWidth: 20 }}>{t.seed != null ? `S${t.seed}` : `#${ti + 1}`}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#f0e6d3' }}>
+                      {sub1 ? <><span style={{ textDecoration: 'line-through', color: '#556' }}>{p1.split(' ')[0]}</span> <span style={{ color: '#c084fc' }}>{sub1.split(' ')[0]}</span></> : p1.split(' ')[0]}
+                      {' & '}
+                      {sub2 ? <><span style={{ textDecoration: 'line-through', color: '#556' }}>{p2.split(' ')[0]}</span> <span style={{ color: '#c084fc' }}>{sub2.split(' ')[0]}</span></> : p2.split(' ')[0]}
+                    </div>
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#556' }}>{Math.round((vr1 + vr2) / 2)} VR</div>
+                  </div>
+                  {'score' in t && t.score != null && <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{(t as { score: number }).score}pts</span>}
                 </div>
-                {'score' in t && t.score != null && <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{(t as { score: number }).score}pts</span>}
               </div>
             );
           })
