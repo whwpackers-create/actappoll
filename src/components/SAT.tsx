@@ -98,10 +98,11 @@ const scI = {
 };
 
 function getRoundDate(satDate: string, round: number): string {
+  // satDate = Day 2 date; Day 1 is night before, Semis/Finals are day after
   const d = new Date(satDate + 'T12:00:00');
-  if (round === 0) return satDate;
-  if (round === 1) d.setDate(d.getDate() + 1);
-  else d.setDate(d.getDate() + 2);
+  if (round === 0) d.setDate(d.getDate() - 1);       // Day 1: day before SAT date
+  else if (round >= 2) d.setDate(d.getDate() + 1);   // Semis/Finals: day after
+  // round === 1 (Day 2): SAT date as-is
   return d.toISOString().slice(0, 10);
 }
 
@@ -1548,6 +1549,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>🏁 Round 1</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#50fa7b', background: 'rgba(80,250,123,0.08)', border: '1px solid rgba(80,250,123,0.2)', borderRadius: 4, padding: '1px 6px' }}>1.1×</span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <span style={cSub}>{completedCount}/{NUM_HEATS} heats</span>
               {curSat.heatAssignmentsJson && !swapSrc && (
@@ -1682,6 +1684,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>🏁 Round 2</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#8be9fd', background: 'rgba(139,233,253,0.08)', border: '1px solid rgba(139,233,253,0.2)', borderRadius: 4, padding: '1px 6px' }}>1.2×</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={cSub}>{day2Teams.length > 0 ? `${d2CompletedCount}/${NUM_D2} heats` : `Complete Round 1 first (${completedCount}/${NUM_HEATS})`}</span>
               {day2Teams.length > 0 && d2CompletedCount === 0 && !editingBracket && (
@@ -1807,6 +1810,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>🔥 Semifinals</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#fbbf24', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 4, padding: '1px 6px' }}>1.5×</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={cSub}>{semiTeams.length > 0 ? `${semiCompletedCount}/${NUM_SEMI} heats` : 'Complete Round 2 first'}</span>
               {semiTeams.length > 0 && semiCompletedCount === 0 && !editingSemiBracket && (
@@ -1914,6 +1918,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>👑 Final</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#f5a623', background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 4, padding: '1px 6px' }}>2.0×</span>
             <span style={cSub}>{finalsTeams.length > 0 ? (finalsHeatResult ? '1/1 heats' : '0/1 heats') : 'Complete Semifinals first'}</span>
           </div>
           {finalsTeams.length === 0 ? (
