@@ -1918,7 +1918,27 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           <div style={cHead}>
             <span style={cTitle}>👑 Final</span>
             <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#f5a623', background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 4, padding: '1px 6px' }}>2.0×</span>
-            <span style={cSub}>{finalsTeams.length > 0 ? (finalsHeatResult ? '1/1 heats' : '0/1 heats') : 'Complete Semifinals first'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={cSub}>{finalsTeams.length > 0 ? (finalsHeatResult ? '1/1 heats' : '0/1 heats') : 'Complete Semifinals first'}</span>
+              {(() => {
+                const flatIdx = roundFlatBase(3);
+                const savedTime = curSat.heatTimes?.[flatIdx] ?? '';
+                return editingTimeIdx === flatIdx ? (
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    <input style={{ ...inp, width: 90, fontSize: 10, padding: '2px 5px' }} value={editingTimeVal} placeholder="8:00 PM" autoFocus
+                      onChange={(e) => setEditingTimeVal(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveHeatTime(flatIdx, editingTimeVal); if (e.key === 'Escape') setEditingTimeIdx(null); }} />
+                    <button style={{ ...priBtn, padding: '2px 6px', fontSize: 9 }} onClick={() => saveHeatTime(flatIdx, editingTimeVal)}>✓</button>
+                    <button style={{ ...secBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => setEditingTimeIdx(null)}>✕</button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setEditingTimeIdx(flatIdx); setEditingTimeVal(savedTime); }}
+                    style={{ background: 'none', border: 'none', fontFamily: FONT_MONO, fontSize: 9, color: savedTime ? '#c8a030' : '#445', cursor: 'pointer' }}>
+                    {savedTime ? `🕐 ${savedTime}` : '+ time'}
+                  </button>
+                );
+              })()}
+            </div>
           </div>
           {finalsTeams.length === 0 ? (
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
