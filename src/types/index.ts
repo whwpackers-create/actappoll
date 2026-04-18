@@ -101,6 +101,7 @@ export interface Sat extends Act {
   heatSubsJson?: string;
   day1Cuts?: string[][];
   d2BracketJson?: string;
+  semiBracketJson?: string;
 }
 
 export interface AppData {

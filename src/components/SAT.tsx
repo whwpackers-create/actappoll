@@ -171,6 +171,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [editingBracket, setEditingBracket] = useState(false);
   const [bracketSel, setBracketSel] = useState<{ hi: number; ti: number } | null>(null);
   const [bracketEdits, setBracketEdits] = useState<BracketTeam[][] | null>(null);
+  const [editingSemiBracket, setEditingSemiBracket] = useState(false);
+  const [semiBracketSel, setSemiBracketSel] = useState<{ hi: number; ti: number } | null>(null);
+  const [semiBracketEdits, setSemiBracketEdits] = useState<BracketTeam[][] | null>(null);
   const [editingSubKey, setEditingSubKey] = useState<string | null>(null); // "heatIdx:playerName"
   const [editingSubVal, setEditingSubVal] = useState('');
 
@@ -1325,7 +1328,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       const r = Math.floor(i / NUM_SEMI), p = i % NUM_SEMI;
       semiSeededHeats[r % 2 === 0 ? p : NUM_SEMI - 1 - p].push(t);
     });
-    const semiHeatResults = semiSeededHeats.map((_, hi) => {
+    const parsedSemiBracket: SeededTeam[][] | null = (() => {
+      try { return curSat.semiBracketJson ? JSON.parse(curSat.semiBracketJson) : null; } catch { return null; }
+    })();
+    const effectiveSemiHeats: SeededTeam[][] = semiBracketEdits ?? parsedSemiBracket ?? semiSeededHeats;
+    const semiHeatResults = effectiveSemiHeats.map((_, hi) => {
       const heat = (curSat.heats ?? []).find(h => h.round === 2 && h.slotIdx === hi);
       const act = heat?.actId ? data.acts.find((a) => (a.id ?? a._id) === heat.actId) : null;
       return act ? getHeatTeamRankings(act) : null;
@@ -1800,13 +1807,105 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>🔥 Semifinals</span>
-            <span style={cSub}>{semiTeams.length > 0 ? `${semiCompletedCount}/${NUM_SEMI} heats` : 'Complete Round 2 first'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={cSub}>{semiTeams.length > 0 ? `${semiCompletedCount}/${NUM_SEMI} heats` : 'Complete Round 2 first'}</span>
+              {semiTeams.length > 0 && semiCompletedCount === 0 && !editingSemiBracket && (
+                <button onClick={() => auth.req(() => { setSemiBracketEdits(effectiveSemiHeats.map(h => [...h])); setEditingSemiBracket(true); setSemiBracketSel(null); })}
+                  style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 4, padding: '3px 8px', color: '#fbbf24', cursor: 'pointer' }}>
+                  ✏ Edit Bracket
+                </button>
+              )}
+              {editingSemiBracket && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => {
+                    if (semiBracketEdits) {
+                      auth.req(async () => {
+                        await ops.updateSat(curSat.id ?? curSat._id ?? '', { semiBracketJson: JSON.stringify(semiBracketEdits) });
+                        setEditingSemiBracket(false); setSemiBracketSel(null); setSemiBracketEdits(null);
+                        showToast('Bracket saved!');
+                      });
+                    }
+                  }} style={{ fontFamily: FONT_MONO, fontSize: 9, background: '#50fa7b22', border: '1px solid #50fa7b44', borderRadius: 4, padding: '3px 8px', color: '#50fa7b', cursor: 'pointer' }}>✓ Save</button>
+                  <button onClick={() => {
+                    auth.req(async () => {
+                      await ops.updateSat(curSat.id ?? curSat._id ?? '', { semiBracketJson: undefined });
+                      setEditingSemiBracket(false); setSemiBracketSel(null); setSemiBracketEdits(null);
+                      showToast('Bracket reset');
+                    });
+                  }} style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(255,60,60,0.08)', border: '1px solid rgba(255,60,60,0.2)', borderRadius: 4, padding: '3px 8px', color: '#ff6b6b', cursor: 'pointer' }}>↺ Reset</button>
+                  <button onClick={() => { setEditingSemiBracket(false); setSemiBracketSel(null); setSemiBracketEdits(null); }}
+                    style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 8px', color: '#666', cursor: 'pointer' }}>✕ Cancel</button>
+                </div>
+              )}
+            </div>
           </div>
           {semiTeams.length === 0 ? (
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
+          ) : editingSemiBracket ? (
+            <>
+              {semiBracketSel && <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#fbbf24', marginBottom: 8 }}>Selected: {(semiBracketEdits ?? effectiveSemiHeats)[semiBracketSel.hi]?.[semiBracketSel.ti]?.name} — click another team to swap</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 8 }}>
+                {(semiBracketEdits ?? effectiveSemiHeats).map((hTeams, hi) => (
+                  <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${semiColors[hi] ?? '#fbbf24'}44`, borderRadius: 6, padding: '8px 10px' }}>
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: semiColors[hi] ?? '#fbbf24', marginBottom: 6, letterSpacing: 1 }}>HEAT {hi + 1}</div>
+                    {hTeams.map((t, ti) => {
+                      const isSel = semiBracketSel?.hi === hi && semiBracketSel?.ti === ti;
+                      return (
+                        <div key={ti}>
+                          <div onClick={() => {
+                            if (!semiBracketSel) { setSemiBracketSel({ hi, ti }); return; }
+                            if (semiBracketSel.hi === hi && semiBracketSel.ti === ti) { setSemiBracketSel(null); return; }
+                            const base = (semiBracketEdits ?? effectiveSemiHeats).map(h => [...h]);
+                            const tmp = base[semiBracketSel.hi][semiBracketSel.ti];
+                            base[semiBracketSel.hi][semiBracketSel.ti] = base[hi][ti];
+                            base[hi][ti] = tmp;
+                            setSemiBracketEdits(base); setSemiBracketSel(null);
+                          }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', marginBottom: 2, borderRadius: 4, cursor: 'pointer', background: isSel ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? '#fbbf24' : 'rgba(255,255,255,0.06)'}`, transition: 'background 0.1s' }}>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: isSel ? '#fbbf24' : '#f0e6d3' }}>{t.name}</span>
+                            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#666' }}>{t.score}pts</span>
+                          </div>
+                          <div style={{ paddingLeft: 6, marginBottom: 4 }}>
+                            {t.members.map((member, pi) => {
+                              const subKey = `r2:${hi}:${member}`;
+                              const existingSub = heatSubs[subKey];
+                              const isEditing = editingSubKey === subKey;
+                              return (
+                                <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
+                                  {isEditing ? (
+                                    <>
+                                      <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                        placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
+                                        onChange={(e) => setEditingSubVal(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
+                                      <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                                      <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
+                                      <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
+                                    </>
+                                  ) : existingSub ? (
+                                    <>
+                                      <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>{existingSub} <span style={{ color: '#556' }}>for {member.split(' ')[0]}</span></span>
+                                      <button onClick={(e) => { e.stopPropagation(); setEditingSubKey(subKey); setEditingSubVal(existingSub); }} style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✎</button>
+                                      <button onClick={(e) => { e.stopPropagation(); saveSub(subKey, ''); }} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 9 }}>✕</button>
+                                    </>
+                                  ) : (
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingSubKey(subKey); setEditingSubVal(''); }}
+                                      style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 2, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 8, color: '#445', cursor: 'pointer' }}>+ sub</button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
-              {semiSeededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, semiHeatResults[hi], hi, 2, semiColors[hi] ?? '#fbbf24', 2, roundFlatBase(2) + hi))}
+              {effectiveSemiHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, semiHeatResults[hi], hi, 2, semiColors[hi] ?? '#fbbf24', 2, roundFlatBase(2) + hi))}
             </div>
           )}
         </div>

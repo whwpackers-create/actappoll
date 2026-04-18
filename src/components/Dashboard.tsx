@@ -674,110 +674,133 @@ export function Dashboard({
           </button>
         );
 
-        // Check if all 6 Day 1 heats are complete — if so, show Day 2 bracket
+        // Check completion of each round
         const day1Heats = (sat.heats ?? []).filter((h) => (h.round ?? 0) === 0);
         const day1Done = day1Heats.length === 6;
 
         if (day1Done) {
-          // Use live act scores (same as SAT tab) so corrections are reflected
-          type D2Team = { name: string; members: string[]; subs: string[]; score: number };
+          type SATTeam = { name: string; members: string[]; subs: string[]; score: number };
           const satSeedMap: Record<string, number> = {};
           (sat.roster ?? []).forEach((t) => { if (t.seed) satSeedMap[t.name] = t.seed; });
           const satSeedTie = (a: { name: string }, b: { name: string }) => (satSeedMap[a.name] ?? 999) - (satSeedMap[b.name] ?? 999);
-          const liveRankings = day1Heats.map((h) => {
-            const act = data.acts.find((a) => (a.id ?? a._id) === h.actId);
-            if (!act) return (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0, origIdx: 0 }));
+
+          const getActRankings = (actId: string | undefined) => {
+            const act = actId ? data.acts.find((a) => (a.id ?? a._id) === actId) : null;
+            if (!act) return null;
             const playerToTeam: Record<string, number> = {};
             act.teams.forEach((t, ti) => { (t.members ?? []).forEach((m) => { if (m) playerToTeam[m] = ti; }); (t.subs ?? []).forEach((s) => { if (s) playerToTeam[s] = ti; }); });
             const teamScores: Record<number, number> = {};
             act.races.forEach((race) => { (race.results ?? []).forEach((r) => { const ti = playerToTeam[r.player]; if (ti !== undefined) teamScores[ti] = (teamScores[ti] ?? 0) + r.points; }); });
             return act.teams.map((t, ti) => ({ name: t.name, members: t.members ?? [], subs: t.subs ?? [], score: teamScores[ti] ?? 0, origIdx: ti }))
-              .sort((a, b) => {
-                if (b.score !== a.score) return b.score - a.score;
-                if (act.tiebreaker === a.name) return -1;
-                if (act.tiebreaker === b.name) return 1;
-                return a.origIdx - b.origIdx;
-              });
-          });
+              .sort((a, b) => { if (b.score !== a.score) return b.score - a.score; if (act.tiebreaker === a.name) return -1; if (act.tiebreaker === b.name) return 1; return a.origIdx - b.origIdx; });
+          };
 
-          // Top 2 per heat + top 4 third-place = 16 teams in 4 Day 2 heats
-          const allAdvancing: D2Team[] = [];
-          const thirdPlacers: D2Team[] = [];
+          const renderHeatCard = (hTeams: SATTeam[], hi: number, hColor: string, label: string, unknownVR: number) => (
+            <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}33`, borderRadius: 6, padding: '10px 12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>{label} · HEAT {hi + 1}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {Math.round(hTeams.reduce((s, t) => s + Math.round(((vrMap[t.members[0]] ?? unknownVR) + (vrMap[t.members[1]] ?? unknownVR)) / 2), 0) / Math.max(hTeams.length, 1))}</span>
+              </div>
+              {hTeams.map((t, ti) => {
+                const vr1 = vrMap[t.members[0]] ?? unknownVR; const vr2 = vrMap[t.members[1]] ?? unknownVR;
+                return (
+                  <div key={ti} style={{ padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0' }}>
+                        {t.members[0] && <span>{t.members[0].split(' ')[0]}</span>}
+                        {t.members[1] && <span style={{ color: '#8090a0' }}> &amp; {t.members[1].split(' ')[0]}</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{t.score}pts</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>{Math.round((vr1 + vr2) / 2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+
+          const renderUpcomingSection = (title: string, color: string, icon: string, heats: SATTeam[][], colors: string[], label: string) => {
+            const unknownVR = Math.min(4300, ...heats.flat().flatMap((t) => t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)));
+            return (
+              <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
+                <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                    <span style={{ fontSize: 18 }}>{icon}</span>
+                    <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color, letterSpacing: 2 }}>{title}</span>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · {satDate}</span>
+                    {viewBtn}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                    {heats.map((hTeams, hi) => hTeams.length === 0 ? null : renderHeatCard(hTeams, hi, colors[hi] ?? color, label, unknownVR))}
+                  </div>
+                </div>
+              </div>
+            );
+          };
+
+          // Compute Day 2 heats
+          const liveRankings = day1Heats.map((h) => {
+            const r = getActRankings(h.actId);
+            if (r) return r;
+            return (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0, origIdx: 0 }));
+          });
+          const allAdvancing: SATTeam[] = [];
+          const thirdPlacers: SATTeam[] = [];
           liveRankings.forEach((rankings) => {
-            rankings.slice(0, 2).forEach((t) => {
-              allAdvancing.push({ name: t.name, members: t.members, subs: t.subs, score: t.score });
-            });
+            rankings.slice(0, 2).forEach((t) => allAdvancing.push({ name: t.name, members: t.members, subs: t.subs, score: t.score }));
             if (rankings[2]) { const t = rankings[2]; thirdPlacers.push({ name: t.name, members: t.members, subs: t.subs, score: t.score }); }
           });
           thirdPlacers.sort((a, b) => b.score - a.score || satSeedTie(a, b));
           thirdPlacers.slice(0, 4).forEach((t) => allAdvancing.push(t));
-          let d2Teams = allAdvancing;
-
-          // Sort by Day 1 score descending, seed tiebreak, snake-seed into 4 heats
-          d2Teams.sort((a, b) => b.score - a.score || satSeedTie(a, b));
+          const d2Teams = [...allAdvancing].sort((a, b) => b.score - a.score || satSeedTie(a, b));
           const NUM_D2 = 4;
-          const computedD2Heats: D2Team[][] = [[], [], [], []];
-          d2Teams.forEach((t, i) => {
-            const round = Math.floor(i / NUM_D2);
-            const pos = i % NUM_D2;
-            const heatIdx = round % 2 === 0 ? pos : NUM_D2 - 1 - pos;
-            computedD2Heats[heatIdx].push(t);
-          });
-          const parsedD2Bracket: D2Team[][] | null = sat.d2BracketJson
-            ? (() => { try { return JSON.parse(sat.d2BracketJson) as D2Team[][]; } catch { return null; } })()
-            : null;
+          const computedD2Heats: SATTeam[][] = [[], [], [], []];
+          d2Teams.forEach((t, i) => { const r = Math.floor(i / NUM_D2), p = i % NUM_D2; computedD2Heats[r % 2 === 0 ? p : NUM_D2 - 1 - p].push(t); });
+          const parsedD2Bracket: SATTeam[][] | null = sat.d2BracketJson ? (() => { try { return JSON.parse(sat.d2BracketJson); } catch { return null; } })() : null;
           const d2Heats = parsedD2Bracket ?? computedD2Heats;
-          const d2Colors = ['#c084fc', '#f97316', '#22d3ee', '#a3e635'];
-          const dashUnknownVR2 = Math.min(4300, ...d2Teams.flatMap((t) => t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)));
 
-          return (
-            <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
-              <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c084fc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 2v4M16 2v4M3 10h18M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/>
-                  </svg>
-                  <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#c084fc', letterSpacing: 2 }}>UPCOMING DAY 2 HEATS</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · {satDate}</span>
-                  {viewBtn}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-                  {d2Heats.map((hTeams, hi) => {
-                    if (hTeams.length === 0) return null;
-                    const hColor = d2Colors[hi] ?? '#c084fc';
-                    const hAvg = Math.round(hTeams.reduce((s, t) => s + Math.round(((vrMap[t.members[0]] ?? dashUnknownVR2) + (vrMap[t.members[1]] ?? dashUnknownVR2)) / 2), 0) / Math.max(hTeams.length, 1));
-                    return (
-                      <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}33`, borderRadius: 6, padding: '10px 12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>DAY 2 · HEAT {hi + 1}</span>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {hAvg}</span>
-                        </div>
-                        {hTeams.map((t, ti) => {
-                          const vr1 = vrMap[t.members[0]] ?? dashUnknownVR2;
-                          const vr2 = vrMap[t.members[1]] ?? dashUnknownVR2;
-                          const avgVR = Math.round((vr1 + vr2) / 2);
-                          return (
-                            <div key={ti} style={{ padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0' }}>
-                                  {t.members[0] && <span>{t.members[0].split(' ')[0]}</span>}
-                                  {t.members[1] && <span style={{ color: '#8090a0' }}> &amp; {t.members[1].split(' ')[0]}</span>}
-                                </div>
-                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{t.score}pts</span>
-                                  <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>{avgVR}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          );
+          // Check Day 2 done
+          const day2HeatsData = (sat.heats ?? []).filter((h) => h.round === 1);
+          const day2Done = day2HeatsData.length >= 4;
+
+          if (day2Done) {
+            // Compute Semis heats
+            const d2Rankings = d2Heats.map((_, hi) => getActRankings(day2HeatsData.find(h => h.slotIdx === hi)?.actId));
+            const semiAdv: SATTeam[] = [];
+            d2Rankings.forEach((rankings) => { if (!rankings) return; rankings.slice(0, 2).forEach((t) => semiAdv.push({ name: t.name, members: t.members, subs: t.subs, score: t.score })); });
+            semiAdv.sort((a, b) => b.score - a.score || satSeedTie(a, b));
+            const NUM_SEMI = 2;
+            const computedSemiHeats: SATTeam[][] = [[], []];
+            semiAdv.forEach((t, i) => { const r = Math.floor(i / NUM_SEMI), p = i % NUM_SEMI; computedSemiHeats[r % 2 === 0 ? p : NUM_SEMI - 1 - p].push(t); });
+            const parsedSemiBracket: SATTeam[][] | null = sat.semiBracketJson ? (() => { try { return JSON.parse(sat.semiBracketJson); } catch { return null; } })() : null;
+            const semiHeats = parsedSemiBracket ?? computedSemiHeats;
+            const semiColors = ['#fbbf24', '#8be9fd'];
+
+            // Check Semis done
+            const semiHeatsData = (sat.heats ?? []).filter((h) => h.round === 2);
+            const semiDone = semiHeatsData.length >= 2;
+
+            if (semiDone) {
+              // Compute Finals teams
+              const semiRankings = semiHeats.map((_, hi) => getActRankings(semiHeatsData.find(h => h.slotIdx === hi)?.actId));
+              const finalsAdv: SATTeam[] = [];
+              semiRankings.forEach((rankings) => { if (!rankings) return; rankings.slice(0, 2).forEach((t) => finalsAdv.push({ name: t.name, members: t.members, subs: t.subs, score: t.score })); });
+              finalsAdv.sort((a, b) => b.score - a.score || satSeedTie(a, b));
+
+              // Check Finals done
+              const finalsHeatData = (sat.heats ?? []).find((h) => h.round === 3);
+              if (finalsHeatData) return null;
+
+              return renderUpcomingSection('UPCOMING FINALS', '#f5a623', '👑', [finalsAdv], ['#f5a623'], 'FINALS');
+            }
+
+            return renderUpcomingSection('UPCOMING SEMIFINALS', '#fbbf24', '🔥', semiHeats, semiColors, 'SEMI');
+          }
+
+          const d2Colors = ['#c084fc', '#f97316', '#22d3ee', '#a3e635'];
+          return renderUpcomingSection('UPCOMING DAY 2 HEATS', '#c084fc', '🏁', d2Heats, d2Colors, 'DAY 2');
         }
 
         // Day 1 not done — show Day 1 heat bracket
