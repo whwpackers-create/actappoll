@@ -1944,7 +1944,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
-              {renderRoundHeat(finalsTeams, finalsHeatResult, 0, 3, '#f5a623', 1, roundFlatBase(3))}
+              {renderRoundHeat(finalsTeams, finalsHeatResult, 0, 3, '#f5a623', 1)}
             </div>
           )}
         </div>
