@@ -587,14 +587,18 @@ export function Dashboard({
               <div
                 style={{
                   fontFamily: FONT_HEADER,
-                  fontSize: i === 3 ? 18 : 38,
+                  fontSize: i === 3 ? 20 : 38,
                   color: s.color,
                   textShadow: `0 2px 10px ${s.color}40`,
                   lineHeight: 1.2,
                   textAlign: 'center',
+                  height: 46,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                {i === 3 ? `🏆 ${s.val}` : s.val}
+                {s.val}
               </div>
               <div
                 style={{
