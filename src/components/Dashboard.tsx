@@ -529,12 +529,28 @@ export function Dashboard({
             color: '#fbbf24',
           },
           (() => {
-            const nextSat = (data.sats ?? [])
-              .filter((s) => s.upcoming)
-              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-            const satLabel = nextSat ? nextSat.name.toUpperCase() : 'NO UPCOMING SAT';
-            const satVal = nextSat ? new Date(nextSat.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : '—';
-            const satId = nextSat ? (nextSat.id ?? nextSat._id ?? '') : null;
+            // Find most recent concluded SAT (has Finals heats)
+            const concludedSats = (data.sats ?? [])
+              .filter((s) => (s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1))
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const recentSat = concludedSats[0] ?? null;
+            // Get winner: from placements or from Finals heats directly
+            let winnerName = '—';
+            if (recentSat) {
+              if (recentSat.placements?.winner?.[0]) {
+                winnerName = (recentSat.placements.winner[0] as { name?: string }).name ?? '—';
+              } else {
+                const finalRound = (recentSat.rounds ?? 4) - 1;
+                const fHeat = (recentSat.heats ?? []).find(h => h.round === finalRound);
+                if (fHeat?.scores?.length) {
+                  const top = [...fHeat.scores].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+                  winnerName = top.name ?? '—';
+                }
+              }
+            }
+            const satLabel = recentSat ? (recentSat.name.toUpperCase() + ' WINNERS') : 'NO SAT YET';
+            const satVal = winnerName;
+            const satId = recentSat ? (recentSat.id ?? recentSat._id ?? '') : null;
             return {
               icon: (
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f9a8d4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -571,13 +587,14 @@ export function Dashboard({
               <div
                 style={{
                   fontFamily: FONT_HEADER,
-                  fontSize: 38,
+                  fontSize: i === 3 ? 18 : 38,
                   color: s.color,
                   textShadow: `0 2px 10px ${s.color}40`,
-                  lineHeight: 1,
+                  lineHeight: 1.2,
+                  textAlign: 'center',
                 }}
               >
-                {s.val}
+                {i === 3 ? `🏆 ${s.val}` : s.val}
               </div>
               <div
                 style={{
