@@ -98,8 +98,28 @@ export function ActDetail({
       setEMonth(dp[1] ?? '');
       setEDay(dp[2] ?? '');
       setEYearDigit((dp[0] ?? '').slice(-1));
-      setEGrid(savedGrid ? JSON.parse(JSON.stringify(savedGrid)) : null);
-      setEPen(savedPen ? JSON.parse(JSON.stringify(savedPen)) : null);
+      const defaultGrid = (): Act['grid'] => {
+        const actType = act.type ?? '8man';
+        const nTeams = actType === '6man' ? 3 : 4;
+        const nSlots = actType === '16man' ? 8 : actType === '12man' ? 6 : 4;
+        return Array.from({ length: 4 }, () =>
+          Array.from({ length: nTeams }, () =>
+            Array.from({ length: nSlots }, () => null)
+          )
+        ) as Act['grid'];
+      };
+      setEGrid(savedGrid ? JSON.parse(JSON.stringify(savedGrid)) : defaultGrid());
+      const defaultPen = (): Act['penalties'] => {
+        const actType = act.type ?? '8man';
+        const nTeams = actType === '6man' ? 3 : 4;
+        const nSlots = actType === '16man' ? 8 : actType === '12man' ? 6 : 4;
+        return Array.from({ length: 4 }, () =>
+          Array.from({ length: nTeams }, () =>
+            Array.from({ length: nSlots }, () => 0)
+          )
+        ) as Act['penalties'];
+      };
+      setEPen(savedPen ? JSON.parse(JSON.stringify(savedPen)) : defaultPen());
       setETeamNames(act.teams.map((t) => t.name));
       setEMembers(act.teams.map((t) => [...t.members]));
       setESubs(act.teams.map((t) => [...(t.subs ?? ['', ''])]));
@@ -933,6 +953,16 @@ export function ActDetail({
                                           maxLength={1}
                                           value={val === null ? '' : String(val)}
                                           onFocus={(e) => e.target.select()}
+                                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                                          onKeyDown={(e) => {
+                                            if (e.key >= '0' && e.key <= '3') {
+                                              e.preventDefault();
+                                              setECell(ri, ti, ei, parseInt(e.key, 10));
+                                            } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                                              e.preventDefault();
+                                              setECell(ri, ti, ei, null);
+                                            }
+                                          }}
                                           onChange={(e) => {
                                             const r = e.target.value;
                                             if (r === '') { setECell(ri, ti, ei, null); return; }

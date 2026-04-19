@@ -174,6 +174,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [editingSemiBracket, setEditingSemiBracket] = useState(false);
   const [semiBracketSel, setSemiBracketSel] = useState<{ hi: number; ti: number } | null>(null);
   const [semiBracketEdits, setSemiBracketEdits] = useState<BracketTeam[][] | null>(null);
+  const [editingFinalsBracket, setEditingFinalsBracket] = useState(false);
   const [editingSubKey, setEditingSubKey] = useState<string | null>(null); // "heatIdx:playerName"
   const [editingSubVal, setEditingSubVal] = useState('');
 
@@ -1920,6 +1921,16 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#f5a623', background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 4, padding: '1px 6px' }}>2.0×</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={cSub}>{finalsTeams.length > 0 ? (finalsHeatResult ? '1/1 heats' : '0/1 heats') : 'Complete Semifinals first'}</span>
+              {finalsTeams.length > 0 && !finalsHeatResult && !editingFinalsBracket && (
+                <button onClick={() => auth.req(() => { setEditingFinalsBracket(true); })}
+                  style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 4, padding: '3px 8px', color: '#f5a623', cursor: 'pointer' }}>
+                  ✏ Edit
+                </button>
+              )}
+              {editingFinalsBracket && (
+                <button onClick={() => setEditingFinalsBracket(false)}
+                  style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 8px', color: '#666', cursor: 'pointer' }}>✕ Done</button>
+              )}
               {(() => {
                 const flatIdx = roundFlatBase(3);
                 const savedTime = curSat.heatTimes?.[flatIdx] ?? '';
@@ -1942,6 +1953,50 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           </div>
           {finalsTeams.length === 0 ? (
             <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#444', padding: '8px 0' }}>No heats yet</div>
+          ) : editingFinalsBracket ? (
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 6, padding: '8px 10px' }}>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#f5a623', marginBottom: 6, letterSpacing: 1 }}>FINALS HEAT</div>
+              {finalsTeams.map((t, ti) => (
+                <div key={ti}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', marginBottom: 2, borderRadius: 4, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#f0e6d3' }}>{t.name}</span>
+                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#666' }}>{t.score}pts</span>
+                  </div>
+                  <div style={{ paddingLeft: 6, marginBottom: 4 }}>
+                    {t.members.map((member, pi) => {
+                      const subKey = `r3:0:${member}`;
+                      const existingSub = heatSubs[subKey];
+                      const isEditing = editingSubKey === subKey;
+                      return (
+                        <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
+                          {isEditing ? (
+                            <>
+                              <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
+                                onChange={(e) => setEditingSubVal(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
+                              <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                              <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
+                              <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
+                            </>
+                          ) : existingSub ? (
+                            <>
+                              <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>{existingSub} <span style={{ color: '#556' }}>for {member.split(' ')[0]}</span></span>
+                              <button onClick={(e) => { e.stopPropagation(); setEditingSubKey(subKey); setEditingSubVal(existingSub); }} style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✎</button>
+                              <button onClick={(e) => { e.stopPropagation(); saveSub(subKey, ''); }} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 9 }}>✕</button>
+                            </>
+                          ) : (
+                            <button onClick={(e) => { e.stopPropagation(); setEditingSubKey(subKey); setEditingSubVal(''); }}
+                              style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 2, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 8, color: '#445', cursor: 'pointer' }}>+ sub</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
               {renderRoundHeat(finalsTeams, finalsHeatResult, 0, 3, '#f5a623', 1)}

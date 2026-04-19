@@ -131,7 +131,11 @@ export function computeAllElos(
   players.forEach((p) => { vrs[p.name] = STARTING_VR; hist[p.name] = []; provActCount[p.name] = 0; });
 
   [...acts]
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .sort((a, b) => {
+      const dt = new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (dt !== 0) return dt;
+      return (a.satRound ?? 0) - (b.satRound ?? 0);
+    })
     .forEach((act) => {
       // Build substitution name map
       const subMap: Record<string, string> = {};
@@ -251,7 +255,11 @@ export function computeSeasonElos(
       const d = new Date(a.date);
       return d >= new Date(season.startDate) && d <= new Date(season.endDate);
     })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => {
+      const dt = new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (dt !== 0) return dt;
+      return (a.satRound ?? 0) - (b.satRound ?? 0);
+    });
 
   // Starting VR = midpoint between SEASON_BASE_ELO and the player's all-time VR
   // e.g. 7000 all-time → 6000 season start; 5000 all-time → 5000 season start
