@@ -128,7 +128,9 @@ export function History({
     })
     .sort((a, b) => {
       if (histSort === 'added') return -1;
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
+      const dt = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dt !== 0) return dt;
+      return (b.satRound ?? 0) - (a.satRound ?? 0);
     }), [data.acts, histYear, histMonth, histType, playerSearch, histSort]);
 
   // Reset to page 0 when filters change

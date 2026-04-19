@@ -167,13 +167,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [editingTimeVal, setEditingTimeVal] = useState('');
   const [upcomingHeatSaveIdx, setUpcomingHeatSaveIdx] = useState<number | null>(null);
 
-  const [swapSrc, setSwapSrc] = useState<{ heatIdx: number; teamName: string } | null>(null);
   const [editingBracket, setEditingBracket] = useState(false);
   const [bracketSel, setBracketSel] = useState<{ hi: number; ti: number } | null>(null);
   const [bracketEdits, setBracketEdits] = useState<BracketTeam[][] | null>(null);
   const [editingSemiBracket, setEditingSemiBracket] = useState(false);
   const [semiBracketSel, setSemiBracketSel] = useState<{ hi: number; ti: number } | null>(null);
   const [semiBracketEdits, setSemiBracketEdits] = useState<BracketTeam[][] | null>(null);
+  const [editingDay1Bracket, setEditingDay1Bracket] = useState(false);
+  const [d1BracketSel, setD1BracketSel] = useState<{ hi: number; ti: number } | null>(null);
+  const [d1BracketEdits, setD1BracketEdits] = useState<BracketTeam[][] | null>(null);
   const [editingFinalsBracket, setEditingFinalsBracket] = useState(false);
   const [editingSubKey, setEditingSubKey] = useState<string | null>(null); // "heatIdx:playerName"
   const [editingSubVal, setEditingSubVal] = useState('');
@@ -1167,32 +1169,6 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     }
     const heatColors = ['#f9a8d4','#8be9fd','#50fa7b','#f5a623','#c084fc','#fbbf24'];
 
-    const doSwap = (aHeat: number, aName: string, bHeat: number, bName: string) => {
-      auth.req(async () => {
-        // Rebuild assignments fresh from curSat (avoids stale closure over seededHeats)
-        const fresh: string[][] = Array.from({ length: NUM_HEATS }, () => [] as string[]);
-        if (parsedAssignments && parsedAssignments.length === NUM_HEATS) {
-          parsedAssignments.forEach((slot: string[], hi: number) => { fresh[hi] = [...slot]; });
-        } else {
-          // Rerun default snake seeding
-          const sorted = [...teams].sort((a, b) => b.avgVR - a.avgVR);
-          sorted.forEach((t, i) => {
-            const round = Math.floor(i / NUM_HEATS);
-            const pos = i % NUM_HEATS;
-            const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
-            fresh[heatIdx].push(t.name);
-          });
-        }
-        // Swap: replace aName in aHeat with bName and vice-versa
-        fresh[aHeat] = fresh[aHeat].map((n) => (n === aName ? bName : n));
-        fresh[bHeat] = fresh[bHeat].map((n) => (n === bName ? aName : n));
-        const sid = curSat.id ?? curSat._id ?? '';
-        await fsUpdate('sats', sid, { heatAssignmentsJson: JSON.stringify(fresh) });
-        await reload();
-        setSwapSrc(null);
-        showToast(`Swapped ${aName.split(' & ')[0]} ↔ ${bName.split(' & ')[0]}`);
-      });
-    };
 
     const heatSubs: Record<string, string> = (() => {
       try { return curSat.heatSubsJson ? JSON.parse(curSat.heatSubsJson) : {}; } catch { return {}; }
@@ -1550,134 +1526,111 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           <div style={cHead}>
             <span style={cTitle}>🏁 Round 1</span>
             <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#50fa7b', background: 'rgba(80,250,123,0.08)', border: '1px solid rgba(80,250,123,0.2)', borderRadius: 4, padding: '1px 6px' }}>1.1×</span>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={cSub}>{completedCount}/{NUM_HEATS} heats</span>
-              {curSat.heatAssignmentsJson && !swapSrc && (
-                <button onClick={() => auth.req(async () => { await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: '' }); await reload(); showToast('Reset to default seeding'); })}
-                  style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 7px', fontFamily: FONT_MONO, fontSize: 9, color: '#556', cursor: 'pointer' }}>
-                  Reset seeding
+              {completedCount === 0 && !editingDay1Bracket && (
+                <button onClick={() => auth.req(() => { setD1BracketEdits(seededHeats.map(h => h.map(t => ({ name: t.name, members: t.members, subs: t.subs ?? [], score: 0, seed: t.seed ?? 0 })))); setEditingDay1Bracket(true); setD1BracketSel(null); })}
+                  style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(80,250,123,0.08)', border: '1px solid rgba(80,250,123,0.2)', borderRadius: 4, padding: '3px 8px', color: '#50fa7b', cursor: 'pointer' }}>
+                  ✏ Edit Bracket
                 </button>
+              )}
+              {editingDay1Bracket && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => {
+                    if (d1BracketEdits) {
+                      auth.req(async () => {
+                        const assignments = d1BracketEdits.map(h => h.map(t => t.name));
+                        await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: JSON.stringify(assignments) });
+                        await reload();
+                        setEditingDay1Bracket(false); setD1BracketSel(null); setD1BracketEdits(null);
+                        showToast('Bracket saved!');
+                      });
+                    }
+                  }} style={{ fontFamily: FONT_MONO, fontSize: 9, background: '#50fa7b22', border: '1px solid #50fa7b44', borderRadius: 4, padding: '3px 8px', color: '#50fa7b', cursor: 'pointer' }}>✓ Save</button>
+                  <button onClick={() => {
+                    auth.req(async () => {
+                      await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: '' });
+                      await reload();
+                      setEditingDay1Bracket(false); setD1BracketSel(null); setD1BracketEdits(null);
+                      showToast('Bracket reset');
+                    });
+                  }} style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(255,60,60,0.08)', border: '1px solid rgba(255,60,60,0.2)', borderRadius: 4, padding: '3px 8px', color: '#ff6b6b', cursor: 'pointer' }}>↺ Reset</button>
+                  <button onClick={() => { setEditingDay1Bracket(false); setD1BracketSel(null); setD1BracketEdits(null); }}
+                    style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 8px', color: '#666', cursor: 'pointer' }}>✕ Cancel</button>
+                </div>
               )}
             </div>
           </div>
-          {swapSrc && (
-            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#f9a8d4', background: 'rgba(249,168,212,0.08)', border: '1px solid rgba(249,168,212,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
-              Swapping <strong>{swapSrc.teamName}</strong> — click ⇄ on a team in another heat to swap. Click ✕ to cancel.
+          {editingDay1Bracket ? (
+            <>
+              {d1BracketSel && <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#50fa7b', marginBottom: 8 }}>Selected: {d1BracketEdits?.[d1BracketSel.hi]?.[d1BracketSel.ti]?.name} — click another team to swap</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 8 }}>
+                {(d1BracketEdits ?? []).map((hTeams, hi) => {
+                  const hColor = heatColors[hi] ?? '#f9a8d4';
+                  return (
+                    <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}44`, borderRadius: 6, padding: '8px 10px' }}>
+                      <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, marginBottom: 6, letterSpacing: 1 }}>HEAT {hi + 1}</div>
+                      {hTeams.map((t, ti) => {
+                        const isSel = d1BracketSel?.hi === hi && d1BracketSel?.ti === ti;
+                        return (
+                          <div key={ti}>
+                            <div onClick={() => {
+                              if (!d1BracketSel) { setD1BracketSel({ hi, ti }); return; }
+                              if (d1BracketSel.hi === hi && d1BracketSel.ti === ti) { setD1BracketSel(null); return; }
+                              const base = (d1BracketEdits ?? []).map(h => [...h]);
+                              const tmp = base[d1BracketSel.hi][d1BracketSel.ti];
+                              base[d1BracketSel.hi][d1BracketSel.ti] = base[hi][ti];
+                              base[hi][ti] = tmp;
+                              setD1BracketEdits(base); setD1BracketSel(null);
+                            }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', marginBottom: 2, borderRadius: 4, cursor: 'pointer', background: isSel ? 'rgba(80,250,123,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? '#50fa7b' : 'rgba(255,255,255,0.06)'}`, transition: 'background 0.1s' }}>
+                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: isSel ? '#50fa7b' : '#f0e6d3' }}>{t.name}</span>
+                              <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#666' }}>{t.score}pts</span>
+                            </div>
+                            <div style={{ paddingLeft: 6, marginBottom: 4 }}>
+                              {t.members.map((member, pi) => {
+                                const subKey = `${hi}:${member}`;
+                                const existingSub = heatSubs[subKey];
+                                const isEditing = editingSubKey === subKey;
+                                return (
+                                  <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
+                                    {isEditing ? (
+                                      <>
+                                        <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                          placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
+                                          onChange={(e) => setEditingSubVal(e.target.value)}
+                                          onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
+                                        <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                                        <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
+                                        <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
+                                      </>
+                                    ) : existingSub ? (
+                                      <>
+                                        <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>{existingSub} <span style={{ color: '#556' }}>for {member.split(' ')[0]}</span></span>
+                                        <button onClick={(e) => { e.stopPropagation(); setEditingSubKey(subKey); setEditingSubVal(existingSub); }} style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✎</button>
+                                        <button onClick={(e) => { e.stopPropagation(); saveSub(subKey, ''); }} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 9 }}>✕</button>
+                                      </>
+                                    ) : (
+                                      <button onClick={(e) => { e.stopPropagation(); setEditingSubKey(subKey); setEditingSubVal(''); }}
+                                        style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 2, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 8, color: '#445', cursor: 'pointer' }}>+ sub</button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
+              {seededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, heatResults[hi], hi, 0, heatColors[hi] ?? '#f9a8d4', 2, hi))}
             </div>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
-            {seededHeats.map((hTeams, hi) => {
-              if (hTeams.length === 0) return null;
-              const hColor = heatColors[hi] ?? '#f9a8d4';
-              const teamRankings = heatResults[hi];
-              const savedTime = curSat.heatTimes?.[hi] ?? ''; // Day 1 flat index = hi (0-5)
-              return (
-                <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(106,96,64,0.25)', borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>Heat {hi + 1}</span>
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                      {editingTimeIdx === hi ? (
-                        <div style={{ display: 'flex', gap: 3 }}>
-                          <input style={{ ...inp, width: 80, fontSize: 10, padding: '2px 5px' }}
-                            value={editingTimeVal} placeholder="10:30 AM" autoFocus
-                            onChange={(e) => setEditingTimeVal(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') saveHeatTime(hi, editingTimeVal); if (e.key === 'Escape') setEditingTimeIdx(null); }} />
-                          <button style={{ ...priBtn, padding: '2px 6px', fontSize: 9 }} onClick={() => saveHeatTime(hi, editingTimeVal)}>✓</button>
-                          <button style={{ ...secBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => setEditingTimeIdx(null)}>✕</button>
-                        </div>
-                      ) : (
-                        <button onClick={() => { setEditingTimeIdx(hi); setEditingTimeVal(savedTime); }}
-                          style={{ background: 'none', border: 'none', fontFamily: FONT_MONO, fontSize: 9, color: savedTime ? '#c8a030' : '#445', cursor: 'pointer' }}>
-                          {savedTime ? `🕐 ${savedTime}` : '+ time'}
-                        </button>
-                      )}
-                      {teamRankings && <button onClick={() => deleteHeatResults(0, hi)} style={{ ...delBtn, fontSize: 9, padding: '2px 6px' }}>✕</button>}
-
-                    </div>
-                  </div>
-                  {teamRankings ? (
-                    teamRankings.map((t, ri) => {
-                      const adv = ri < 2 || (ri === 2 && day2Teams.some((d) => d.name === t.name));
-                      const rc = ri === 0 ? '#fbbf24' : ri === 1 ? '#94a3b8' : ri === 2 ? '#50fa7b' : '#e94560';
-                      return (
-                        <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: ri < teamRankings.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', opacity: adv ? 1 : 0.5 }}>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: rc, minWidth: 20 }}>{ri + 1}{['st','nd','rd'][ri] ?? 'th'}</span>
-                          <span style={{ fontFamily: FONT_HEADER, fontSize: 11, color: '#f0e6d3', flex: 1 }}>{t.name}</span>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{t.score}pts</span>
-                          {adv ? <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#50fa7b' }}>✓</span> : <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e94560' }}>✗</span>}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    hTeams.map((t, ti) => {
-                      const isSrc = swapSrc?.heatIdx === hi && swapSrc?.teamName === t.name;
-                      const isTarget = swapSrc !== null && swapSrc.heatIdx !== hi;
-                      const srcTeam = swapSrc ? teamByName[swapSrc.teamName] : null;
-                      const vrDiff = srcTeam ? Math.abs(t.avgVR - srcTeam.avgVR) : 0;
-                      const matchColor = vrDiff <= 400 ? '#50fa7b' : vrDiff <= 800 ? '#f5a623' : '#e94560';
-                      const sub0 = heatSubs[`${hi}:${t.members[0]}`];
-                      const sub1 = heatSubs[`${hi}:${t.members[1]}`];
-                      return (
-                        <div key={ti} style={{ padding: '4px 0', borderBottom: ti < hTeams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', background: isSrc ? 'rgba(249,168,212,0.08)' : 'transparent', borderRadius: 3 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', minWidth: 22 }}>S{teams.indexOf(t) + 1}</span>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontFamily: FONT_HEADER, fontSize: 11, color: isSrc ? '#f9a8d4' : '#f0e6d3' }}>
-                                {sub0 ? <span style={{ textDecoration: 'line-through', color: '#556' }}>{t.members[0].split(' ')[0]}</span> : t.members[0].split(' ')[0]}
-                                {' & '}
-                                {sub1 ? <span style={{ textDecoration: 'line-through', color: '#556' }}>{t.members[1].split(' ')[0]}</span> : t.members[1].split(' ')[0]}
-                              </div>
-                              {(sub0 || sub1) && (
-                                <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc' }}>
-                                  {sub0 && `${sub0}→${t.members[0].split(' ')[0]}`}{sub0 && sub1 && ' · '}{sub1 && `${sub1}→${t.members[1].split(' ')[0]}`}
-                                </div>
-                              )}
-                            </div>
-                            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030' }}>{t.avgVR}</span>
-                            {!isTarget && !swapSrc && <button onClick={() => setSwapSrc({ heatIdx: hi, teamName: t.name })} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 3, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 9, color: '#445', cursor: 'pointer' }}>⇄</button>}
-                            {isSrc && <button onClick={() => setSwapSrc(null)} style={{ background: 'rgba(249,168,212,0.15)', border: '1px solid rgba(249,168,212,0.4)', borderRadius: 3, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 9, color: '#f9a8d4', cursor: 'pointer' }}>✕</button>}
-                            {isTarget && <button onClick={() => doSwap(swapSrc!.heatIdx, swapSrc!.teamName, hi, t.name)} style={{ background: `${matchColor}18`, border: `1px solid ${matchColor}55`, borderRadius: 3, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 9, color: matchColor, cursor: 'pointer' }}>⇄</button>}
-                          </div>
-                          {[t.members[0], t.members[1]].map((player, pi) => {
-                            const subKey = `${hi}:${player}`; const existingSub = heatSubs[subKey]; const isEditing = editingSubKey === subKey;
-                            return (
-                              <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, paddingLeft: 22 }}>
-                                {isEditing ? (
-                                  <>
-                                    <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
-                                      placeholder={`Sub for ${player.split(' ')[0]}…`} list="plist-subs"
-                                      onChange={(e) => setEditingSubVal(e.target.value)}
-                                      onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
-                                    <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
-                                    <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
-                                    <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
-                                  </>
-                                ) : existingSub ? (
-                                  <>
-                                    <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c084fc' }}>{existingSub} <span style={{ color: '#556' }}>for {player.split(' ')[0]}</span></span>
-                                    <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(existingSub); }} style={{ background: 'none', border: 'none', color: '#445', cursor: 'pointer', fontSize: 10, padding: '0 2px' }}>✎</button>
-                                    <button onClick={() => saveSub(subKey, '')} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 9 }}>✕</button>
-                                  </>
-                                ) : (
-                                  <button onClick={() => { setEditingSubKey(subKey); setEditingSubVal(''); }}
-                                    style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 2, padding: '1px 5px', fontFamily: FONT_MONO, fontSize: 8, color: '#445', cursor: 'pointer' }}>+ sub</button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })
-                  )}
-                  {!teamRankings && (
-                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                      <button style={{ ...secBtn, width: '100%', fontSize: 11 }} onClick={() => enterResults(hTeams, 0, hi, 2)}>+ Enter Results</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         {/* Round 2 */}

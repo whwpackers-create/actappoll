@@ -83,6 +83,18 @@ function countSatWins(sats: AppData['sats'], playerName: string): number {
           w++;
         }
       });
+    } else {
+      // Fall back: compute directly from heats data
+      const rounds = s.rounds ?? 4;
+      const finalsHeats = (s.heats ?? []).filter(h => h.round === rounds - 1);
+      finalsHeats.forEach(fh => {
+        const scores = (fh.scores ?? []).slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+        if (scores[0]) {
+          const allTeams = (s.heats ?? []).flatMap(hh => hh.teams ?? []);
+          const winner = allTeams.find(t => t.name === scores[0].name);
+          if (winner && (winner.members ?? []).includes(playerName)) w++;
+        }
+      });
     }
   });
   return w;
