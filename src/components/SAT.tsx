@@ -1,6 +1,6 @@
 import { useState, Fragment, useMemo } from 'react';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
-import { computeStats } from '../utils/VR';
+import { computeStats, SAT_ROUND_MULTI } from '../utils/VR';
 import {
   card,
   cHead,
@@ -609,7 +609,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
 
         {/* Upcoming SATs */}
         {(() => {
-          const upcoming = sats.filter((s) => s.upcoming);
+          const upcoming = sats.filter((s) => s.upcoming && !(s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1));
           if (upcoming.length === 0 && !showUpcomingForm) return null;
           return (
             <div style={{ marginBottom: 20 }}>
@@ -727,7 +727,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             </div>
           </div>
         ) : (
-          sats.filter((s) => !s.upcoming).map((sat) => {
+          sats.filter((s) => !s.upcoming || (s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1)).map((sat) => {
             const sid = sat.id ?? sat._id ?? '';
             const hc = (sat.heats ?? []).length;
             const w = sat.placements?.winner?.[0];
@@ -1133,8 +1133,12 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     );
   }
 
+  // A concluded SAT is one that has Finals heats entered
+  const satIsConcluded = (s: typeof curSat) =>
+    !!(s && (s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1));
+
   // === UPCOMING DETAIL — REPLACED BELOW ===
-  if (curSat?.upcoming && !showHeatEntry) {
+  if (curSat?.upcoming && !showHeatEntry && !satIsConcluded(curSat)) {
     const rosterVRs = (curSat.roster ?? []).flatMap((t) =>
       t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
     );
@@ -2277,6 +2281,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 <span style={cTitle}>
                   {ri === rounds - 1 ? '👑' : ri === rounds - 2 ? '🔥' : '🏁'} {rn}
                 </span>
+                {(() => {
+                  const mult = SAT_ROUND_MULTI[ri + 1];
+                  const multColors: Record<number, string> = { 1: '#50fa7b', 2: '#8be9fd', 3: '#fbbf24', 4: '#f5a623' };
+                  return mult ? (
+                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: multColors[ri + 1] ?? '#aaa', background: `${multColors[ri + 1] ?? '#aaa'}18`, border: `1px solid ${multColors[ri + 1] ?? '#aaa'}33`, borderRadius: 4, padding: '1px 6px' }}>
+                      {mult}×
+                    </span>
+                  ) : null;
+                })()}
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <span style={cSub}>
                     {rH.length} heat{rH.length !== 1 ? 's' : ''}
@@ -2517,11 +2530,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             }
 
             const plLabels2: Record<string, string> = {
-              winner: 'Champion (+25)',
-              runnerUp: 'Runner-up (+15)',
-              finalist: 'Finalist (+12)',
-              semi: 'Semifinalist (+8)',
-              round2: 'Round 2 (+5)',
+              winner: 'Champion',
+              runnerUp: 'Runner-up',
+              finalist: 'Finalist',
+              semi: 'Semifinalist',
+              round2: 'Round 2',
             };
             const plColors2: Record<string, string> = {
               winner: '#f5a623',
