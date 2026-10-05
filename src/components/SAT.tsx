@@ -1,4 +1,5 @@
-import { useState, Fragment, useMemo, useRef, type CSSProperties } from 'react';
+import { useState, Fragment, useMemo } from 'react';
+import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
 import { computeStats, SAT_ROUND_MULTI } from '../utils/VR';
 import {
@@ -32,117 +33,7 @@ interface RosterRow {
   sub2: string;
 }
 
-interface PlayerInfo {
-  name: string;
-  active: boolean;
-  elo: number;
-  rank: number | null; // VR rank among active players
-  actCount: number;
-  avgPtsAct: number;
-  winRate: number;
-}
-
-// Rank candidates for a typed query: exact > prefix > word-prefix > substring, then active, then VR
-function matchPlayers(q: string, list: PlayerInfo[], limit = 8): PlayerInfo[] {
-  const s = q.trim().toLowerCase();
-  if (!s) return [];
-  const score = (n: string) => {
-    const l = n.toLowerCase();
-    if (l === s) return 0;
-    if (l.startsWith(s)) return 1;
-    if (l.split(/\s+/).some((w) => w.startsWith(s))) return 2;
-    if (l.includes(s)) return 3;
-    return 9;
-  };
-  return list
-    .map((p) => ({ p, sc: score(p.name) }))
-    .filter((x) => x.sc < 9)
-    .sort((a, b) => a.sc - b.sc || Number(b.p.active) - Number(a.p.active) || b.p.elo - a.p.elo)
-    .slice(0, limit)
-    .map((x) => x.p);
-}
-
-// Map typed text to a real player name when unambiguous (case-insensitive exact, or a single match)
-function resolvePlayer(q: string, list: PlayerInfo[]): PlayerInfo | null {
-  const s = q.trim().toLowerCase();
-  if (!s) return null;
-  const exact = list.find((p) => p.name.toLowerCase() === s);
-  if (exact) return exact;
-  const all = matchPlayers(q, list, 50);
-  if (all.length === 1) return all[0];
-  const prefix = all.filter((p) => p.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(s)));
-  const activePrefix = prefix.filter((p) => p.active);
-  if (activePrefix.length === 1) return activePrefix[0];
-  return prefix.length === 1 ? prefix[0] : null;
-}
-
-function PlayerPicker({ value, onChange, onCommit, onEnter, onEscape, placeholder, players, style, showStats = true, autoFocus }: {
-  value: string;
-  onChange: (v: string) => void;
-  onCommit?: (v: string) => void; // fires on blur / pick with the resolved value
-  onEnter?: (v: string) => void; // Enter with no dropdown open
-  onEscape?: () => void;
-  placeholder: string;
-  players: PlayerInfo[];
-  style?: CSSProperties;
-  showStats?: boolean;
-  autoFocus?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(0);
-  const [rect, setRect] = useState<DOMRect | null>(null);
-  const ref = useRef<HTMLInputElement>(null);
-  const byName = useMemo(() => Object.fromEntries(players.map((p) => [p.name, p])), [players]);
-  const cur = byName[value] ?? null;
-  const suggs = cur ? [] : matchPlayers(value, players);
-  const show = () => { setOpen(true); setRect(ref.current?.getBoundingClientRect() ?? null); };
-  const pick = (n: string) => { onChange(n); onCommit?.(n); setOpen(false); setHi(0); };
-  return (
-    <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-      <input ref={ref} autoFocus={autoFocus}
-        style={{ ...inp, width: '100%', boxSizing: 'border-box', ...style, ...(value.trim() && !cur ? { borderColor: 'rgba(233,69,96,0.6)' } : {}) }}
-        value={value}
-        placeholder={placeholder}
-        onFocus={() => { show(); setHi(0); }}
-        onBlur={() => {
-          setOpen(false);
-          const r = cur ? null : resolvePlayer(value, players);
-          if (r) onChange(r.name);
-          onCommit?.(r ? r.name : value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onEscape?.();
-          if (!open || suggs.length === 0) {
-            if (e.key === 'Enter') onEnter?.(cur ? value : resolvePlayer(value, players)?.name ?? value);
-            return;
-          }
-          if (e.key === 'ArrowDown') { e.preventDefault(); setHi((hi + 1) % suggs.length); }
-          else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((hi - 1 + suggs.length) % suggs.length); }
-          else if (e.key === 'Enter') { e.preventDefault(); pick(suggs[Math.min(hi, suggs.length - 1)].name); }
-          else if (e.key === 'Tab') pick(suggs[Math.min(hi, suggs.length - 1)].name);
-          else if (e.key === 'Escape') setOpen(false);
-        }}
-        onChange={(e) => { onChange(e.target.value); show(); setHi(0); }} />
-      {open && suggs.length > 0 && rect && (
-        <div style={{ position: 'fixed', top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 220), background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 1000, overflow: 'hidden', textAlign: 'left' }}>
-          {suggs.map((p, si) => (
-            <div key={p.name} onMouseDown={(e) => { e.preventDefault(); pick(p.name); }}
-              onMouseEnter={() => setHi(si)}
-              style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: p.active ? '#e0d4c0' : '#667', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', background: si === hi ? 'rgba(200,160,48,0.12)' : 'transparent', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <span>{p.name}{!p.active && <span style={{ fontSize: 9, color: '#556' }}> (inactive)</span>}</span>
-              <span style={{ color: '#c8a030', fontSize: 10 }}>{p.rank ? `#${p.rank} · ` : ''}{p.elo} VR</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {showStats && <div style={{ fontFamily: FONT_MONO, fontSize: 9, marginTop: 3, minHeight: 12, color: cur ? '#8090a0' : '#e94560' }}>
-        {cur
-          ? <><span style={{ color: '#c8a030' }}>{cur.rank ? `#${cur.rank} · ` : ''}{cur.elo} VR</span> · {cur.actCount} ACTs · {cur.avgPtsAct.toFixed(1)} pts/ACT · {Math.round(cur.winRate * 100)}% W</>
-          : value.trim() ? 'Not a known player — pick from list' : ''}
-      </div>}
-    </div>
-  );
-}
+const NEW_MEMBER_LABEL = 'New member · will be added to roster · seeded last';
 
 interface AuthState {
   req: (fn: () => void | Promise<void>) => void;
@@ -295,23 +186,12 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
     [data.players, data.acts, data.sats, data.seasons]
   );
+  // Players with no ACTs yet are new members — left out so seeding falls back to unknownVR (lowest in field)
   const vrMap = useMemo(
-    () => Object.fromEntries(allStats.map((s) => [s.name, s.elo])),
+    () => Object.fromEntries(allStats.filter((s) => s.actCount > 0).map((s) => [s.name, s.elo])),
     [allStats]
   );
-  const playerInfos = useMemo<PlayerInfo[]>(() => {
-    const ranked = allStats.filter((s) => s.active !== false).sort((a, b) => b.elo - a.elo);
-    const rankOf = Object.fromEntries(ranked.map((s, i) => [s.name, i + 1]));
-    return allStats.map((s) => ({
-      name: s.name,
-      active: s.active !== false,
-      elo: s.elo,
-      rank: rankOf[s.name] ?? null,
-      actCount: s.actCount,
-      avgPtsAct: s.avgPtsAct,
-      winRate: s.winRate,
-    }));
-  }, [allStats]);
+  const playerInfos = useMemo<PlayerInfo[]>(() => buildPlayerInfos(allStats), [allStats]);
   const canon = (n: string) => resolvePlayer(n, playerInfos)?.name ?? n.trim();
   const canonRow = (t: RosterRow): RosterRow => ({ ...t, p1: canon(t.p1), p2: canon(t.p2), sub1: canon(t.sub1), sub2: canon(t.sub2) });
   // Normalize typed names to real player names before saving an upcoming roster
@@ -321,6 +201,16 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       const p2 = resolvePlayer(t.p2, playerInfos)?.name ?? t.p2.trim();
       return { name: (p1.split(' ')[0] ?? '') + (p2 ? ' & ' + p2.split(' ')[0] : ''), members: [p1, p2] };
     });
+  // Add any names not yet on the roster as new active players
+  const ensurePlayers = async (names: string[]) => {
+    const known = new Set(data.players.map((p) => p.name.toLowerCase()));
+    for (const name of names.map((n) => n.trim()).filter(Boolean)) {
+      if (known.has(name.toLowerCase())) continue;
+      known.add(name.toLowerCase());
+      const id = gid();
+      try { await fsSet('players', id, { name, id, active: true }); } catch {}
+    }
+  };
 
   const sats = (data.sats ?? []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const curSat = selSat ? sats.find((s) => (s.id ?? s._id) === selSat) ?? null : null;
@@ -355,6 +245,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           subs: [t.sub1 || '', t.sub2 || ''],
           seed: t.seed,
         }));
+      await ensurePlayers(roster.flatMap((t) => [...t.members, ...t.subs]));
       const seedMap: Record<string, number> = {};
       roster.forEach((t) => {
         if (t.seed) seedMap[t.name] = t.seed;
@@ -541,6 +432,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           subs: [t.sub1 || '', t.sub2 || ''],
           seed: t.seed,
         }));
+      await ensurePlayers(roster.flatMap((t) => [...t.members, ...t.subs]));
       const seedMap: Record<string, number> = {};
       roster.forEach((t) => {
         if (t.seed) seedMap[t.name] = t.seed;
@@ -798,7 +690,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                     <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                       <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
                       {(['p1', 'p2'] as const).map((pk) => (
-                        <PlayerPicker key={pk} value={t[pk]} players={playerInfos}
+                        <PlayerPicker key={pk} value={t[pk]} players={playerInfos} unknownLabel={NEW_MEMBER_LABEL}
                           placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
                           onChange={(v) => setUpTeams((prev) => { const c = [...prev]; c[i] = { ...c[i], [pk]: v }; return c; })} />
                       ))}
@@ -814,6 +706,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       if (!upName.trim() || !upDate) { showToast('Name and date required'); return; }
                       auth.req(async () => {
                         const roster = buildUpRoster(upTeams);
+                        await ensurePlayers(roster.flatMap((t) => t.members));
                         const id = gid();
                         await ops.addSat({ id, _id: id, name: upName.trim(), date: upDate, upcoming: true, teams: [], races: [], rounds: 4, roster } as unknown as typeof data.sats[0]);
                         setShowUpcomingForm(false);
@@ -1263,7 +1156,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       auth.req(async () => {
         const next = { ...heatSubs };
         subName = canon(subName);
-        if (subName) next[key] = subName;
+        if (subName) { next[key] = subName; await ensurePlayers([subName]); }
         else delete next[key];
         const sid = curSat.id ?? curSat._id ?? '';
         await fsUpdate('sats', sid, { heatSubsJson: JSON.stringify(next) });
@@ -1548,7 +1441,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
                 {(['p1', 'p2'] as const).map((pk) => (
-                  <PlayerPicker key={pk} value={t[pk]} players={playerInfos}
+                  <PlayerPicker key={pk} value={t[pk]} players={playerInfos} unknownLabel={NEW_MEMBER_LABEL}
                     placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
                     onChange={(v) => setEditUpTeams((prev) => { const c = [...prev]; c[i] = { ...c[i], [pk]: v }; return c; })} />
                 ))}
@@ -1561,6 +1454,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               <button style={priBtn} onClick={() => {
                 auth.req(async () => {
                   const roster = buildUpRoster(editUpTeams);
+                  await ensurePlayers(roster.flatMap((t) => t.members));
                   await ops.updateSat(curSat.id ?? curSat._id ?? '', { roster });
                   setEditingUpcoming(false); showToast('Updated!');
                 });

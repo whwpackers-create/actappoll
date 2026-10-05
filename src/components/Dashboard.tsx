@@ -224,8 +224,9 @@ export function Dashboard({
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
     [data.players, data.acts, data.sats, data.seasons]
   );
+  // SAT seeding VR — players with no ACTs yet (new members) fall back to the lowest VR in the field
   const vrMap = useMemo(
-    () => Object.fromEntries(stats.map((s) => [s.name, s.elo])),
+    () => Object.fromEntries(stats.filter((s) => s.actCount > 0).map((s) => [s.name, s.elo])),
     [stats]
   );
   const activePlayers = data.players
@@ -694,10 +695,12 @@ export function Dashboard({
 
       {/* Upcoming SAT heats */}
       {(() => {
-        const upcomingSats = (data.sats ?? []).filter((s) => s.upcoming);
+        // Next upcoming SAT that has at least one team and hasn't reached Finals
+        const upcomingSats = (data.sats ?? []).filter((s) =>
+          s.upcoming && (s.roster ?? []).length > 0 && !(s.heats ?? []).some((h) => h.round === (s.rounds ?? 4) - 1));
         if (upcomingSats.length === 0) return null;
-        const sat = upcomingSats.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-        const satDate = new Date(sat.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+        const sat = [...upcomingSats].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+        const satDate = new Date(sat.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
         const viewBtn = (
           <button
             onClick={() => { setSelSat?.(sat.id ?? sat._id ?? ''); setView('sat'); }}
@@ -845,7 +848,7 @@ export function Dashboard({
           const vr1 = vrMap[t.members[0]] ?? dashUnknownVR;
           const vr2 = vrMap[t.members[1]] ?? dashUnknownVR;
           return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
-        }).sort((a, b) => b.avgVR - a.avgVR);
+        }).sort((a, b) => b.avgVR - a.avgVR).map((t, i) => ({ ...t, seedNum: i + 1 }));
         if (teams.length === 0) return null;
         const NUM_HEATS = 6;
         const teamByName = Object.fromEntries(teams.map((t) => [t.name, t]));
@@ -880,7 +883,7 @@ export function Dashboard({
                   <path d="M8 2v4M16 2v4M3 10h18M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/>
                 </svg>
                 <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4', letterSpacing: 2 }}>UPCOMING SAT HEATS</span>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · {satDate}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · starts {satDate} · {teams.length} team{teams.length === 1 ? '' : 's'}</span>
                 {viewBtn}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
@@ -906,6 +909,7 @@ export function Dashboard({
                           <div key={ti} style={{ padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0' }}>
+                                <span style={{ color: '#556', fontSize: 10, display: 'inline-block', minWidth: 24 }}>S{t.seedNum}</span>
                                 {t.members[0] && <span style={{ textDecoration: sub0 ? 'line-through' : 'none', color: sub0 ? '#556' : '#e0d4c0' }}>{t.members[0].split(' ')[0]}</span>}
                                 {t.members[1] && <span style={{ color: '#8090a0', textDecoration: sub1 ? 'line-through' : 'none' }}> &amp; {t.members[1].split(' ')[0]}</span>}
                               </div>

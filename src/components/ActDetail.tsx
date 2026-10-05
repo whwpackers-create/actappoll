@@ -3,6 +3,7 @@ import { teamScores, computeAllElos, computeActBracketBreakdown, STARTING_VR } f
 import { fsSet, gid } from '../services/firestore';
 import { card, cHead, cTitle, cSub, inp, TC } from '../styles/shared';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
+import { PlayerPicker, usePlayerInfos } from './PlayerPicker';
 import type { Act, AppData, AppOps } from '../types';
 import type { AuthState } from '../hooks/useAuth';
 
@@ -78,6 +79,7 @@ export function ActDetail({
   const [eGrid, setEGrid] = useState<Act['grid'] | null>(null);
   const [ePen, setEPen] = useState<Act['penalties'] | null>(null);
   const [eTeamNames, setETeamNames] = useState(act.teams.map((t) => t.name));
+  const playerInfos = usePlayerInfos(data);
   const [eMembers, setEMembers] = useState(act.teams.map((t) => [...t.members]));
   const [eSubs, setESubs] = useState(
     act.teams.map((t) => [...(t.subs ?? ['', ''])])
@@ -642,11 +644,6 @@ export function ActDetail({
           <div style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f0e6d3', letterSpacing: 1, marginBottom: 12 }}>
             👥 Teams
           </div>
-          <datalist id="plist">
-            {data.players.map((p) => (
-              <option key={p.name} value={p.name} />
-            ))}
-          </datalist>
           <div
             style={{
               display: 'grid',
@@ -690,15 +687,12 @@ export function ActDetail({
                   const changed = m && origName && m !== origName;
                   return (
                     <div key={mi}>
-                      <input
-                        style={{ ...inp, fontSize: 13, marginTop: 4, padding: '6px 8px' }}
+                      <PlayerPicker
+                        players={playerInfos}
+                        showStats={false}
+                        style={{ fontSize: 13, marginTop: 4, padding: '6px 8px' }}
                         value={m}
-                        list="plist"
-                        onChange={(e) => {
-                          const c = eMembers.map((x) => [...x]);
-                          c[ti][mi] = e.target.value;
-                          setEMembers(c);
-                        }}
+                        onChange={(v) => setEMembers((prev) => prev.map((x, j) => (j === ti ? x.map((y, k) => (k === mi ? v : y)) : x)))}
                         placeholder={`Player ${mi + 1}`}
                       />
                       {changed && (
@@ -730,22 +724,13 @@ export function ActDetail({
                 </button>
                 {/* Sub inputs */}
                 {(eSubs[ti] ?? ['', '']).map((s, si) => (
-                  <input
+                  <PlayerPicker
                     key={'s' + si}
-                    style={{
-                      ...inp,
-                      fontSize: 11,
-                      marginTop: 4,
-                      padding: '4px 8px',
-                      borderColor: 'rgba(192,132,252,0.25)',
-                    }}
+                    players={playerInfos}
+                    showStats={false}
+                    style={{ fontSize: 11, marginTop: 4, padding: '4px 8px', borderColor: 'rgba(192,132,252,0.25)' }}
                     value={s}
-                    list="plist"
-                    onChange={(e) => {
-                      const c = eSubs.map((x) => [...x]);
-                      c[ti][si] = e.target.value;
-                      setESubs(c);
-                    }}
+                    onChange={(v) => setESubs((prev) => prev.map((x, j) => (j === ti ? x.map((y, k) => (k === si ? v : y)) : x)))}
                     placeholder={`Sub ${si + 1}`}
                   />
                 ))}

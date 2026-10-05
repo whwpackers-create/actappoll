@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { computeStats, STARTING_VR } from '../utils/VR';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import type { AppData } from '../types';
+import { PlayerPicker, buildPlayerInfos } from './PlayerPicker';
 
 interface AnalyticsProps {
   data: AppData;
@@ -13,6 +14,7 @@ export function Analytics({ data, setView }: AnalyticsProps) {
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
     [data.players, data.acts, data.sats, data.seasons]
   );
+  const pickerInfos = useMemo(() => buildPlayerInfos(stats).filter((p) => p.actCount > 0), [stats]);
   const activePlayers = data.players.filter((p) => p.active !== false).map((p) => p.name);
   const topByElo = [...stats]
     .filter((p) => activePlayers.includes(p.name))
@@ -23,21 +25,13 @@ export function Analytics({ data, setView }: AnalyticsProps) {
     null
   );
   const [searchQ, setSearchQ] = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
 
-  const allPlayerNames = stats
-    .filter((p) => p.actCount > 0)
-    .sort((a, b) => b.elo - a.elo)
-    .map((p) => p.name);
   const [h2hP1, setH2hP1] = useState('');
   const [h2hP2, setH2hP2] = useState('');
   const [h2hQ1, setH2hQ1] = useState('');
   const [h2hQ2, setH2hQ2] = useState('');
-  const [h2hShow1, setH2hShow1] = useState(false);
-  const [h2hShow2, setH2hShow2] = useState(false);
   const [rivalsQ, setRivalsQ] = useState('');
   const [rivalsPlayer, setRivalsPlayer] = useState('');
-  const [rivalsDropdown, setRivalsDropdown] = useState(false);
 
   const h2hData = useMemo(() => {
     if (!h2hP1 || !h2hP2 || h2hP1 === h2hP2) return null;
@@ -179,26 +173,11 @@ export function Analytics({ data, setView }: AnalyticsProps) {
     </div>
   );
 
-  const allPlayers = stats
-    .filter((p) => p.eloHistory && p.eloHistory.length > 0)
-    .sort((a, b) => b.elo - a.elo);
-  const searchResults =
-    searchQ.length > 0
-      ? allPlayers
-          .filter(
-            (p) =>
-              p.name.toLowerCase().includes(searchQ.toLowerCase()) &&
-              !selected.includes(p.name)
-          )
-          .slice(0, 8)
-      : [];
-
   const addPlayer = (name: string) => {
     if (selected.length < 10 && !selected.includes(name)) {
       setSelected((prev) => [...prev, name]);
     }
     setSearchQ('');
-    setShowDropdown(false);
   };
   const removePlayer = (name: string) => {
     setSelected((prev) => prev.filter((n) => n !== name));
@@ -382,71 +361,14 @@ export function Analytics({ data, setView }: AnalyticsProps) {
             maxWidth: 350,
           }}
         >
-          <input
-            value={searchQ}
-            onChange={(e) => {
-              setSearchQ(e.target.value);
-              setShowDropdown(true);
-            }}
-            onFocus={() => setShowDropdown(true)}
+          <PlayerPicker
+            players={pickerInfos.filter((p) => !selected.includes(p.name))}
+            showStats={false}
             placeholder="Add player..."
-            style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(200,160,48,0.2)',
-              borderRadius: 6,
-              padding: '8px 12px',
-              fontFamily: FONT_MONO,
-              fontSize: 13,
-              color: '#f0e6d3',
-              width: '100%',
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
+            value={searchQ}
+            onChange={(v) => (pickerInfos.some((p) => p.name === v) ? addPlayer(v) : setSearchQ(v))}
+            style={{ fontFamily: FONT_MONO, fontSize: 13 }}
           />
-          {showDropdown && searchResults.length > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: '#1a1e28',
-                border: '1px solid #3a4050',
-                borderRadius: 6,
-                marginTop: 2,
-                zIndex: 10,
-                maxHeight: 200,
-                overflowY: 'auto',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-              }}
-            >
-              {searchResults.map((p) => (
-                <div
-                  key={p.name}
-                  onClick={() => addPlayer(p.name)}
-                  style={{
-                    padding: '8px 12px',
-                    fontFamily: FONT_MONO,
-                    fontSize: 12,
-                    color: '#f0e6d3',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  {p.name}{' '}
-                  <span style={{ color: '#556', fontSize: 10 }}>
-                    ({Math.round(p.elo)} VR)
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {selected.length > 0 && (
@@ -786,61 +708,20 @@ export function Analytics({ data, setView }: AnalyticsProps) {
         {/* Player inputs — full width side by side */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
           {[
-            { val: h2hP1, setVal: setH2hP1, q: h2hQ1, setQ: setH2hQ1, show: h2hShow1, setShow: setH2hShow1, label: 'Player 1' },
-            { val: h2hP2, setVal: setH2hP2, q: h2hQ2, setQ: setH2hQ2, show: h2hShow2, setShow: setH2hShow2, label: 'Player 2' },
-          ].map(({ val, setVal, q, setQ, show, setShow, label }) => {
-            const filtered = allPlayerNames.filter((n) => n.toLowerCase().includes(q.toLowerCase())).slice(0, 10);
+            { val: h2hP1, setVal: setH2hP1, q: h2hQ1, setQ: setH2hQ1, label: 'Player 1' },
+            { val: h2hP2, setVal: setH2hP2, q: h2hQ2, setQ: setH2hQ2, label: 'Player 2' },
+          ].map(({ val, setVal, q, setQ, label }) => {
             return (
               <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 5, position: 'relative' }}>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2 }}>{label.toUpperCase()}</span>
-                <input
-                  value={val && !show ? val : q}
-                  onChange={(e) => { setQ(e.target.value); setShow(true); setVal(''); }}
-                  onFocus={() => { setQ(''); setShow(true); }}
-                  onBlur={() => setTimeout(() => setShow(false), 150)}
+                <PlayerPicker
+                  players={pickerInfos}
+                  showStats={false}
                   placeholder="Search player..."
-                  style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: `1px solid ${val ? 'rgba(200,160,48,0.4)' : 'rgba(200,160,48,0.2)'}`,
-                    borderRadius: 6,
-                    padding: '8px 12px',
-                    fontFamily: FONT_MONO,
-                    fontSize: 14,
-                    color: '#f0e6d3',
-                    outline: 'none',
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    minHeight: 36,
-                  }}
+                  value={q}
+                  onChange={(v) => { setQ(v); setVal(pickerInfos.some((p) => p.name === v) ? v : ''); }}
+                  style={{ fontFamily: FONT_MONO, fontSize: 14, minHeight: 36, borderColor: val ? 'rgba(200,160,48,0.4)' : undefined }}
                 />
-                {show && filtered.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    background: '#1a1e28',
-                    border: '1px solid #3a4050',
-                    borderRadius: 8,
-                    marginTop: 2,
-                    zIndex: 20,
-                    maxHeight: 220,
-                    overflowY: 'auto',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                  }}>
-                    {filtered.map((n) => (
-                      <div
-                        key={n}
-                        onMouseDown={() => { setVal(n); setQ(''); setShow(false); }}
-                        style={{ padding: '10px 16px', fontFamily: FONT_HEADER, fontSize: 14, color: '#f0e6d3', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                      >
-                        {n}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -950,49 +831,14 @@ export function Analytics({ data, setView }: AnalyticsProps) {
 
         <div style={{ position: 'relative', maxWidth: 360, marginBottom: 24 }}>
           <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, display: 'block', marginBottom: 6 }}>SEARCH PLAYER</span>
-          <input
-            value={rivalsQ}
-            onChange={e => { setRivalsQ(e.target.value); setRivalsDropdown(true); if (!e.target.value) setRivalsPlayer(''); }}
-            onFocus={() => setRivalsDropdown(true)}
-            onBlur={() => setTimeout(() => setRivalsDropdown(false), 150)}
+          <PlayerPicker
+            players={pickerInfos}
+            showStats={false}
             placeholder="Type a player name..."
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              background: 'rgba(255,255,255,0.04)',
-              border: `1px solid ${rivalsPlayer ? 'rgba(200,160,48,0.4)' : 'rgba(200,160,48,0.15)'}`,
-              borderRadius: 8, padding: '10px 14px',
-              fontFamily: FONT_HEADER, fontSize: 15, color: '#f0e6d3', outline: 'none',
-            }}
+            value={rivalsQ}
+            onChange={(v) => { setRivalsQ(v); setRivalsPlayer(pickerInfos.some((p) => p.name === v) ? v : ''); }}
+            style={{ fontFamily: FONT_HEADER, fontSize: 15, padding: '10px 14px', borderColor: rivalsPlayer ? 'rgba(200,160,48,0.4)' : undefined }}
           />
-          {rivalsDropdown && rivalsQ.length > 0 && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-              background: '#0f1420', border: '1px solid rgba(200,160,48,0.25)',
-              borderRadius: '0 0 8px 8px', overflow: 'hidden',
-            }}>
-              {allPlayerNames
-                .filter(n => n.toLowerCase().includes(rivalsQ.toLowerCase()))
-                .slice(0, 8)
-                .map(n => (
-                  <div
-                    key={n}
-                    onMouseDown={() => { setRivalsPlayer(n); setRivalsQ(n); setRivalsDropdown(false); }}
-                    style={{
-                      padding: '9px 14px', cursor: 'pointer',
-                      fontFamily: FONT_HEADER, fontSize: 14, color: '#c8bfa8',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    }}
-                    onMouseOver={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.1)')}
-                    onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    {n}
-                  </div>
-                ))}
-              {allPlayerNames.filter(n => n.toLowerCase().includes(rivalsQ.toLowerCase())).length === 0 && (
-                <div style={{ padding: '9px 14px', fontFamily: FONT_MONO, fontSize: 11, color: '#556' }}>No matches</div>
-              )}
-            </div>
-          )}
         </div>
 
         {rivalsPlayer && rivalsData !== null && (

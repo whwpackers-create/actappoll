@@ -13,6 +13,7 @@ import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import type { AppData } from '../types';
 import type { AppOps } from '../types';
 import type { AuthState } from '../hooks/useAuth';
+import { PlayerPicker, usePlayerInfos } from './PlayerPicker';
 
 interface HistoryProps {
   data: AppData;
@@ -67,6 +68,7 @@ export function History({
   const [histYear, setHistYear] = useState('');
   const [histType, setHistType] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
+  const playerInfos = usePlayerInfos(data);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 12;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,22 +206,16 @@ export function History({
           <option value="12man">12-Man</option>
           <option value="16man">16-Man</option>
         </select>
-        <datalist id="hist-plist">
-          {data.players.map((p) => (
-            <option key={p.name} value={p.name} />
-          ))}
-        </datalist>
-        <input
-          list="hist-plist"
-          placeholder="Filter by player..."
-          value={playerSearch}
-          onChange={(e) => setPlayerSearch(e.target.value)}
-          style={{
-            ...selectStyle,
-            cursor: 'text',
-            minWidth: 160,
-          }}
-        />
+        <div style={{ minWidth: 160, display: 'flex' }}>
+          <PlayerPicker
+            players={playerInfos}
+            showStats={false}
+            placeholder="Filter by player..."
+            value={playerSearch}
+            onChange={setPlayerSearch}
+            style={{ ...selectStyle, cursor: 'text' }}
+          />
+        </div>
         <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#556' }}>
           {sorted.length} ACTs
         </span>

@@ -3,6 +3,7 @@ import { fsGet, fsSet, gid } from '../services/firestore';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import { TC, card, cHead, cTitle, cSub, inp, lbl, priBtn, secBtn } from '../styles/shared';
 import type { AppData, Act } from '../types';
+import { PlayerPicker, usePlayerInfos } from './PlayerPicker';
 
 interface NewActProps {
   data: AppData;
@@ -36,6 +37,7 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
   const [tv1Pair, setTv1Pair] = useState<'02' | '01' | '03'>('02');
   const tv1Idx = tv1Pair === '02' ? [0, 2] : tv1Pair === '01' ? [0, 1] : [0, 3];
   const tv2Idx = tv1Pair === '02' ? [1, 3] : tv1Pair === '01' ? [2, 3] : [1, 2];
+  const playerInfos = usePlayerInfos(data);
   const [teams, setTeams] = useState(
     Array.from({ length: 4 }, (_, i) => ({
       name: `Team ${i + 1}`,
@@ -546,15 +548,13 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                   }}
                 />
                 {t.members.map((m, mi) => (
-                  <input
+                  <PlayerPicker
                     key={mi}
-                    style={{ ...inp, fontSize: 13, marginTop: 4, padding: '6px 8px' }}
+                    players={playerInfos}
+                    showStats={false}
+                    style={{ fontSize: 13, marginTop: 4, padding: '6px 8px' }}
                     value={m}
-                    onChange={(e) => {
-                      const c = teams.map((x) => ({ ...x, members: [...x.members] }));
-                      c[ti].members[mi] = e.target.value;
-                      setTeams(c);
-                    }}
+                    onChange={(v) => setTeams((prev) => prev.map((x, j) => (j === ti ? { ...x, members: x.members.map((y, k) => (k === mi ? v : y)) } : x)))}
                     placeholder={
                       actType === '12man'
                         ? `Player ${mi + 1} (${['A', 'B', 'C'][mi]})`
@@ -562,20 +562,18 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
                           ? `Player ${mi + 1} (${tv1Idx.includes(mi) ? 'TV1' : 'TV2'})`
                           : `Player ${mi + 1} (${mi === 0 ? '1-4' : '5-8'})`
                     }
-                    list="plist"
-                    onBlur={() => {
-                      if (actType !== '12man') {
-                        const ms = teams.map((x) => ({ ...x, members: [...x.members] }));
-                        const tt = ms[ti];
+                    onCommit={() => {
+                      if (actType === '12man') return;
+                      setTeams((prev) => prev.map((tt, j) => {
+                        if (j !== ti) return tt;
                         if (actType === '16man') {
                           const names = tt.members.map(n => n.split(' ')[0]).filter(Boolean);
-                          if (names.length === 4) tt.name = names.join(' & ');
-                        } else if (tt.members[0] && tt.members[1]) {
-                          tt.name =
-                            tt.members[0].split(' ')[0] + ' & ' + tt.members[1].split(' ')[0];
+                          return names.length === 4 ? { ...tt, name: names.join(' & ') } : tt;
                         }
-                        setTeams(ms);
-                      }
+                        return tt.members[0] && tt.members[1]
+                          ? { ...tt, name: tt.members[0].split(' ')[0] + ' & ' + tt.members[1].split(' ')[0] }
+                          : tt;
+                      }));
                     }}
                   />
                 ))}
@@ -707,11 +705,6 @@ export function NewAct({ data, ops, setView, showToast, setSelAct }: NewActProps
             </div>
           )}
 
-          <datalist id="plist">
-            {data.players.map((p) => (
-              <option key={p.name} value={p.name} />
-            ))}
-          </datalist>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
               style={priBtn}

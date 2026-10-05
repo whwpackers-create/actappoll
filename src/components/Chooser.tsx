@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { PlayerPicker, buildPlayerInfos } from './PlayerPicker';
 import { FONT_HEADER, FONT_MONO } from '../styles/theme';
 import type { AppData } from '../types';
 import type { PlayerStats } from '../types';
@@ -134,7 +135,7 @@ function generateTeams(
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function Chooser({ setView, data, stats }: ChooserProps) {
+export function Chooser({ setView, stats }: ChooserProps) {
   const [tab, setTab] = useState<'picker' | 'generator'>('picker');
 
   // ── Pick Order state ──────────────────────────────────────────────────────
@@ -149,12 +150,7 @@ export function Chooser({ setView, data, stats }: ChooserProps) {
   const [names, setNames] = useState<string[]>(Array(16).fill(''));
   const [result, setResult] = useState<ReturnType<typeof generateTeams> | null>(null);
   const [genError, setGenError] = useState('');
-  const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
-
-  const rosterNames = data.players
-    .filter(p => p.active !== false)
-    .map(p => p.name)
-    .sort();
+  const playerInfos = useMemo(() => buildPlayerInfos(stats), [stats]);
 
   const eloMap = Object.fromEntries(stats.map(s => [s.name, Math.round(s.elo)]));
 
@@ -347,68 +343,18 @@ export function Chooser({ setView, data, stats }: ChooserProps) {
 
             {/* Player name inputs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8, marginBottom: 16 }}>
-              {Array.from({ length: playerCount }, (_, i) => {
-                const val = names[i] ?? '';
-                const suggestions = val.trim().length > 0
-                  ? rosterNames.filter(n => n.toLowerCase().includes(val.toLowerCase()) && n !== val).slice(0, 6)
-                  : [];
-                const isOpen = activeDropdown === i && suggestions.length > 0;
-                return (
-                  <div key={i} style={{ position: 'relative' }}>
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginBottom: 3 }}>
-                      Player {i + 1}
-                      {eloMap[names[i]?.trim()] && (
-                        <span style={{ color: '#60a5fa', marginLeft: 4 }}>{eloMap[names[i].trim()]} VR</span>
-                      )}
-                    </div>
-                    <input
-                      value={val}
-                      onChange={e => { setName(i, e.target.value); setActiveDropdown(i); }}
-                      onFocus={() => setActiveDropdown(i)}
-                      onBlur={() => setTimeout(() => setActiveDropdown(null), 150)}
-                      placeholder={`Player ${i + 1}`}
-                      style={{
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        background: 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${val.trim() ? 'rgba(200,160,48,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                        borderRadius: isOpen ? '6px 6px 0 0' : 6,
-                        padding: '8px 10px',
-                        fontFamily: FONT_HEADER,
-                        fontSize: 13,
-                        color: '#f0e6d3',
-                        outline: 'none',
-                      }}
-                    />
-                    {isOpen && (
-                      <div style={{
-                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-                        background: '#0f1420',
-                        border: '1px solid rgba(200,160,48,0.2)',
-                        borderTop: 'none',
-                        borderRadius: '0 0 6px 6px',
-                        overflow: 'hidden',
-                      }}>
-                        {suggestions.map(n => (
-                          <div
-                            key={n}
-                            onMouseDown={() => { setName(i, n); setActiveDropdown(null); }}
-                            style={{
-                              padding: '7px 10px', cursor: 'pointer',
-                              fontFamily: FONT_HEADER, fontSize: 13, color: '#c8bfa8',
-                              borderBottom: '1px solid rgba(255,255,255,0.04)',
-                            }}
-                            onMouseOver={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.1)')}
-                            onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            {n}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {Array.from({ length: playerCount }, (_, i) => (
+                <div key={i}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445', marginBottom: 3 }}>Player {i + 1}</div>
+                  <PlayerPicker
+                    value={names[i] ?? ''}
+                    players={playerInfos}
+                    placeholder={`Player ${i + 1}`}
+                    onChange={(v) => setName(i, v)}
+                    style={{ fontFamily: FONT_HEADER, fontSize: 13, padding: '8px 10px' }}
+                  />
+                </div>
+              ))}
             </div>
 
             {genError && (
