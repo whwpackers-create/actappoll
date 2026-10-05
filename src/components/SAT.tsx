@@ -32,6 +32,103 @@ interface RosterRow {
   sub2: string;
 }
 
+interface PlayerInfo {
+  name: string;
+  active: boolean;
+  elo: number;
+  rank: number | null; // VR rank among active players
+  actCount: number;
+  avgPtsAct: number;
+  winRate: number;
+}
+
+// Rank candidates for a typed query: exact > prefix > word-prefix > substring, then active, then VR
+function matchPlayers(q: string, list: PlayerInfo[], limit = 8): PlayerInfo[] {
+  const s = q.trim().toLowerCase();
+  if (!s) return [];
+  const score = (n: string) => {
+    const l = n.toLowerCase();
+    if (l === s) return 0;
+    if (l.startsWith(s)) return 1;
+    if (l.split(/\s+/).some((w) => w.startsWith(s))) return 2;
+    if (l.includes(s)) return 3;
+    return 9;
+  };
+  return list
+    .map((p) => ({ p, sc: score(p.name) }))
+    .filter((x) => x.sc < 9)
+    .sort((a, b) => a.sc - b.sc || Number(b.p.active) - Number(a.p.active) || b.p.elo - a.p.elo)
+    .slice(0, limit)
+    .map((x) => x.p);
+}
+
+// Map typed text to a real player name when unambiguous (case-insensitive exact, or a single match)
+function resolvePlayer(q: string, list: PlayerInfo[]): PlayerInfo | null {
+  const s = q.trim().toLowerCase();
+  if (!s) return null;
+  const exact = list.find((p) => p.name.toLowerCase() === s);
+  if (exact) return exact;
+  const all = matchPlayers(q, list, 50);
+  if (all.length === 1) return all[0];
+  const prefix = all.filter((p) => p.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(s)));
+  const activePrefix = prefix.filter((p) => p.active);
+  if (activePrefix.length === 1) return activePrefix[0];
+  return prefix.length === 1 ? prefix[0] : null;
+}
+
+function PlayerPicker({ value, onChange, placeholder, players }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  players: PlayerInfo[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const byName = useMemo(() => Object.fromEntries(players.map((p) => [p.name, p])), [players]);
+  const cur = byName[value] ?? null;
+  const suggs = cur ? [] : matchPlayers(value, players);
+  const pick = (n: string) => { onChange(n); setOpen(false); setHi(0); };
+  return (
+    <div style={{ flex: 1, position: 'relative' }}>
+      <input style={{ ...inp, width: '100%', boxSizing: 'border-box', borderColor: value.trim() && !cur ? 'rgba(233,69,96,0.6)' : undefined }}
+        value={value}
+        placeholder={placeholder}
+        onFocus={() => { setOpen(true); setHi(0); }}
+        onBlur={() => {
+          setOpen(false);
+          const r = cur ? null : resolvePlayer(value, players);
+          if (r) onChange(r.name);
+        }}
+        onKeyDown={(e) => {
+          if (!open || suggs.length === 0) return;
+          if (e.key === 'ArrowDown') { e.preventDefault(); setHi((hi + 1) % suggs.length); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((hi - 1 + suggs.length) % suggs.length); }
+          else if (e.key === 'Enter') { e.preventDefault(); pick(suggs[Math.min(hi, suggs.length - 1)].name); }
+          else if (e.key === 'Tab') pick(suggs[Math.min(hi, suggs.length - 1)].name);
+          else if (e.key === 'Escape') setOpen(false);
+        }}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} />
+      {open && suggs.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 100, marginTop: 2, overflow: 'hidden' }}>
+          {suggs.map((p, si) => (
+            <div key={p.name} onMouseDown={(e) => { e.preventDefault(); pick(p.name); }}
+              onMouseEnter={() => setHi(si)}
+              style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: p.active ? '#e0d4c0' : '#667', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', background: si === hi ? 'rgba(200,160,48,0.12)' : 'transparent', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span>{p.name}{!p.active && <span style={{ fontSize: 9, color: '#556' }}> (inactive)</span>}</span>
+              <span style={{ color: '#c8a030', fontSize: 10 }}>{p.rank ? `#${p.rank} · ` : ''}{p.elo} VR</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontFamily: FONT_MONO, fontSize: 9, marginTop: 3, minHeight: 12, color: cur ? '#8090a0' : '#e94560' }}>
+        {cur
+          ? <><span style={{ color: '#c8a030' }}>{cur.rank ? `#${cur.rank} · ` : ''}{cur.elo} VR</span> · {cur.actCount} ACTs · {cur.avgPtsAct.toFixed(1)} pts/ACT · {Math.round(cur.winRate * 100)}% W</>
+          : value.trim() ? 'Not a known player — pick from list' : ''}
+      </div>
+    </div>
+  );
+}
+
 interface AuthState {
   req: (fn: () => void | Promise<void>) => void;
 }
@@ -160,7 +257,6 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [upTeams, setUpTeams] = useState<{ p1: string; p2: string }[]>([{ p1: '', p2: '' }]);
   const [editingUpcoming, setEditingUpcoming] = useState(false);
   const [editUpTeams, setEditUpTeams] = useState<{ p1: string; p2: string }[]>([]);
-  const [upActiveDropdown, setUpActiveDropdown] = useState<string | null>(null); // key = "form-i-p1" etc
 
   // Heat time + scorecard state
   const [editingTimeIdx, setEditingTimeIdx] = useState<number | null>(null);
@@ -192,6 +288,26 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     () => data.players.filter((p) => p.active !== false).map((p) => p.name).sort(),
     [data.players]
   );
+  const playerInfos = useMemo<PlayerInfo[]>(() => {
+    const ranked = allStats.filter((s) => s.active !== false).sort((a, b) => b.elo - a.elo);
+    const rankOf = Object.fromEntries(ranked.map((s, i) => [s.name, i + 1]));
+    return allStats.map((s) => ({
+      name: s.name,
+      active: s.active !== false,
+      elo: s.elo,
+      rank: rankOf[s.name] ?? null,
+      actCount: s.actCount,
+      avgPtsAct: s.avgPtsAct,
+      winRate: s.winRate,
+    }));
+  }, [allStats]);
+  // Normalize typed names to real player names before saving an upcoming roster
+  const buildUpRoster = (rows: { p1: string; p2: string }[]) =>
+    rows.filter((t) => t.p1.trim() || t.p2.trim()).map((t) => {
+      const p1 = resolvePlayer(t.p1, playerInfos)?.name ?? t.p1.trim();
+      const p2 = resolvePlayer(t.p2, playerInfos)?.name ?? t.p2.trim();
+      return { name: (p1.split(' ')[0] ?? '') + (p2 ? ' & ' + p2.split(' ')[0] : ''), members: [p1, p2] };
+    });
 
   const sats = (data.sats ?? []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const curSat = selSat ? sats.find((s) => (s.id ?? s._id) === selSat) ?? null : null;
@@ -666,33 +782,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                   {upTeams.map((t, i) => (
                     <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                       <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
-                      {(['p1', 'p2'] as const).map((pk) => {
-                        const dk = `form-${i}-${pk}`;
-                        const val = t[pk];
-                        const suggs = val.trim() ? rosterNames.filter(n => n.toLowerCase().includes(val.toLowerCase()) && n !== val).slice(0, 6) : [];
-                        return (
-                          <div key={pk} style={{ flex: 1, position: 'relative' }}>
-                            <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
-                              value={val}
-                              placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
-                              onFocus={() => setUpActiveDropdown(dk)}
-                              onBlur={() => setTimeout(() => setUpActiveDropdown(null), 150)}
-                              onChange={(e) => { const c = [...upTeams]; c[i] = { ...c[i], [pk]: e.target.value }; setUpTeams(c); }} />
-                            {upActiveDropdown === dk && suggs.length > 0 && (
-                              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 100, marginTop: 2, overflow: 'hidden' }}>
-                                {suggs.map(n => (
-                                  <div key={n} onMouseDown={() => { const c = [...upTeams]; c[i] = { ...c[i], [pk]: n }; setUpTeams(c); setUpActiveDropdown(null); }}
-                                    style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.12)')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                    {n} <span style={{ color: '#c8a030', fontSize: 10 }}>{vrMap[n] ? vrMap[n] + ' VR' : ''}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {(['p1', 'p2'] as const).map((pk) => (
+                        <PlayerPicker key={pk} value={t[pk]} players={playerInfos}
+                          placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
+                          onChange={(v) => setUpTeams((prev) => { const c = [...prev]; c[i] = { ...c[i], [pk]: v }; return c; })} />
+                      ))}
                       {upTeams.length > 1 && (
                         <button onClick={() => setUpTeams(upTeams.filter((_, j) => j !== i))} style={{ ...delBtn, padding: '4px 8px' }}>✕</button>
                       )}
@@ -704,10 +798,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                     <button style={priBtn} onClick={() => {
                       if (!upName.trim() || !upDate) { showToast('Name and date required'); return; }
                       auth.req(async () => {
-                        const roster = upTeams.filter(t => t.p1.trim() || t.p2.trim()).map((t) => ({
-                          name: (t.p1.split(' ')[0] ?? '') + (t.p2 ? ' & ' + t.p2.split(' ')[0] : ''),
-                          members: [t.p1.trim(), t.p2.trim()],
-                        }));
+                        const roster = buildUpRoster(upTeams);
                         const id = gid();
                         await ops.addSat({ id, _id: id, name: upName.trim(), date: upDate, upcoming: true, teams: [], races: [], rounds: 4, roster } as unknown as typeof data.sats[0]);
                         setShowUpcomingForm(false);
@@ -1465,30 +1556,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             {editUpTeams.map((t, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#445', minWidth: 20 }}>#{i + 1}</span>
-                {(['p1', 'p2'] as const).map((pk) => {
-                  const dk = `edit-${i}-${pk}`; const val = t[pk];
-                  const suggs = val.trim() ? rosterNames.filter(n => n.toLowerCase().includes(val.toLowerCase()) && n !== val).slice(0, 6) : [];
-                  return (
-                    <div key={pk} style={{ flex: 1, position: 'relative' }}>
-                      <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }} value={val}
-                        placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
-                        onFocus={() => setUpActiveDropdown(dk)} onBlur={() => setTimeout(() => setUpActiveDropdown(null), 150)}
-                        onChange={(e) => { const c = [...editUpTeams]; c[i] = { ...c[i], [pk]: e.target.value }; setEditUpTeams(c); }} />
-                      {upActiveDropdown === dk && suggs.length > 0 && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 100, marginTop: 2, overflow: 'hidden' }}>
-                          {suggs.map(n => (
-                            <div key={n} onMouseDown={() => { const c = [...editUpTeams]; c[i] = { ...c[i], [pk]: n }; setEditUpTeams(c); setUpActiveDropdown(null); }}
-                              style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,160,48,0.12)')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                              {n} <span style={{ color: '#c8a030', fontSize: 10 }}>{vrMap[n] ? vrMap[n] + ' VR' : ''}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {(['p1', 'p2'] as const).map((pk) => (
+                  <PlayerPicker key={pk} value={t[pk]} players={playerInfos}
+                    placeholder={pk === 'p1' ? 'Player 1' : 'Player 2'}
+                    onChange={(v) => setEditUpTeams((prev) => { const c = [...prev]; c[i] = { ...c[i], [pk]: v }; return c; })} />
+                ))}
                 {editUpTeams.length > 1 && <button onClick={() => setEditUpTeams(editUpTeams.filter((_, j) => j !== i))} style={{ ...delBtn, padding: '4px 8px' }}>✕</button>}
               </div>
             ))}
@@ -1497,10 +1569,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               <button style={secBtn} onClick={() => setEditingUpcoming(false)}>Cancel</button>
               <button style={priBtn} onClick={() => {
                 auth.req(async () => {
-                  const roster = editUpTeams.filter(t => t.p1.trim() || t.p2.trim()).map((t) => ({
-                    name: (t.p1.split(' ')[0] ?? '') + (t.p2 ? ' & ' + t.p2.split(' ')[0] : ''),
-                    members: [t.p1.trim(), t.p2.trim()],
-                  }));
+                  const roster = buildUpRoster(editUpTeams);
                   await ops.updateSat(curSat.id ?? curSat._id ?? '', { roster });
                   setEditingUpcoming(false); showToast('Updated!');
                 });
