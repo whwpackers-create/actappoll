@@ -1,4 +1,4 @@
-import { useState, Fragment, useMemo } from 'react';
+import { useState, Fragment, useMemo, useRef, type CSSProperties } from 'react';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
 import { computeStats, SAT_ROUND_MULTI } from '../utils/VR';
 import {
@@ -76,40 +76,55 @@ function resolvePlayer(q: string, list: PlayerInfo[]): PlayerInfo | null {
   return prefix.length === 1 ? prefix[0] : null;
 }
 
-function PlayerPicker({ value, onChange, placeholder, players }: {
+function PlayerPicker({ value, onChange, onCommit, onEnter, onEscape, placeholder, players, style, showStats = true, autoFocus }: {
   value: string;
   onChange: (v: string) => void;
+  onCommit?: (v: string) => void; // fires on blur / pick with the resolved value
+  onEnter?: (v: string) => void; // Enter with no dropdown open
+  onEscape?: () => void;
   placeholder: string;
   players: PlayerInfo[];
+  style?: CSSProperties;
+  showStats?: boolean;
+  autoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
   const byName = useMemo(() => Object.fromEntries(players.map((p) => [p.name, p])), [players]);
   const cur = byName[value] ?? null;
   const suggs = cur ? [] : matchPlayers(value, players);
-  const pick = (n: string) => { onChange(n); setOpen(false); setHi(0); };
+  const show = () => { setOpen(true); setRect(ref.current?.getBoundingClientRect() ?? null); };
+  const pick = (n: string) => { onChange(n); onCommit?.(n); setOpen(false); setHi(0); };
   return (
-    <div style={{ flex: 1, position: 'relative' }}>
-      <input style={{ ...inp, width: '100%', boxSizing: 'border-box', borderColor: value.trim() && !cur ? 'rgba(233,69,96,0.6)' : undefined }}
+    <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+      <input ref={ref} autoFocus={autoFocus}
+        style={{ ...inp, width: '100%', boxSizing: 'border-box', ...style, ...(value.trim() && !cur ? { borderColor: 'rgba(233,69,96,0.6)' } : {}) }}
         value={value}
         placeholder={placeholder}
-        onFocus={() => { setOpen(true); setHi(0); }}
+        onFocus={() => { show(); setHi(0); }}
         onBlur={() => {
           setOpen(false);
           const r = cur ? null : resolvePlayer(value, players);
           if (r) onChange(r.name);
+          onCommit?.(r ? r.name : value);
         }}
         onKeyDown={(e) => {
-          if (!open || suggs.length === 0) return;
+          if (e.key === 'Escape') onEscape?.();
+          if (!open || suggs.length === 0) {
+            if (e.key === 'Enter') onEnter?.(cur ? value : resolvePlayer(value, players)?.name ?? value);
+            return;
+          }
           if (e.key === 'ArrowDown') { e.preventDefault(); setHi((hi + 1) % suggs.length); }
           else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((hi - 1 + suggs.length) % suggs.length); }
           else if (e.key === 'Enter') { e.preventDefault(); pick(suggs[Math.min(hi, suggs.length - 1)].name); }
           else if (e.key === 'Tab') pick(suggs[Math.min(hi, suggs.length - 1)].name);
           else if (e.key === 'Escape') setOpen(false);
         }}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} />
-      {open && suggs.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 100, marginTop: 2, overflow: 'hidden' }}>
+        onChange={(e) => { onChange(e.target.value); show(); setHi(0); }} />
+      {open && suggs.length > 0 && rect && (
+        <div style={{ position: 'fixed', top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 220), background: '#1a1f2e', border: '1px solid rgba(200,160,48,0.3)', borderRadius: 6, zIndex: 1000, overflow: 'hidden', textAlign: 'left' }}>
           {suggs.map((p, si) => (
             <div key={p.name} onMouseDown={(e) => { e.preventDefault(); pick(p.name); }}
               onMouseEnter={() => setHi(si)}
@@ -120,11 +135,11 @@ function PlayerPicker({ value, onChange, placeholder, players }: {
           ))}
         </div>
       )}
-      <div style={{ fontFamily: FONT_MONO, fontSize: 9, marginTop: 3, minHeight: 12, color: cur ? '#8090a0' : '#e94560' }}>
+      {showStats && <div style={{ fontFamily: FONT_MONO, fontSize: 9, marginTop: 3, minHeight: 12, color: cur ? '#8090a0' : '#e94560' }}>
         {cur
           ? <><span style={{ color: '#c8a030' }}>{cur.rank ? `#${cur.rank} · ` : ''}{cur.elo} VR</span> · {cur.actCount} ACTs · {cur.avgPtsAct.toFixed(1)} pts/ACT · {Math.round(cur.winRate * 100)}% W</>
           : value.trim() ? 'Not a known player — pick from list' : ''}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -284,10 +299,6 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     () => Object.fromEntries(allStats.map((s) => [s.name, s.elo])),
     [allStats]
   );
-  const rosterNames = useMemo(
-    () => data.players.filter((p) => p.active !== false).map((p) => p.name).sort(),
-    [data.players]
-  );
   const playerInfos = useMemo<PlayerInfo[]>(() => {
     const ranked = allStats.filter((s) => s.active !== false).sort((a, b) => b.elo - a.elo);
     const rankOf = Object.fromEntries(ranked.map((s, i) => [s.name, i + 1]));
@@ -301,6 +312,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       winRate: s.winRate,
     }));
   }, [allStats]);
+  const canon = (n: string) => resolvePlayer(n, playerInfos)?.name ?? n.trim();
+  const canonRow = (t: RosterRow): RosterRow => ({ ...t, p1: canon(t.p1), p2: canon(t.p2), sub1: canon(t.sub1), sub2: canon(t.sub2) });
   // Normalize typed names to real player names before saving an upcoming roster
   const buildUpRoster = (rows: { p1: string; p2: string }[]) =>
     rows.filter((t) => t.p1.trim() || t.p2.trim()).map((t) => {
@@ -334,6 +347,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     if (!curSat) return;
     auth.req(async () => {
       const roster = eSatRoster
+        .map(canonRow)
         .filter((t) => t.p1 && t.p2)
         .map((t) => ({
           name: t.p1.split(' ')[0] + ' & ' + t.p2.split(' ')[0],
@@ -519,6 +533,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     auth.req(async () => {
       if (!satName.trim()) return;
       const roster = satRoster
+        .map(canonRow)
         .filter((t) => t.p1 && t.p2)
         .map((t) => ({
           name: t.p1.split(' ')[0] + ' & ' + t.p2.split(' ')[0],
@@ -1164,34 +1179,14 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       }
                       placeholder="#"
                     />
-                    <input
-                      style={{ ...inp, fontSize: 11, padding: '4px 6px' }}
-                      value={t.p1}
-                      onChange={(e) => updateRosterTeam(i, 'p1', e.target.value)}
-                      placeholder="Player 1"
-                      list="plist"
-                    />
-                    <input
-                      style={{ ...inp, fontSize: 11, padding: '4px 6px' }}
-                      value={t.p2}
-                      onChange={(e) => updateRosterTeam(i, 'p2', e.target.value)}
-                      placeholder="Player 2"
-                      list="plist"
-                    />
-                    <input
-                      style={{ ...inp, fontSize: 10, padding: '4px 6px', borderColor: 'rgba(192,132,252,0.2)' }}
-                      value={t.sub1}
-                      onChange={(e) => updateRosterTeam(i, 'sub1', e.target.value)}
-                      placeholder="Sub 1"
-                      list="plist"
-                    />
-                    <input
-                      style={{ ...inp, fontSize: 10, padding: '4px 6px', borderColor: 'rgba(192,132,252,0.2)' }}
-                      value={t.sub2}
-                      onChange={(e) => updateRosterTeam(i, 'sub2', e.target.value)}
-                      placeholder="Sub 2"
-                      list="plist"
-                    />
+                    {(['p1', 'p2', 'sub1', 'sub2'] as const).map((k) => (
+                      <PlayerPicker key={k} value={t[k]} players={playerInfos} showStats={false}
+                        style={k.startsWith('sub')
+                          ? { fontSize: 10, padding: '4px 6px', borderColor: 'rgba(192,132,252,0.2)' }
+                          : { fontSize: 11, padding: '4px 6px' }}
+                        placeholder={{ p1: 'Player 1', p2: 'Player 2', sub1: 'Sub 1', sub2: 'Sub 2' }[k]}
+                        onChange={(v) => setSatRoster((prev) => prev.map((x, j) => (j === i ? { ...x, [k]: v } : x)))} />
+                    ))}
                     <button onClick={() => removeRosterTeam(i)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: 14 }}>
                       ✕
                     </button>
@@ -1199,11 +1194,6 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 ))}
               </div>
             )}
-            <datalist id="plist">
-              {data.players.map((p) => (
-                <option key={p.name} value={p.name} />
-              ))}
-            </datalist>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
             <button
@@ -1272,7 +1262,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const saveSub = (key: string, subName: string) => {
       auth.req(async () => {
         const next = { ...heatSubs };
-        if (subName.trim()) next[key] = subName.trim();
+        subName = canon(subName);
+        if (subName) next[key] = subName;
         else delete next[key];
         const sid = curSat.id ?? curSat._id ?? '';
         await fsUpdate('sats', sid, { heatSubsJson: JSON.stringify(next) });
@@ -1669,11 +1660,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                     <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
                                     {isEditing ? (
                                       <>
-                                        <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
-                                          placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
-                                          onChange={(e) => setEditingSubVal(e.target.value)}
-                                          onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
-                                        <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                                        <PlayerPicker autoFocus players={playerInfos} showStats={false} style={{ fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                          placeholder={`Sub for ${member.split(' ')[0]}…`}
+                                          onChange={setEditingSubVal}
+                                          onEnter={(v) => saveSub(subKey, v)}
+                                          onEscape={() => { setEditingSubKey(null); setEditingSubVal(''); }} />
                                         <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
                                         <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
                                       </>
@@ -1778,11 +1769,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                   <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
                                   {isEditing ? (
                                     <>
-                                      <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
-                                        placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
-                                        onChange={(e) => setEditingSubVal(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
-                                      <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                                      <PlayerPicker autoFocus players={playerInfos} showStats={false} style={{ fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                        placeholder={`Sub for ${member.split(' ')[0]}…`}
+                                        onChange={setEditingSubVal}
+                                        onEnter={(v) => saveSub(subKey, v)}
+                                        onEscape={() => { setEditingSubKey(null); setEditingSubVal(''); }} />
                                       <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
                                       <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
                                     </>
@@ -1904,11 +1895,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                   <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
                                   {isEditing ? (
                                     <>
-                                      <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
-                                        placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
-                                        onChange={(e) => setEditingSubVal(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
-                                      <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                                      <PlayerPicker autoFocus players={playerInfos} showStats={false} style={{ fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                        placeholder={`Sub for ${member.split(' ')[0]}…`}
+                                        onChange={setEditingSubVal}
+                                        onEnter={(v) => saveSub(subKey, v)}
+                                        onEscape={() => { setEditingSubKey(null); setEditingSubVal(''); }} />
                                       <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
                                       <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
                                     </>
@@ -1998,11 +1989,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                           <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556', minWidth: 55 }}>{member.split(' ')[0]}</span>
                           {isEditing ? (
                             <>
-                              <input autoFocus style={{ ...inp, flex: 1, fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
-                                placeholder={`Sub for ${member.split(' ')[0]}…`} list="plist-subs"
-                                onChange={(e) => setEditingSubVal(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') saveSub(subKey, editingSubVal); if (e.key === 'Escape') { setEditingSubKey(null); setEditingSubVal(''); } }} />
-                              <datalist id="plist-subs">{rosterNames.map(n => <option key={n} value={n} />)}</datalist>
+                              <PlayerPicker autoFocus players={playerInfos} showStats={false} style={{ fontSize: 10, padding: '2px 5px' }} value={editingSubVal}
+                                placeholder={`Sub for ${member.split(' ')[0]}…`}
+                                onChange={setEditingSubVal}
+                                onEnter={(v) => saveSub(subKey, v)}
+                                onEscape={() => { setEditingSubKey(null); setEditingSubVal(''); }} />
                               <button style={{ ...priBtn, padding: '2px 5px', fontSize: 9 }} onClick={() => saveSub(subKey, editingSubVal)}>✓</button>
                               <button style={{ ...secBtn, padding: '2px 4px', fontSize: 9 }} onClick={() => { setEditingSubKey(null); setEditingSubVal(''); }}>✕</button>
                             </>
@@ -2778,50 +2769,14 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                           }}
                           placeholder="#"
                         />
-                        <input
-                          style={{ ...inp, fontSize: 10, padding: '3px 5px' }}
-                          value={t.p1}
-                          onChange={(e) => {
-                            const r = eSatRoster.map((x) => ({ ...x }));
-                            r[i].p1 = e.target.value;
-                            setESatRoster(r);
-                          }}
-                          placeholder="P1"
-                          list="plist"
-                        />
-                        <input
-                          style={{ ...inp, fontSize: 10, padding: '3px 5px' }}
-                          value={t.p2}
-                          onChange={(e) => {
-                            const r = eSatRoster.map((x) => ({ ...x }));
-                            r[i].p2 = e.target.value;
-                            setESatRoster(r);
-                          }}
-                          placeholder="P2"
-                          list="plist"
-                        />
-                        <input
-                          style={{ ...inp, fontSize: 9, padding: '3px 5px', borderColor: 'rgba(192,132,252,0.2)' }}
-                          value={t.sub1}
-                          onChange={(e) => {
-                            const r = eSatRoster.map((x) => ({ ...x }));
-                            r[i].sub1 = e.target.value;
-                            setESatRoster(r);
-                          }}
-                          placeholder="Sub1"
-                          list="plist"
-                        />
-                        <input
-                          style={{ ...inp, fontSize: 9, padding: '3px 5px', borderColor: 'rgba(192,132,252,0.2)' }}
-                          value={t.sub2}
-                          onChange={(e) => {
-                            const r = eSatRoster.map((x) => ({ ...x }));
-                            r[i].sub2 = e.target.value;
-                            setESatRoster(r);
-                          }}
-                          placeholder="Sub2"
-                          list="plist"
-                        />
+                        {(['p1', 'p2', 'sub1', 'sub2'] as const).map((k) => (
+                          <PlayerPicker key={k} value={t[k]} players={playerInfos} showStats={false}
+                            style={k.startsWith('sub')
+                              ? { fontSize: 9, padding: '3px 5px', borderColor: 'rgba(192,132,252,0.2)' }
+                              : { fontSize: 10, padding: '3px 5px' }}
+                            placeholder={{ p1: 'P1', p2: 'P2', sub1: 'Sub1', sub2: 'Sub2' }[k]}
+                            onChange={(v) => setESatRoster((prev) => prev.map((x, j) => (j === i ? { ...x, [k]: v } : x)))} />
+                        ))}
                         <button
                           onClick={() => setESatRoster(eSatRoster.filter((_, j) => j !== i))}
                           style={{
@@ -2950,30 +2905,21 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                               </div>
                             )}
                             {(t.members ?? []).map((m, mi) => (
-                              <input
+                              <PlayerPicker
                                 key={mi}
-                                style={{ ...inp, fontSize: 12, marginTop: 4, padding: '6px 8px' }}
+                                players={playerInfos}
+                                showStats={false}
+                                style={{ fontSize: 12, marginTop: 4, padding: '6px 8px' }}
                                 value={m}
-                                onChange={(e) => {
-                                  const c = heatTeams.map((x) => ({
-                                    ...x,
-                                    members: [...(x.members ?? [])],
-                                    subs: [...(x.subs ?? ['', ''])],
-                                  }));
-                                  c[ti].members[mi] = e.target.value;
-                                  setHeatTeams(c);
-                                }}
-                                onBlur={() => {
-                                  const c = heatTeams.map((x) => ({
-                                    ...x,
-                                    members: [...(x.members ?? [])],
-                                    subs: [...(x.subs ?? ['', ''])],
-                                  }));
-                                  c[ti].name = autoTeamName(c[ti].members ?? []) || c[ti].name;
-                                  setHeatTeams(c);
-                                }}
+                                onChange={(v) => setHeatTeams((prev) => prev.map((x, j) => {
+                                  if (j !== ti) return x;
+                                  const members = [...(x.members ?? [])];
+                                  members[mi] = v;
+                                  return { ...x, members };
+                                }))}
+                                onCommit={() => setHeatTeams((prev) => prev.map((x, j) =>
+                                  j === ti ? { ...x, name: autoTeamName(x.members ?? []) || x.name } : x))}
                                 placeholder={'Player ' + (mi + 1)}
-                                list="plist"
                               />
                             ))}
                             <div
@@ -3016,27 +2962,23 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                                     >
                                       {pName} {'→'}
                                     </span>
-                                    <input
+                                    <PlayerPicker
+                                      players={playerInfos}
+                                      showStats={false}
                                       style={{
-                                        ...inp,
                                         fontSize: 11,
                                         padding: '4px 6px',
                                         borderColor: subVal ? 'rgba(192,132,252,0.4)' : 'rgba(192,132,252,0.15)',
-                                        flex: 1,
                                         background: subVal ? 'rgba(192,132,252,0.06)' : 'rgba(255,255,255,0.02)',
                                       }}
                                       value={subVal}
-                                      onChange={(e) => {
-                                        const c = heatTeams.map((x) => ({
-                                          ...x,
-                                          members: [...(x.members ?? [])],
-                                          subs: [...(x.subs ?? ['', ''])],
-                                        }));
-                                        c[ti].subs![mi] = e.target.value;
-                                        setHeatTeams(c);
-                                      }}
+                                      onChange={(v) => setHeatTeams((prev) => prev.map((x, j) => {
+                                        if (j !== ti) return x;
+                                        const subs = [...(x.subs ?? ['', ''])];
+                                        subs[mi] = v;
+                                        return { ...x, subs };
+                                      }))}
                                       placeholder="no sub"
-                                      list="plist"
                                     />
                                   </div>
                                 );
@@ -3046,11 +2988,6 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                         );
                       })}
                     </div>
-                    <datalist id="plist">
-                      {data.players.map((p) => (
-                        <option key={p.name} value={p.name} />
-                      ))}
-                    </datalist>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                       <div style={{ flex: 1 }}>
                         <label style={lbl}>Race Order</label>
