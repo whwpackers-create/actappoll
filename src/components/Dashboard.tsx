@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD } from '../utils/VR';
+import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased } from '../utils/VR';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -850,6 +850,32 @@ export function Dashboard({
           return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
         }).sort((a, b) => b.avgVR - a.avgVR).map((t, i) => ({ ...t, seedNum: i + 1 }));
         if (teams.length === 0) return null;
+        if (!satHeatsReleased(sat)) {
+          // Heats not assigned yet — just the ranked team list
+          return (
+            <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
+              <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 18 }}>🏆</span>
+                  <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4', letterSpacing: 2 }}>UPCOMING SAT</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · starts {satDate} · {teams.length} team{teams.length === 1 ? '' : 's'}</span>
+                  {viewBtn}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', columnGap: 16 }}>
+                  {teams.map((t) => (
+                    <div key={t.seedNum} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontFamily: FONT_MONO, fontSize: 12 }}>
+                      <span style={{ fontFamily: FONT_HEADER, minWidth: 28, color: t.seedNum === 1 ? '#fbbf24' : t.seedNum === 2 ? '#94a3b8' : t.seedNum === 3 ? '#cd7f32' : '#556' }}>#{t.seedNum}</span>
+                      <span style={{ color: '#e0d4c0', flex: 1, minWidth: 0 }}>
+                        {t.members[0]}<span style={{ color: '#8090a0' }}> &amp; {t.members[1]}</span>
+                      </span>
+                      <span style={{ color: '#c8a030', fontSize: 10 }}>{t.avgVR}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        }
         const NUM_HEATS = 6;
         const teamByName = Object.fromEntries(teams.map((t) => [t.name, t]));
         const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);

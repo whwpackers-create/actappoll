@@ -1,7 +1,7 @@
 import { useState, Fragment, useMemo } from 'react';
 import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
-import { computeStats, SAT_ROUND_MULTI } from '../utils/VR';
+import { computeStats, SAT_ROUND_MULTI, satHeatsReleased } from '../utils/VR';
 import {
   card,
   cHead,
@@ -1148,6 +1148,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       });
     }
     const heatColors = ['#f9a8d4','#8be9fd','#50fa7b','#f5a623','#c084fc','#fbbf24'];
+    const heatsReleased = satHeatsReleased(curSat);
 
 
     const heatSubs: Record<string, string> = (() => {
@@ -1487,8 +1488,14 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             <span style={cTitle}>🏁 Round 1</span>
             <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#50fa7b', background: 'rgba(80,250,123,0.08)', border: '1px solid rgba(80,250,123,0.2)', borderRadius: 4, padding: '1px 6px' }}>1.1×</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={cSub}>{completedCount}/{NUM_HEATS} heats</span>
-              {completedCount === 0 && !editingDay1Bracket && (
+              <span style={cSub}>{heatsReleased ? `${completedCount}/${NUM_HEATS} heats` : 'Heats not assigned yet'}</span>
+              {!heatsReleased && (
+                <button onClick={() => auth.req(async () => { await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatsReleased: true }); showToast('Heats assigned!'); })}
+                  style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(249,168,212,0.1)', border: '1px solid rgba(249,168,212,0.3)', borderRadius: 4, padding: '3px 8px', color: '#f9a8d4', cursor: 'pointer' }}>
+                  🏁 Assign Heats
+                </button>
+              )}
+              {heatsReleased && completedCount === 0 && !editingDay1Bracket && (
                 <button onClick={() => auth.req(() => { setD1BracketEdits(seededHeats.map(h => h.map(t => ({ name: t.name, members: t.members, subs: t.subs ?? [], score: 0, seed: t.seed ?? 0 })))); setEditingDay1Bracket(true); setD1BracketSel(null); })}
                   style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(80,250,123,0.08)', border: '1px solid rgba(80,250,123,0.2)', borderRadius: 4, padding: '3px 8px', color: '#50fa7b', cursor: 'pointer' }}>
                   ✏ Edit Bracket
@@ -1586,9 +1593,27 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 })}
               </div>
             </>
-          ) : (
+          ) : heatsReleased ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
               {seededHeats.map((hTeams, hi) => hTeams.length === 0 ? null : renderRoundHeat(hTeams, heatResults[hi], hi, 0, heatColors[hi] ?? '#f9a8d4', 2, hi))}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {teams.map((t, i) => (
+                <div key={t.name + i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px', borderTop: i > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none', fontFamily: FONT_MONO, fontSize: 12 }}>
+                  <span style={{ fontFamily: FONT_HEADER, minWidth: 28, color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#556' }}>#{i + 1}</span>
+                  <span style={{ color: '#e0d4c0', flex: 1, minWidth: 0 }}>
+                    {t.members.map((m, mi) => (
+                      <Fragment key={mi}>
+                        {mi > 0 && <span style={{ color: '#556' }}> & </span>}
+                        {m}{vrMap[m] === undefined && <span style={{ color: '#c084fc', fontSize: 9 }}> new</span>}
+                      </Fragment>
+                    ))}
+                  </span>
+                  <span style={{ color: '#445', fontSize: 10 }}>{t.vr1} / {t.vr2}</span>
+                  <span style={{ color: '#c8a030', minWidth: 64, textAlign: 'right' }}>{t.avgVR} VR</span>
+                </div>
+              ))}
             </div>
           )}
         </div>

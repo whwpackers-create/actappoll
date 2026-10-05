@@ -97,6 +97,7 @@ export interface Sat extends Act {
   heats?: SatHeat[];
   upcoming?: boolean;
   heatTimes?: string[];
+  heatsReleased?: boolean; // false → show ranked team list instead of Day 1 heats
   heatAssignmentsJson?: string;
   heatSubsJson?: string;
   day1Cuts?: string[][];

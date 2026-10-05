@@ -551,3 +551,8 @@ export function teamScores(act: Act): TeamScore[] {
     })
     .sort((a, b) => b.score - a.score);
 }
+
+// Day 1 heats are shown once released via the Assign Heats button (or any heat data already exists)
+export function satHeatsReleased(s: Sat): boolean {
+  return !!s.heatsReleased || (s.heats ?? []).length > 0 || (s.heatTimes ?? []).some(Boolean) || !!s.heatAssignmentsJson;
+}
