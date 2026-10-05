@@ -441,6 +441,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         id: gid(),
         name: satName.trim(),
         date: satDate,
+        upcoming: true,
         type: '8man',
         teams: [],
         races: [],
@@ -632,7 +633,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
 
         {/* Upcoming SATs */}
         {(() => {
-          const upcoming = sats.filter((s) => s.upcoming && !(s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1));
+          // Any SAT that hasn't reached Finals is upcoming (whether made via + Upcoming SAT or + New SAT)
+          const upcoming = sats.filter((s) => !(s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1));
           if (upcoming.length === 0 && !showUpcomingForm) return null;
           return (
             <div style={{ marginBottom: 20 }}>
@@ -726,7 +728,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             </div>
           </div>
         ) : (
-          sats.filter((s) => !s.upcoming || (s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1)).map((sat) => {
+          sats.filter((s) => (s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1)).map((sat) => {
             const sid = sat.id ?? sat._id ?? '';
             const hc = (sat.heats ?? []).length;
             const w = sat.placements?.winner?.[0];
@@ -1112,7 +1114,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     !!(s && (s.heats ?? []).some(h => h.round === (s.rounds ?? 4) - 1));
 
   // === UPCOMING DETAIL — REPLACED BELOW ===
-  if (curSat?.upcoming && !showHeatEntry && !satIsConcluded(curSat)) {
+  if (curSat && !showHeatEntry && !satIsConcluded(curSat)) {
     const rosterVRs = (curSat.roster ?? []).flatMap((t) =>
       t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
     );

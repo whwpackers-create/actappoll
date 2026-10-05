@@ -697,7 +697,7 @@ export function Dashboard({
       {(() => {
         // Next upcoming SAT that has at least one team and hasn't reached Finals
         const upcomingSats = (data.sats ?? []).filter((s) =>
-          s.upcoming && (s.roster ?? []).length > 0 && !(s.heats ?? []).some((h) => h.round === (s.rounds ?? 4) - 1));
+          (s.roster ?? []).length > 0 && !(s.heats ?? []).some((h) => h.round === (s.rounds ?? 4) - 1));
         if (upcomingSats.length === 0) return null;
         const sat = [...upcomingSats].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
         const satDate = new Date(sat.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
