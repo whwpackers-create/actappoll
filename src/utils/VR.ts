@@ -3,6 +3,10 @@ import type { Act, Player, Sat, Season, PlayerStats, EloHistoryEntry } from '../
 // ─── VR System Constants ────────────────────────────────────────────────────
 export const BASE_ELO    = 5000;       // starting VR for all players
 export const STARTING_VR = BASE_ELO;   // alias kept for display fallbacks
+// Players whose first ACT is on/after this date (or who have no ACTs yet) start at NEW_PLAYER_VR.
+// Not retroactive — everyone who debuted before the cutoff keeps the 5000 start.
+export const NEW_PLAYER_VR     = 4500;
+export const NEW_PLAYER_CUTOFF = '2026-10-03';
 export const VR_MAX      = 9999;       // hard ceiling
 export const VR_ELITE    = 9000;       // diminishing returns kick in above this
 
@@ -128,14 +132,27 @@ export function computeAllElos(
   const hist: Record<string, EloHistoryEntry[]> = {};
   const provActCount: Record<string, number>    = {};  // all-time ACTs played per player
 
-  players.forEach((p) => { vrs[p.name] = STARTING_VR; hist[p.name] = []; provActCount[p.name] = 0; });
+  const sortedActs = [...acts].sort((a, b) => {
+    const dt = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (dt !== 0) return dt;
+    return (a.satRound ?? 0) - (b.satRound ?? 0);
+  });
 
-  [...acts]
-    .sort((a, b) => {
-      const dt = new Date(a.date).getTime() - new Date(b.date).getTime();
-      if (dt !== 0) return dt;
-      return (a.satRound ?? 0) - (b.satRound ?? 0);
-    })
+  // First ACT date per player decides their starting VR
+  const firstDate: Record<string, string> = {};
+  sortedActs.forEach((act) => {
+    const sm: Record<string, string> = {};
+    act.teams.forEach((t) => { if (t.subs) t.members.forEach((m, i) => { if (t.subs?.[i]) sm[m] = t.subs[i]; }); });
+    const see = (n: string) => { const k = sm[n] ?? n; if (k && !(k in firstDate)) firstDate[k] = act.date; };
+    act.teams.forEach((t) => t.members.forEach((m) => { if (m.trim()) see(m); }));
+    act.races.forEach((r) => r.results.forEach((res) => { if (res.player) see(res.player); }));
+  });
+  const startOf = (name: string) =>
+    !firstDate[name] || firstDate[name] >= NEW_PLAYER_CUTOFF ? NEW_PLAYER_VR : STARTING_VR;
+
+  players.forEach((p) => { vrs[p.name] = startOf(p.name); hist[p.name] = []; provActCount[p.name] = 0; });
+
+  sortedActs
     .forEach((act) => {
       // Build substitution name map
       const subMap: Record<string, string> = {};
@@ -192,7 +209,7 @@ export function computeAllElos(
       // Snapshot provisional counts at act start so all races in this act share the same prov status
       const actProvSnapshot: Record<string, number> = {};
       actPlayers.forEach((name) => {
-        if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; provActCount[name] = 0; }
+        if (!(name in vrs)) { vrs[name] = startOf(name); hist[name] = []; provActCount[name] = 0; }
         startVR[name]  = vrs[name];
         totalPts[name] = 0;
         actProvSnapshot[name] = provActCount[name] ?? 0;
@@ -213,7 +230,7 @@ export function computeAllElos(
         const sorted = [...raceResults].sort((a, b) => b.pts - a.pts);
 
         sorted.forEach(({ name }, pos) => {
-          if (!(name in vrs)) { vrs[name] = STARTING_VR; hist[name] = []; startVR[name] = STARTING_VR; totalPts[name] = 0; actProvSnapshot[name] = 0; }
+          if (!(name in vrs)) { vrs[name] = startOf(name); hist[name] = []; startVR[name] = vrs[name]; totalPts[name] = 0; actProvSnapshot[name] = 0; }
 
           const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => vrs[opp] ?? STARTING_VR);
           const snap = actProvSnapshot[name] ?? 0;

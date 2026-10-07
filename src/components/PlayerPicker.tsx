@@ -124,14 +124,14 @@ export function PlayerPicker({ value, onChange, onCommit, onEnter, onEscape, pla
               onMouseEnter={() => setHi(si)}
               style={{ padding: '8px 12px', fontFamily: FONT_MONO, fontSize: 12, color: p.active ? '#e0d4c0' : '#667', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', background: si === hi ? 'rgba(200,160,48,0.12)' : 'transparent', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <span>{p.name}{!p.active && <span style={{ fontSize: 9, color: '#556' }}> (inactive)</span>}</span>
-              <span style={{ color: '#c8a030', fontSize: 10 }}>{p.actCount > 0 ? `${p.rank ? `#${p.rank} · ` : ''}${p.elo} VR` : 'New'}</span>
+              <span style={{ color: '#c8a030', fontSize: 10 }}>{p.actCount > 0 ? `${p.rank ? `#${p.rank} · ` : ''}${p.elo} VR` : `New · ${p.elo} VR`}</span>
             </div>
           ))}
         </div>
       )}
       {showStats && <div style={{ fontFamily: FONT_MONO, fontSize: 9, marginTop: 3, minHeight: 12, color: cur && cur.actCount > 0 ? '#8090a0' : '#c084fc' }}>
         {cur && cur.actCount === 0
-          ? 'New member · no ACTs yet · seeded last'
+          ? `New member · no ACTs yet · ${cur.elo} VR`
           : cur
           ? <><span style={{ color: '#c8a030' }}>{cur.rank ? `#${cur.rank} · ` : ''}{cur.elo} VR</span> · {cur.actCount} ACTs · {cur.avgPtsAct.toFixed(1)} pts/ACT · {Math.round(cur.winRate * 100)}% W</>
           : value.trim() ? unknownLabel : ''}

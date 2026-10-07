@@ -1,7 +1,7 @@
 import { useState, Fragment, useMemo } from 'react';
 import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
-import { computeStats, SAT_ROUND_MULTI, satHeatsReleased } from '../utils/VR';
+import { computeStats, SAT_ROUND_MULTI, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
 import {
   card,
   cHead,
@@ -33,7 +33,7 @@ interface RosterRow {
   sub2: string;
 }
 
-const NEW_MEMBER_LABEL = 'New member · will be added to roster · seeded last';
+const NEW_MEMBER_LABEL = `New member · will be added to roster · starts at ${NEW_PLAYER_VR} VR`;
 
 interface AuthState {
   req: (fn: () => void | Promise<void>) => void;
@@ -186,9 +186,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
     [data.players, data.acts, data.sats, data.seasons]
   );
-  // Players with no ACTs yet are new members — left out so seeding falls back to unknownVR (lowest in field)
+  // Names not on the roster yet fall back to NEW_PLAYER_VR
   const vrMap = useMemo(
-    () => Object.fromEntries(allStats.filter((s) => s.actCount > 0).map((s) => [s.name, s.elo])),
+    () => Object.fromEntries(allStats.map((s) => [s.name, s.elo])),
     [allStats]
   );
   const playerInfos = useMemo<PlayerInfo[]>(() => buildPlayerInfos(allStats), [allStats]);
@@ -641,10 +641,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Upcoming</div>
               {upcoming.map((sat) => {
                 const sid = sat.id ?? sat._id ?? '';
-                const listVRs = (sat.roster ?? []).flatMap((t) =>
-                  t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
-                );
-                const listUnknownVR = listVRs.length > 0 ? Math.min(4300, Math.min(...listVRs) - 1) : 4300;
+                const listUnknownVR = NEW_PLAYER_VR;
                 const teams = (sat.roster ?? []).map((t) => {
                   const vr1 = vrMap[t.members[0]] ?? listUnknownVR;
                   const vr2 = vrMap[t.members[1]] ?? listUnknownVR;
@@ -1115,10 +1112,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
 
   // === UPCOMING DETAIL — REPLACED BELOW ===
   if (curSat && !showHeatEntry && !satIsConcluded(curSat)) {
-    const rosterVRs = (curSat.roster ?? []).flatMap((t) =>
-      t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
-    );
-    const unknownVR = rosterVRs.length > 0 ? Math.min(4300, Math.min(...rosterVRs) - 1) : 4300;
+    const unknownVR = NEW_PLAYER_VR;
     const teams = (curSat.roster ?? []).map((t) => {
       const vr1 = vrMap[t.members[0]] ?? unknownVR;
       const vr2 = vrMap[t.members[1]] ?? unknownVR;
@@ -1606,7 +1600,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                     {t.members.map((m, mi) => (
                       <Fragment key={mi}>
                         {mi > 0 && <span style={{ color: '#556' }}> & </span>}
-                        {m}{vrMap[m] === undefined && <span style={{ color: '#c084fc', fontSize: 9 }}> new</span>}
+                        {m}{!playerInfos.some((p) => p.name === m && p.actCount > 0) && <span style={{ color: '#c084fc', fontSize: 9 }}> new</span>}
                       </Fragment>
                     ))}
                   </span>

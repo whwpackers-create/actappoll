@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased } from '../utils/VR';
+import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -224,9 +224,9 @@ export function Dashboard({
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
     [data.players, data.acts, data.sats, data.seasons]
   );
-  // SAT seeding VR — players with no ACTs yet (new members) fall back to the lowest VR in the field
+  // SAT seeding VR — names not on the roster yet fall back to NEW_PLAYER_VR
   const vrMap = useMemo(
-    () => Object.fromEntries(stats.filter((s) => s.actCount > 0).map((s) => [s.name, s.elo])),
+    () => Object.fromEntries(stats.map((s) => [s.name, s.elo])),
     [stats]
   );
   const activePlayers = data.players
@@ -758,7 +758,7 @@ export function Dashboard({
           );
 
           const renderUpcomingSection = (title: string, color: string, icon: string, heats: SATTeam[][], colors: string[], label: string) => {
-            const unknownVR = Math.min(4300, ...heats.flat().flatMap((t) => t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)));
+            const unknownVR = NEW_PLAYER_VR;
             return (
               <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
                 <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
@@ -840,10 +840,7 @@ export function Dashboard({
         }
 
         // Day 1 not done — show Day 1 heat bracket
-        const dashVRs = (sat.roster ?? []).flatMap((t) =>
-          t.members.map((m) => vrMap[m]).filter((v): v is number => v !== undefined)
-        );
-        const dashUnknownVR = dashVRs.length > 0 ? Math.min(4300, Math.min(...dashVRs) - 1) : 4300;
+        const dashUnknownVR = NEW_PLAYER_VR;
         const teams = (sat.roster ?? []).map((t) => {
           const vr1 = vrMap[t.members[0]] ?? dashUnknownVR;
           const vr2 = vrMap[t.members[1]] ?? dashUnknownVR;
