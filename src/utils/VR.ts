@@ -28,6 +28,13 @@ const FLOOR_VET_ACTS        = 20;   // must have played MORE than this for full 
 const FLOOR_MID_REDUCTION   = 0.30;
 const FLOOR_VET_REDUCTION   = 0.50;
 
+// Hard floor dampening below 4500 (new-player VR = "worst of the worst"), regardless of ACTs played:
+// 60% loss reduction just under 4500, scaling to 90% at 500+ below
+const HARD_FLOOR_VR         = 4500;
+const HARD_FLOOR_MIN_RED    = 0.60;
+const HARD_FLOOR_MAX_RED    = 0.90;
+const HARD_FLOOR_SCALE      = 500;
+
 // Provisional period: first N all-time ACTs get reduced gains (not losses)
 const PROVISIONAL_ACTS      = 10;
 const PROVISIONAL_GAIN_MULT = 0.60;
@@ -110,6 +117,11 @@ function vrChange(
     let floorReduction = 0;
     if (actCount > FLOOR_VET_ACTS)      floorReduction = FLOOR_VET_REDUCTION;
     else if (actCount > FLOOR_MID_ACTS) floorReduction = FLOOR_MID_REDUCTION;
+    if (myVR < HARD_FLOOR_VR) {
+      const depth = (HARD_FLOOR_VR - myVR) / HARD_FLOOR_SCALE;
+      const hard = Math.min(HARD_FLOOR_MAX_RED, HARD_FLOOR_MIN_RED + depth * (HARD_FLOOR_MAX_RED - HARD_FLOOR_MIN_RED));
+      floorReduction = Math.max(floorReduction, hard);
+    }
     if (floorReduction > 0) change *= (1 - floorReduction);
   }
 
