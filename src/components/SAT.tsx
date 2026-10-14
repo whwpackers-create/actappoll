@@ -2,7 +2,7 @@ import { useState, Fragment, useMemo } from 'react';
 import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
 import { computeStats, satMultiFor, satHeatsReleased } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, teamKey, toSlot, round1Slots, SAT_TIME_SLOTS, teamVR, byTeamRank, fmtVR, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, teamKey, toSlot, round1Slots, SAT_TIME_SLOTS, teamVR, byTeamRank, fmtVR, choosePlayIn, playInCandidates, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
 import {
   card,
   cHead,
@@ -185,6 +185,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [editingSubVal, setEditingSubVal] = useState('');
   const [reqPlayer, setReqPlayer] = useState('');
   const [reqTime, setReqTime] = useState('');
+  const [pickingPlayIn, setPickingPlayIn] = useState<string[] | null>(null);
 
   const allStats = useMemo(
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
@@ -1123,7 +1124,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const NUM_HEATS = heatsIn(0);
 
     type FieldTeam = (typeof teams)[0] & { placeholder?: boolean; playInFrom?: string[] };
-    const playInTeams = playIn.size ? teams.slice(teams.length - playIn.size) : [];
+    const playInTeams = choosePlayIn(teams, playIn.size, curSat.playInTeamsJson);
+    const playInPool = playInCandidates(teams, playIn.size);
     const playInWinners: string[] = (() => {
       try {
         const w: string[] = curSat.playInWinnersJson ? JSON.parse(curSat.playInWinnersJson) : [];
@@ -1131,18 +1133,21 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         return playInTeams.filter((t) => wk.includes(teamKey(t.name))).slice(0, playIn.advance).map((t) => t.name);
       } catch { return []; }
     })();
-    const playInSlots: FieldTeam[] = Array.from({ length: playIn.advance }, (_, k) => {
-      const winner = playInTeams.find((t) => t.name === playInWinners[k]);
-      return winner ?? {
-        name: `Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`,
-        members: ['TBD', 'TBD'], subs: [], seed: null,
-        vr1: null, vr2: null, avgVR: null, newCount: 2, sortVR: 0,
-        placeholder: true, playInFrom: playInTeams.map((t) => t.name),
-      };
-    });
-    // Day 1 field, seeded by rank (play-in winners take the bottom seeds)
-    const d1Field: FieldTeam[] = [...teams.slice(0, teams.length - playIn.size), ...playInSlots]
-      .map((t, i) => ({ ...t, seed: i + 1 }));
+    // Day 1 field, seeded by rank — everyone not in the play-in, then the play-in winner slot(s)
+    const buildField = (pTeams: typeof teams, winners: string[]) => {
+      const slots: FieldTeam[] = Array.from({ length: playIn.advance }, (_, k) => {
+        const winner = pTeams.find((t) => t.name === winners[k]);
+        return winner ?? {
+          name: `Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`,
+          members: ['TBD', 'TBD'], subs: [], seed: null,
+          vr1: null, vr2: null, avgVR: null, newCount: 2, sortVR: 0,
+          placeholder: true, playInFrom: pTeams.map((t) => t.name),
+        };
+      });
+      const field: FieldTeam[] = [...teams.filter((t) => !pTeams.includes(t)), ...slots].map((t, i) => ({ ...t, seed: i + 1 }));
+      return { slots, field };
+    };
+    const { slots: playInSlots, field: d1Field } = buildField(playInTeams, playInWinners);
     const teamByKey: Record<string, FieldTeam> = Object.fromEntries(d1Field.map((t) => [teamKey(t.name), t]));
     playInSlots.forEach((_, k) => {
       // a saved bracket may reference the placeholder name — resolve it to whoever fills that slot now
@@ -1175,13 +1180,17 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         await ops.updateSat(curSat.id ?? curSat._id ?? '', { timeRequestsJson: JSON.stringify(next) });
       });
     };
-    const optimizeHeats = () => {
+    // Rebuild Round 1: snake seeding → time requests → rebalance. Passing new play-in teams
+    // (from the play-in picker) saves them, clears any play-in winner, and rebuilds around them.
+    const optimizeHeats = (newPlayIn?: typeof teams) => {
       auth.req(async () => {
+        const pTeams = newPlayIn ?? playInTeams;
+        const field = newPlayIn ? buildField(newPlayIn, []).field : d1Field;
         // Even split of sessions (play-in counts as a 6:30 heat); the play-in winner races at 8:00
         const slots = round1Slots(NUM_HEATS, undefined, playIn.size > 0);
-        const requestFor = (t: FieldTeam) => (t.placeholder || playInTeams.some((p) => p.name === t.name)) && playIn.size > 0
+        const requestFor = (t: FieldTeam) => (t.placeholder || pTeams.some((p) => p.name === t.name)) && playIn.size > 0
           ? SAT_TIME_SLOTS[1] : teamRequest(t);
-        const { heats: opt, unmet } = applyTimeRequests(snake(d1Field, NUM_HEATS), slots, requestFor, (t) => t.seed ?? 99);
+        const { heats: opt, unmet } = applyTimeRequests(snake(field, NUM_HEATS), slots, requestFor, (t) => t.seed ?? 99);
         // Save the bracket plus each Round 1 heat's session so times show everywhere
         const times = [...(curSat.heatTimes ?? [])];
         while (times.length < NUM_HEATS) times.push('');
@@ -1190,7 +1199,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           heatAssignmentsJson: JSON.stringify(opt.map((h) => h.map((t) => t.name))),
           heatTimes: times,
           timeRequestsJson: JSON.stringify(timeRequests),
+          ...(newPlayIn ? { playInTeamsJson: JSON.stringify(newPlayIn.map((t) => t.name)), playInWinnersJson: '[]' } : {}),
         });
+        setPickingPlayIn(null);
         await reload();
         showToast(unmet.length ? `Heats optimized — couldn't place: ${unmet.map((u) => `${u.team} (${u.time})`).join(', ')}` : 'Heats optimized for time requests!');
       });
@@ -1529,10 +1540,59 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               <span style={cTitle}>🎟 Play-in</span>
               <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>🕐 {SAT_TIME_SLOTS[0]}</span>
               <span style={cSub}>
-                {playInTeams.length} lowest seeds · {playIn.advance} advance{playIn.advance === 1 ? 's' : ''} ·{' '}
+                {playInTeams.length} teams · {playIn.advance} advance{playIn.advance === 1 ? 's' : ''} ·{' '}
                 {playInWinners.length === playIn.advance ? 'decided' : `pick ${playIn.advance - playInWinners.length} more`}
               </span>
+              {auth.unlocked && completedCount === 0 && !pickingPlayIn && (
+                <button onClick={() => setPickingPlayIn(playInTeams.map((t) => t.name))}
+                  style={{ fontFamily: FONT_MONO, fontSize: 9, background: 'rgba(192,132,252,0.1)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 4, padding: '3px 8px', color: '#c084fc', cursor: 'pointer' }}>
+                  ✏ Choose play-in teams
+                </button>
+              )}
             </div>
+            {pickingPlayIn ? (
+              <div>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginBottom: 8 }}>
+                  Pick {playIn.size} of the unrated teams to play in ({pickingPlayIn.length}/{playIn.size} selected).
+                  {heatsReleased && ' Saving rebuilds the Round 1 heats.'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 6, marginBottom: 10 }}>
+                  {playInPool.map((t) => {
+                    const on = pickingPlayIn.includes(t.name);
+                    const full = pickingPlayIn.length >= playIn.size;
+                    return (
+                      <div key={t.name}
+                        onClick={() => setPickingPlayIn(on ? pickingPlayIn.filter((n) => n !== t.name) : full ? pickingPlayIn : [...pickingPlayIn, t.name])}
+                        style={{ padding: '8px 10px', borderRadius: 6, cursor: on || !full ? 'pointer' : 'default',
+                          background: on ? 'rgba(192,132,252,0.15)' : 'rgba(255,255,255,0.02)',
+                          border: `1px solid ${on ? 'rgba(192,132,252,0.5)' : 'rgba(255,255,255,0.06)'}`,
+                          opacity: full && !on ? 0.45 : 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.members.join(' & ')}</span>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: on ? '#c084fc' : '#556' }}>{on ? '✓ play-in' : t.avgVR == null ? 'NEW' : `${t.avgVR} VR`}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button style={{ ...secBtn, fontSize: 11 }} onClick={() => setPickingPlayIn(null)}>Cancel</button>
+                  <button style={{ ...priBtn, fontSize: 11, opacity: pickingPlayIn.length === playIn.size ? 1 : 0.4 }}
+                    disabled={pickingPlayIn.length !== playIn.size}
+                    onClick={() => {
+                      const chosen = teams.filter((t) => pickingPlayIn.includes(t.name));
+                      if (heatsReleased) optimizeHeats(chosen);
+                      else auth.req(async () => {
+                        await ops.updateSat(curSat.id ?? curSat._id ?? '', { playInTeamsJson: JSON.stringify(chosen.map((t) => t.name)), playInWinnersJson: '[]' });
+                        setPickingPlayIn(null);
+                        showToast('Play-in teams saved');
+                      });
+                    }}>
+                    {heatsReleased ? 'Save & rebuild heats' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : (<>
             <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginBottom: 8 }}>
               Click a team to mark it as advancing to Round 1.
             </div>
@@ -1558,6 +1618,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 );
               })}
             </div>
+            </>)}
           </div>
         )}
 
@@ -1566,7 +1627,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           <div style={{ ...card, marginBottom: 12, borderLeft: '3px solid #c8a030' }}>
             <div style={cHead}>
               <span style={cTitle}>⏰ Time Requests</span>
-              <button onClick={optimizeHeats} disabled={Object.keys(timeRequests).length === 0}
+              <button onClick={() => optimizeHeats()} disabled={Object.keys(timeRequests).length === 0}
                 style={{ fontFamily: FONT_MONO, fontSize: 10, background: 'rgba(200,160,48,0.12)', border: '1px solid rgba(200,160,48,0.35)', borderRadius: 4, padding: '4px 10px', color: '#c8a030', cursor: 'pointer', opacity: Object.keys(timeRequests).length === 0 ? 0.4 : 1 }}>
                 ⚡ Optimize Heats
               </button>
@@ -1733,7 +1794,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       </Fragment>
                     ))}
                   </span>
-                  {i >= teams.length - playIn.size && <span style={{ color: '#c084fc', fontSize: 9, border: '1px solid rgba(192,132,252,0.3)', borderRadius: 3, padding: '0 4px' }}>PLAY-IN</span>}
+                  {playInTeams.includes(t) && <span style={{ color: '#c084fc', fontSize: 9, border: '1px solid rgba(192,132,252,0.3)', borderRadius: 3, padding: '0 4px' }}>PLAY-IN</span>}
                   <span style={{ color: '#445', fontSize: 10 }}>{fmtVR(t.vr1)} / {fmtVR(t.vr2)}</span>
                   <span style={{ color: t.avgVR == null ? '#c084fc' : '#c8a030', minWidth: 64, textAlign: 'right' }}>{t.avgVR == null ? 'NEW' : `${t.avgVR} VR`}</span>
                 </div>

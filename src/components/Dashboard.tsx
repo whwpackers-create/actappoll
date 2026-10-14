@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, teamVR, byTeamRank, fmtVR, avgRated } from '../utils/satBracket';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, teamVR, byTeamRank, fmtVR, avgRated, choosePlayIn } from '../utils/satBracket';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -722,7 +722,7 @@ export function Dashboard({
         const sizes = stageSizes(playIn.fieldSize);
         const stageRoundIdx = stageRounds(sizes);
         const NUM_HEATS = sizes[0] / TEAMS_PER_HEAT;
-        const playInTeams = playIn.size ? teams.slice(teams.length - playIn.size) : [];
+        const playInTeams = choosePlayIn(teams, playIn.size, sat.playInTeamsJson);
         const playInWinners: string[] = (() => {
           try {
             const w: string[] = sat.playInWinnersJson ? JSON.parse(sat.playInWinnersJson) : [];
@@ -765,7 +765,7 @@ export function Dashboard({
                       <span style={{ color: '#e0d4c0', flex: 1, minWidth: 0 }}>
                         {t.members[0]}<span style={{ color: '#8090a0' }}> &amp; {t.members[1]}</span>
                       </span>
-                      {t.seedNum > teams.length - playIn.size && <span style={{ color: '#c084fc', fontSize: 9 }}>PLAY-IN</span>}
+                      {playInTeams.includes(t) && <span style={{ color: '#c084fc', fontSize: 9 }}>PLAY-IN</span>}
                       <span style={{ color: t.avgVR == null ? '#c084fc' : '#c8a030', fontSize: 10 }}>{t.avgVR ?? 'NEW'}</span>
                     </div>
                   ))}
@@ -867,7 +867,7 @@ export function Dashboard({
           const winner = playInTeams.find((t) => t.name === playInWinners[k]);
           return winner ?? { name: `Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`, members: ['TBD', 'TBD'], subs: [], seed: null, vr1: null, vr2: null, avgVR: null, newCount: 2, sortVR: 0, seedNum: 0, placeholder: true };
         });
-        const d1Field: FieldTeam[] = [...teams.slice(0, teams.length - playIn.size), ...playInSlots].map((t, i) => ({ ...t, seedNum: i + 1 }));
+        const d1Field: FieldTeam[] = [...teams.filter((t) => !playInTeams.includes(t)), ...playInSlots].map((t, i) => ({ ...t, seedNum: i + 1 }));
         const teamByKey: Record<string, FieldTeam> = Object.fromEntries(d1Field.map((t) => [teamKey(t.name), t]));
         playInSlots.forEach((_, k) => { teamByKey[teamKey(`Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`)] = d1Field[d1Field.length - playIn.advance + k]; });
         const parsedAssignments: string[][] | null = (sat.heatAssignmentsJson ?? '')

@@ -209,3 +209,23 @@ export function avgRated(teams: { members: string[] }[], vrOf: (name: string) =>
   const vs = teams.flatMap((t) => t.members.map(vrOf)).filter((v): v is number => v !== undefined);
   return vs.length ? Math.round(vs.reduce((s, v) => s + v, 0) / vs.length) : null;
 }
+
+// ─── Play-in selection ───────────────────────────────────────────────────────
+// Teams eligible for the play-in: any team with an unrated player, plus the lowest
+// seeds if there aren't enough of those. `ranked` must be in seed order.
+export function playInCandidates<T extends { name: string; newCount: number }>(ranked: T[], size: number): T[] {
+  if (!size) return [];
+  const bottom = ranked.slice(ranked.length - size);
+  return ranked.filter((t) => t.newCount > 0 || bottom.includes(t));
+}
+
+// The play-in teams: the admin's saved pick if it's still valid, else the lowest seeds
+export function choosePlayIn<T extends { name: string; newCount: number }>(ranked: T[], size: number, savedJson?: string): T[] {
+  if (!size) return [];
+  try {
+    const keys: string[] = (savedJson ? JSON.parse(savedJson) : []).map(teamKey);
+    const picked = ranked.filter((t) => keys.includes(teamKey(t.name)));
+    if (picked.length === size) return picked;
+  } catch { /* fall through */ }
+  return ranked.slice(ranked.length - size);
+}
