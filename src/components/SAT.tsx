@@ -2,7 +2,7 @@ import { useState, Fragment, useMemo } from 'react';
 import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
 import { computeStats, SAT_ROUND_MULTI, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, normalizeTime, teamKey, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, teamKey, toSlot, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
 import {
   card,
   cHead,
@@ -38,6 +38,7 @@ const NEW_MEMBER_LABEL = `New member · will be added to roster · starts at ${N
 
 interface AuthState {
   req: (fn: () => void | Promise<void>) => void;
+  unlocked?: boolean;
 }
 
 export interface SATProps {
@@ -1172,11 +1173,14 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const heatsReleased = satHeatsReleased(curSat);
 
     // Time requests: player → needed Round 1 heat time
+    // (only 6:30 and 8:00 sessions exist — older values snap to the nearest one)
     const timeRequests: Record<string, string> = (() => {
-      try { return curSat.timeRequestsJson ? JSON.parse(curSat.timeRequestsJson) : {}; } catch { return {}; }
+      try {
+        const raw: Record<string, string> = curSat.timeRequestsJson ? JSON.parse(curSat.timeRequestsJson) : {};
+        return Object.fromEntries(Object.entries(raw).map(([p, t]) => [p, toSlot(t)]).filter(([, t]) => t));
+      } catch { return {}; }
     })();
-    const d1HeatTimes = Array.from({ length: NUM_HEATS }, (_, hi) => curSat.heatTimes?.[hi] ?? '');
-    const d1TimeOptions = [...new Set(d1HeatTimes.filter(Boolean))];
+    const d1HeatTimes = round1Slots(NUM_HEATS, curSat.heatTimes);
     const teamRequest = (t: { members: string[] }) => t.members.map((m) => timeRequests[m]).find(Boolean) ?? null;
     const saveTimeRequests = (next: Record<string, string>) => {
       auth.req(async () => {
@@ -1186,7 +1190,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const optimizeHeats = () => {
       auth.req(async () => {
         const { heats: opt, unmet } = applyTimeRequests(snake(d1Field, NUM_HEATS), d1HeatTimes, teamRequest, (t) => t.seed ?? 99);
-        await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: JSON.stringify(opt.map((h) => h.map((t) => t.name))) });
+        // Save the bracket plus each Round 1 heat's session so times show everywhere
+        const times = [...(curSat.heatTimes ?? [])];
+        while (times.length < NUM_HEATS) times.push('');
+        d1HeatTimes.forEach((t, hi) => { times[hi] = t; });
+        await fsUpdate('sats', curSat.id ?? curSat._id ?? '', {
+          heatAssignmentsJson: JSON.stringify(opt.map((h) => h.map((t) => t.name))),
+          heatTimes: times,
+          timeRequestsJson: JSON.stringify(timeRequests),
+        });
         await reload();
         showToast(unmet.length ? `Heats optimized — couldn't place: ${unmet.map((u) => `${u.team} (${u.time})`).join(', ')}` : 'Heats optimized for time requests!');
       });
@@ -1348,13 +1360,20 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       hi: number, round: number, hColor: string, advCount: number,
       flatTimeIdx?: number
     ) => {
-      const savedTime = flatTimeIdx != null ? (curSat.heatTimes?.[flatTimeIdx] ?? '') : '';
+      const savedTime = round === 0 ? d1HeatTimes[hi] : flatTimeIdx != null ? (curSat.heatTimes?.[flatTimeIdx] ?? '') : '';
       return (
       <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(106,96,64,0.25)', borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>Heat {hi + 1}</span>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {flatTimeIdx != null && (editingTimeIdx === flatTimeIdx ? (
+            {round === 0 && flatTimeIdx != null ? (!auth.unlocked ? (
+              <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030' }}>🕐 {savedTime}</span>
+            ) : (
+              <select value={savedTime} onChange={(e) => saveHeatTime(flatTimeIdx, e.target.value)}
+                style={{ background: 'none', border: '1px solid rgba(200,160,48,0.25)', borderRadius: 4, fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030', padding: '1px 3px', cursor: 'pointer' }}>
+                {SAT_TIME_SLOTS.map((t) => <option key={t} value={t}>🕐 {t}</option>)}
+              </select>
+            )) : flatTimeIdx != null && (editingTimeIdx === flatTimeIdx ? (
               <div style={{ display: 'flex', gap: 3 }}>
                 <input style={{ ...inp, width: 80, fontSize: 10, padding: '2px 5px' }}
                   value={editingTimeVal} placeholder="10:30 AM" autoFocus
@@ -1417,9 +1436,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       {Math.round((vr1 + vr2) / 2)} VR
                       {round === 0 && (() => {
                         const req = t.members.map((m) => timeRequests[m]).find(Boolean);
-                        if (!req) return null;
-                        const ok = normalizeTime(req) === normalizeTime(curSat.heatTimes?.[hi]);
-                        return <span style={{ color: ok ? '#c8a030' : '#e94560', marginLeft: 6 }}>🕐 needs {req}{ok ? ' ✓' : ''}</span>;
+                        if (!req || !auth.unlocked) return null;
+                        const ok = toSlot(req) === d1HeatTimes[hi];
+                        return <span style={{ color: ok ? '#c8a030' : '#e94560', marginLeft: 6 }}>🕐 needs {toSlot(req)}{ok ? ' ✓' : ''}</span>;
                       })()}
                     </div>
                   </div>
@@ -1550,7 +1569,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         )}
 
         {/* Time requests — Round 1 heat times people need */}
-        {heatsReleased && completedCount === 0 && (
+        {auth.unlocked && heatsReleased && completedCount === 0 && (
           <div style={{ ...card, marginBottom: 12, borderLeft: '3px solid #c8a030' }}>
             <div style={cHead}>
               <span style={cTitle}>⏰ Time Requests</span>
@@ -1560,16 +1579,17 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               </button>
             </div>
             <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginBottom: 10 }}>
-              {d1TimeOptions.length
-                ? <>Round 1 times: {d1HeatTimes.map((t, hi) => <span key={hi} style={{ marginRight: 10 }}>H{hi + 1} <span style={{ color: t ? '#c8a030' : '#445' }}>{t || '—'}</span></span>)}</>
-                : 'Set times on the Round 1 heats below first, then add requests and press Optimize.'}
+              Round 1 sessions: {d1HeatTimes.map((t, hi) => <span key={hi} style={{ marginRight: 10 }}>H{hi + 1} <span style={{ color: '#c8a030' }}>{t}</span></span>)}
+              <span style={{ color: '#445' }}>(change a heat's session from its 🕐 button)</span>
             </div>
             {Object.entries(timeRequests).map(([player, time]) => {
-              const matches = d1HeatTimes.some((t) => normalizeTime(t) === normalizeTime(time));
+              const team = teams.find((t) => t.members.includes(player));
+              const hi = seededHeats.findIndex((h) => h.some((t) => t.name === team?.name));
+              const placed = hi >= 0 && d1HeatTimes[hi] === time;
               return (
                 <div key={player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontFamily: FONT_MONO, fontSize: 12 }}>
                   <span style={{ color: '#e0d4c0', flex: 1 }}>{player}</span>
-                  <span style={{ color: matches ? '#c8a030' : '#e94560' }}>🕐 {time}{!matches && ' — no heat at this time'}</span>
+                  <span style={{ color: placed ? '#50fa7b' : '#e94560' }}>🕐 {time} {placed ? `✓ Heat ${hi + 1}` : '— not placed yet, press Optimize'}</span>
                   <button onClick={() => { const n = { ...timeRequests }; delete n[player]; saveTimeRequests(n); }}
                     style={{ background: 'none', border: 'none', color: '#556', cursor: 'pointer', fontSize: 12 }}>✕</button>
                 </div>
@@ -1580,14 +1600,10 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 <PlayerPicker value={reqPlayer} onChange={setReqPlayer} placeholder="Player" showStats={false}
                   players={playerInfos.filter((p) => teams.some((t) => t.members.includes(p.name)))} />
               </div>
-              {d1TimeOptions.length ? (
-                <select value={reqTime} onChange={(e) => setReqTime(e.target.value)} style={{ ...inp, flex: '1 1 120px', width: 'auto' }}>
-                  <option value="">Needed time…</option>
-                  {d1TimeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              ) : (
-                <input value={reqTime} onChange={(e) => setReqTime(e.target.value)} placeholder="6:15" style={{ ...inp, flex: '1 1 120px', width: 'auto' }} />
-              )}
+              <select value={reqTime} onChange={(e) => setReqTime(e.target.value)} style={{ ...inp, flex: '1 1 120px', width: 'auto' }}>
+                <option value="">Needed time…</option>
+                {SAT_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
               <button style={{ ...secBtn, fontSize: 11 }} disabled={!reqPlayer.trim() || !reqTime.trim()}
                 onClick={() => { saveTimeRequests({ ...timeRequests, [canon(reqPlayer)]: reqTime.trim() }); setReqPlayer(''); setReqTime(''); }}>
                 + Add

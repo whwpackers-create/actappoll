@@ -153,3 +153,20 @@ export function applyTimeRequests<T extends { name: string }>(
   heats.forEach((h) => h.sort((x, y) => seedOf(x) - seedOf(y)));
   return { heats, unmet };
 }
+
+// Round 1 runs in two sessions
+export const SAT_TIME_SLOTS = ['6:30', '8:00'];
+
+// Snap any time to the nearest session ("8:30" → "8:00"); '' if no time
+export function toSlot(s: string | undefined | null): string {
+  const n = normalizeTime(s);
+  if (!n) return '';
+  const mins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  return SAT_TIME_SLOTS.reduce((best, slot) => (Math.abs(mins(slot) - mins(n)) < Math.abs(mins(best) - mins(n)) ? slot : best));
+}
+
+// Session for each Round 1 heat: saved heat time if set, else first half 6:30 / rest 8:00
+export function round1Slots(numHeats: number, heatTimes: (string | undefined)[] | undefined): string[] {
+  return Array.from({ length: numHeats }, (_, hi) =>
+    toSlot(heatTimes?.[hi]) || (hi < Math.ceil(numHeats / 2) ? SAT_TIME_SLOTS[0] : SAT_TIME_SLOTS[1]));
+}

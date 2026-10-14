@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, TEAMS_PER_HEAT } from '../utils/satBracket';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, TEAMS_PER_HEAT } from '../utils/satBracket';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -907,9 +907,7 @@ export function Dashboard({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>HEAT {hi + 1}</span>
-                          {sat.heatTimes?.[hi] && (
-                            <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>🕐 {sat.heatTimes[hi]}</span>
-                          )}
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>🕐 {round1Slots(NUM_HEATS, sat.heatTimes)[hi]}</span>
                         </div>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {hAvg}</span>
                       </div>
