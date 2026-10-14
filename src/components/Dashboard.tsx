@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, TEAMS_PER_HEAT } from '../utils/satBracket';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -710,17 +711,76 @@ export function Dashboard({
           </button>
         );
 
-        // Check completion of each round
-        const day1Heats = (sat.heats ?? []).filter((h) => (h.round ?? 0) === 0);
-        const day1Done = day1Heats.length === 6;
+        // Ranked field + bracket structure (mirrors the SAT page)
+        const dashUnknownVR = NEW_PLAYER_VR;
+        const teams = (sat.roster ?? []).map((t) => {
+          const vr1 = vrMap[t.members[0]] ?? dashUnknownVR;
+          const vr2 = vrMap[t.members[1]] ?? dashUnknownVR;
+          return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
+        }).sort((a, b) => b.avgVR - a.avgVR).map((t, i) => ({ ...t, seedNum: i + 1 }));
+        if (teams.length === 0) return null;
+        const playIn = playInInfo(teams.length);
+        const sizes = stageSizes(playIn.fieldSize);
+        const stageRoundIdx = stageRounds(sizes);
+        const NUM_HEATS = sizes[0] / TEAMS_PER_HEAT;
+        const playInTeams = playIn.size ? teams.slice(teams.length - playIn.size) : [];
+        const playInWinners: string[] = (() => {
+          try {
+            const w: string[] = sat.playInWinnersJson ? JSON.parse(sat.playInWinnersJson) : [];
+            return playInTeams.filter((t) => w.includes(t.name)).slice(0, playIn.advance).map((t) => t.name);
+          } catch { return []; }
+        })();
+        const playInStrip = playIn.size > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12, padding: '8px 10px', borderRadius: 6, background: 'rgba(192,132,252,0.06)', border: '1px solid rgba(192,132,252,0.2)', fontFamily: FONT_MONO, fontSize: 11 }}>
+            <span style={{ color: '#c084fc', letterSpacing: 2, fontSize: 10 }}>PLAY-IN · {playIn.advance} ADVANCE{playIn.advance === 1 ? 'S' : ''}</span>
+            {playInTeams.map((t, i) => {
+              const won = playInWinners.includes(t.name);
+              const out = playInWinners.length === playIn.advance && !won;
+              return (
+                <span key={t.name} style={{ color: won ? '#50fa7b' : out ? '#556' : '#e0d4c0', textDecoration: out ? 'line-through' : 'none' }}>
+                  {i > 0 && <span style={{ color: '#445', textDecoration: 'none' }}> vs </span>}
+                  {t.members.map((m) => m.split(' ')[0]).join(' & ')}{won ? ' ✓' : ''}
+                </span>
+              );
+            })}
+          </div>
+        );
 
-        if (day1Done) {
-          type SATTeam = { name: string; members: string[]; subs: string[]; score: number };
-          const satSeedMap: Record<string, number> = {};
-          (sat.roster ?? []).forEach((t) => { if (t.seed) satSeedMap[t.name] = t.seed; });
-          const satSeedTie = (a: { name: string }, b: { name: string }) => (satSeedMap[a.name] ?? 999) - (satSeedMap[b.name] ?? 999);
+        if (!satHeatsReleased(sat)) {
+          // Heats not assigned yet — just the ranked team list
+          return (
+            <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
+              <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 18 }}>🏆</span>
+                  <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4', letterSpacing: 2 }}>UPCOMING SAT</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · starts {satDate} · {teams.length} team{teams.length === 1 ? '' : 's'}</span>
+                  {viewBtn}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', columnGap: 16 }}>
+                  {teams.map((t) => (
+                    <div key={t.seedNum} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontFamily: FONT_MONO, fontSize: 12 }}>
+                      <span style={{ fontFamily: FONT_HEADER, minWidth: 28, color: t.seedNum === 1 ? '#fbbf24' : t.seedNum === 2 ? '#94a3b8' : t.seedNum === 3 ? '#cd7f32' : '#556' }}>#{t.seedNum}</span>
+                      <span style={{ color: '#e0d4c0', flex: 1, minWidth: 0 }}>
+                        {t.members[0]}<span style={{ color: '#8090a0' }}> &amp; {t.members[1]}</span>
+                      </span>
+                      {t.seedNum > teams.length - playIn.size && <span style={{ color: '#c084fc', fontSize: 9 }}>PLAY-IN</span>}
+                      <span style={{ color: '#c8a030', fontSize: 10 }}>{t.avgVR}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        }
 
-          const getActRankings = (actId: string | undefined) => {
+        type SATTeam = { name: string; members: string[]; subs: string[]; score: number };
+        const seedOf: Record<string, number> = {};
+        teams.forEach((t) => { seedOf[t.name] = t.seedNum; seedOf[[...t.members].sort().join('\x00')] = t.seedNum; });
+        const lookupSeed = (t: { name: string; members: string[] }) => seedOf[t.name] ?? seedOf[[...t.members].sort().join('\x00')] ?? 999;
+        const satSeedTie = (a: { name: string; members: string[] }, b: { name: string; members: string[] }) => lookupSeed(a) - lookupSeed(b);
+
+        const getActRankings = (actId: string | undefined) => {
             const act = actId ? data.acts.find((a) => (a.id ?? a._id) === actId) : null;
             if (!act) return null;
             const playerToTeam: Record<string, number> = {};
@@ -776,125 +836,49 @@ export function Dashboard({
             );
           };
 
-          // Compute Day 2 heats
-          const liveRankings = day1Heats.map((h) => {
-            const r = getActRankings(h.actId);
-            if (r) return r;
-            return (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0, origIdx: 0 }));
-          });
-          const allAdvancing: SATTeam[] = [];
-          const thirdPlacers: SATTeam[] = [];
-          liveRankings.forEach((rankings) => {
-            rankings.slice(0, 2).forEach((t) => allAdvancing.push({ name: t.name, members: t.members, subs: t.subs, score: t.score }));
-            if (rankings[2]) { const t = rankings[2]; thirdPlacers.push({ name: t.name, members: t.members, subs: t.subs, score: t.score }); }
-          });
-          thirdPlacers.sort((a, b) => b.score - a.score || satSeedTie(a, b));
-          thirdPlacers.slice(0, 4).forEach((t) => allAdvancing.push(t));
-          const d2Teams = [...allAdvancing].sort((a, b) => b.score - a.score || satSeedTie(a, b));
-          const NUM_D2 = 4;
-          const computedD2Heats: SATTeam[][] = [[], [], [], []];
-          d2Teams.forEach((t, i) => { const r = Math.floor(i / NUM_D2), p = i % NUM_D2; computedD2Heats[r % 2 === 0 ? p : NUM_D2 - 1 - p].push(t); });
-          const parsedD2Bracket: SATTeam[][] | null = sat.d2BracketJson ? (() => { try { return JSON.parse(sat.d2BracketJson); } catch { return null; } })() : null;
-          const d2Heats = parsedD2Bracket ?? computedD2Heats;
 
-          // Check Day 2 done
-          const day2HeatsData = (sat.heats ?? []).filter((h) => h.round === 1);
-          const day2Done = day2HeatsData.length >= 4;
-
-          if (day2Done) {
-            // Compute Semis heats
-            const d2Rankings = d2Heats.map((_, hi) => getActRankings(day2HeatsData.find(h => h.slotIdx === hi)?.actId));
-            const semiAdv: SATTeam[] = [];
-            d2Rankings.forEach((rankings) => { if (!rankings) return; rankings.slice(0, 2).forEach((t) => semiAdv.push({ name: t.name, members: t.members, subs: t.subs, score: t.score })); });
-            semiAdv.sort((a, b) => b.score - a.score || satSeedTie(a, b));
-            const NUM_SEMI = 2;
-            const computedSemiHeats: SATTeam[][] = [[], []];
-            semiAdv.forEach((t, i) => { const r = Math.floor(i / NUM_SEMI), p = i % NUM_SEMI; computedSemiHeats[r % 2 === 0 ? p : NUM_SEMI - 1 - p].push(t); });
-            const parsedSemiBracket: SATTeam[][] | null = sat.semiBracketJson ? (() => { try { return JSON.parse(sat.semiBracketJson); } catch { return null; } })() : null;
-            const semiHeats = parsedSemiBracket ?? computedSemiHeats;
-            const semiColors = ['#fbbf24', '#8be9fd'];
-
-            // Check Semis done
-            const semiHeatsData = (sat.heats ?? []).filter((h) => h.round === 2);
-            const semiDone = semiHeatsData.length >= 2;
-
-            if (semiDone) {
-              // Compute Finals teams
-              const semiRankings = semiHeats.map((_, hi) => getActRankings(semiHeatsData.find(h => h.slotIdx === hi)?.actId));
-              const finalsAdv: SATTeam[] = [];
-              semiRankings.forEach((rankings) => { if (!rankings) return; rankings.slice(0, 2).forEach((t) => finalsAdv.push({ name: t.name, members: t.members, subs: t.subs, score: t.score })); });
-              finalsAdv.sort((a, b) => b.score - a.score || satSeedTie(a, b));
-
-              // Check Finals done
-              const finalsHeatData = (sat.heats ?? []).find((h) => h.round === 3);
-              if (finalsHeatData) return null;
-
-              return renderUpcomingSection('UPCOMING FINALS', '#f5a623', '👑', [finalsAdv], ['#f5a623'], 'FINALS');
-            }
-
-            return renderUpcomingSection('UPCOMING SEMIFINALS', '#fbbf24', '🔥', semiHeats, semiColors, 'SEMI');
+        const day1Heats = (sat.heats ?? []).filter((h) => (h.round ?? 0) === 0);
+        if (day1Heats.length >= NUM_HEATS) {
+          // Walk the rounds: show the first one that still has heats to race
+          const stageMeta: Record<number, { title: string; color: string; icon: string; colors: string[]; label: string; json?: string }> = {
+            1: { title: 'UPCOMING DAY 2 HEATS', color: '#c084fc', icon: '🏁', colors: ['#c084fc', '#f97316', '#22d3ee', '#a3e635', '#f9a8d4'], label: 'DAY 2', json: sat.d2BracketJson },
+            2: { title: 'UPCOMING SEMIFINALS', color: '#fbbf24', icon: '🔥', colors: ['#fbbf24', '#8be9fd', '#50fa7b'], label: 'SEMI', json: sat.semiBracketJson },
+            3: { title: 'UPCOMING FINALS', color: '#f5a623', icon: '👑', colors: ['#f5a623'], label: 'FINALS' },
+          };
+          let prevRankings = [...day1Heats].sort((a, b) => (a.slotIdx ?? 0) - (b.slotIdx ?? 0)).map((h) =>
+            getActRankings(h.actId) ?? (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0, origIdx: 0 })));
+          for (let i = 1; i < sizes.length; i++) {
+            const round = stageRoundIdx[i];
+            const meta = stageMeta[round];
+            const n = sizes[i] / TEAMS_PER_HEAT;
+            const advancing = advanceTeams(prevRankings, sizes[i], satSeedTie).teams;
+            const saved: SATTeam[][] | null = meta.json ? (() => { try { const b = JSON.parse(meta.json!); return b.length === n ? b : null; } catch { return null; } })() : null;
+            const stageHeats: SATTeam[][] = saved ?? snake(advancing, n);
+            const raced = (sat.heats ?? []).filter((h) => h.round === round);
+            if (raced.length < n) return renderUpcomingSection(meta.title, meta.color, meta.icon, stageHeats, meta.colors, meta.label);
+            prevRankings = stageHeats.map((_, hi) => getActRankings(raced.find((h) => h.slotIdx === hi)?.actId) ?? []);
           }
-
-          const d2Colors = ['#c084fc', '#f97316', '#22d3ee', '#a3e635'];
-          return renderUpcomingSection('UPCOMING DAY 2 HEATS', '#c084fc', '🏁', d2Heats, d2Colors, 'DAY 2');
+          return null;
         }
 
-        // Day 1 not done — show Day 1 heat bracket
-        const dashUnknownVR = NEW_PLAYER_VR;
-        const teams = (sat.roster ?? []).map((t) => {
-          const vr1 = vrMap[t.members[0]] ?? dashUnknownVR;
-          const vr2 = vrMap[t.members[1]] ?? dashUnknownVR;
-          return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
-        }).sort((a, b) => b.avgVR - a.avgVR).map((t, i) => ({ ...t, seedNum: i + 1 }));
-        if (teams.length === 0) return null;
-        if (!satHeatsReleased(sat)) {
-          // Heats not assigned yet — just the ranked team list
-          return (
-            <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
-              <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 18 }}>🏆</span>
-                  <span style={{ fontFamily: FONT_HEADER, fontSize: 18, color: '#f9a8d4', letterSpacing: 2 }}>UPCOMING SAT</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · starts {satDate} · {teams.length} team{teams.length === 1 ? '' : 's'}</span>
-                  {viewBtn}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', columnGap: 16 }}>
-                  {teams.map((t) => (
-                    <div key={t.seedNum} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontFamily: FONT_MONO, fontSize: 12 }}>
-                      <span style={{ fontFamily: FONT_HEADER, minWidth: 28, color: t.seedNum === 1 ? '#fbbf24' : t.seedNum === 2 ? '#94a3b8' : t.seedNum === 3 ? '#cd7f32' : '#556' }}>#{t.seedNum}</span>
-                      <span style={{ color: '#e0d4c0', flex: 1, minWidth: 0 }}>
-                        {t.members[0]}<span style={{ color: '#8090a0' }}> &amp; {t.members[1]}</span>
-                      </span>
-                      <span style={{ color: '#c8a030', fontSize: 10 }}>{t.avgVR}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        }
-        const NUM_HEATS = 6;
-        const teamByName = Object.fromEntries(teams.map((t) => [t.name, t]));
-        const seededHeats: (typeof teams[0])[][] = Array.from({ length: NUM_HEATS }, () => []);
+        // Day 1 heats — play-in winners fill the bottom seeds
+        type FieldTeam = (typeof teams)[0] & { placeholder?: boolean };
+        const playInSlots: FieldTeam[] = Array.from({ length: playIn.advance }, (_, k) => {
+          const winner = playInTeams.find((t) => t.name === playInWinners[k]);
+          return winner ?? { name: `Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`, members: ['TBD', 'TBD'], subs: [], seed: null, avgVR: dashUnknownVR, vr1: dashUnknownVR, vr2: dashUnknownVR, seedNum: 0, placeholder: true };
+        });
+        const d1Field: FieldTeam[] = [...teams.slice(0, teams.length - playIn.size), ...playInSlots].map((t, i) => ({ ...t, seedNum: i + 1 }));
+        const teamByName: Record<string, FieldTeam> = Object.fromEntries(d1Field.map((t) => [t.name, t]));
+        playInSlots.forEach((_, k) => { teamByName[`Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`] = d1Field[d1Field.length - playIn.advance + k]; });
         const parsedAssignments: string[][] | null = (sat.heatAssignmentsJson ?? '')
           ? (() => { try { return JSON.parse(sat.heatAssignmentsJson!); } catch { return null; } })()
           : null;
+        let seededHeats: FieldTeam[][] = snake(d1Field, NUM_HEATS);
         if (parsedAssignments && parsedAssignments.length === NUM_HEATS) {
-          parsedAssignments.forEach((slot: string[], hi: number) => {
-            slot.forEach((name: string) => {
-              const t = teamByName[name];
-              if (t) seededHeats[hi].push(t);
-            });
-          });
-        } else {
-          teams.forEach((t, i) => {
-            const round = Math.floor(i / NUM_HEATS);
-            const pos = i % NUM_HEATS;
-            const heatIdx = round % 2 === 0 ? pos : NUM_HEATS - 1 - pos;
-            seededHeats[heatIdx].push(t);
-          });
+          const fromSaved = parsedAssignments.map((slot) => slot.map((name) => teamByName[name]).filter(Boolean));
+          if (fromSaved.every((h) => h.length === TEAMS_PER_HEAT)) seededHeats = fromSaved;
         }
-        const heatColors = ['#f9a8d4', '#8be9fd', '#50fa7b', '#f5a623', '#c084fc', '#fbbf24'];
+        const heatColors = ['#f9a8d4', '#8be9fd', '#50fa7b', '#f5a623', '#c084fc', '#fbbf24', '#22d3ee', '#a3e635', '#f97316', '#e94560'];
         const heatSubs: Record<string, string> = (() => {
           try { return sat.heatSubsJson ? JSON.parse(sat.heatSubsJson) : {}; } catch { return {}; }
         })();
@@ -909,6 +893,7 @@ export function Dashboard({
                 <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#8090a0', marginLeft: 4 }}>{sat.name} · starts {satDate} · {teams.length} team{teams.length === 1 ? '' : 's'}</span>
                 {viewBtn}
               </div>
+              {playInStrip}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
                 {seededHeats.map((hTeams, hi) => {
                   if (hTeams.length === 0) return null;
@@ -926,6 +911,11 @@ export function Dashboard({
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {hAvg}</span>
                       </div>
                       {hTeams.map((t, ti) => {
+                        if (t.placeholder) return (
+                          <div key={ti} style={{ padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none', fontFamily: FONT_MONO, fontSize: 12, color: '#c084fc' }}>
+                            <span style={{ color: '#556', fontSize: 10, display: 'inline-block', minWidth: 24 }}>S{t.seedNum}</span>{t.name}
+                          </div>
+                        );
                         const sub0 = heatSubs[`${hi}:${t.members[0]}`];
                         const sub1 = heatSubs[`${hi}:${t.members[1]}`];
                         return (
