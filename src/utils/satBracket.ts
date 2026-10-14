@@ -165,8 +165,10 @@ export function toSlot(s: string | undefined | null): string {
   return SAT_TIME_SLOTS.reduce((best, slot) => (Math.abs(mins(slot) - mins(n)) < Math.abs(mins(best) - mins(n)) ? slot : best));
 }
 
-// Session for each Round 1 heat: saved heat time if set, else first half 6:30 / rest 8:00
-export function round1Slots(numHeats: number, heatTimes: (string | undefined)[] | undefined): string[] {
+// Session for each Round 1 heat: saved heat time if set, else an even split of time slots.
+// The play-in (if any) takes one 6:30 slot, so its winner can race at 8:00.
+export function round1Slots(numHeats: number, heatTimes: (string | undefined)[] | undefined, hasPlayIn = false): string[] {
+  const early = Math.ceil((numHeats + (hasPlayIn ? 1 : 0)) / 2) - (hasPlayIn ? 1 : 0);
   return Array.from({ length: numHeats }, (_, hi) =>
-    toSlot(heatTimes?.[hi]) || (hi < Math.ceil(numHeats / 2) ? SAT_TIME_SLOTS[0] : SAT_TIME_SLOTS[1]));
+    toSlot(heatTimes?.[hi]) || (hi < early ? SAT_TIME_SLOTS[0] : SAT_TIME_SLOTS[1]));
 }

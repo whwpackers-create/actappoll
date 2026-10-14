@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, TEAMS_PER_HEAT } from '../utils/satBracket';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT } from '../utils/satBracket';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -736,6 +736,7 @@ export function Dashboard({
         const playInStrip = playIn.size > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12, padding: '8px 10px', borderRadius: 6, background: 'rgba(192,132,252,0.06)', border: '1px solid rgba(192,132,252,0.2)', fontFamily: FONT_MONO, fontSize: 11 }}>
             <span style={{ color: '#c084fc', letterSpacing: 2, fontSize: 10 }}>PLAY-IN · {playIn.advance} ADVANCE{playIn.advance === 1 ? 'S' : ''}</span>
+            <span style={{ color: '#c8a030', fontSize: 10 }}>🕐 {SAT_TIME_SLOTS[0]}</span>
             {playInTeams.map((t, i) => {
               const won = playInWinners.includes(t.name);
               const out = playInWinners.length === playIn.advance && !won;
@@ -907,7 +908,7 @@ export function Dashboard({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>HEAT {hi + 1}</span>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>🕐 {round1Slots(NUM_HEATS, sat.heatTimes)[hi]}</span>
+                          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>🕐 {round1Slots(NUM_HEATS, sat.heatTimes, playIn.size > 0)[hi]}</span>
                         </div>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {hAvg}</span>
                       </div>

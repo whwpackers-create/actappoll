@@ -1180,7 +1180,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         return Object.fromEntries(Object.entries(raw).map(([p, t]) => [p, toSlot(t)]).filter(([, t]) => t));
       } catch { return {}; }
     })();
-    const d1HeatTimes = round1Slots(NUM_HEATS, curSat.heatTimes);
+    const d1HeatTimes = round1Slots(NUM_HEATS, curSat.heatTimes, playIn.size > 0);
     const teamRequest = (t: { members: string[] }) => t.members.map((m) => timeRequests[m]).find(Boolean) ?? null;
     const saveTimeRequests = (next: Record<string, string>) => {
       auth.req(async () => {
@@ -1189,11 +1189,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     };
     const optimizeHeats = () => {
       auth.req(async () => {
-        const { heats: opt, unmet } = applyTimeRequests(snake(d1Field, NUM_HEATS), d1HeatTimes, teamRequest, (t) => t.seed ?? 99);
+        // Even split of sessions (play-in counts as a 6:30 heat); the play-in winner races at 8:00
+        const slots = round1Slots(NUM_HEATS, undefined, playIn.size > 0);
+        const requestFor = (t: FieldTeam) => (t.placeholder || playInTeams.some((p) => p.name === t.name)) && playIn.size > 0
+          ? SAT_TIME_SLOTS[1] : teamRequest(t);
+        const { heats: opt, unmet } = applyTimeRequests(snake(d1Field, NUM_HEATS), slots, requestFor, (t) => t.seed ?? 99);
         // Save the bracket plus each Round 1 heat's session so times show everywhere
         const times = [...(curSat.heatTimes ?? [])];
         while (times.length < NUM_HEATS) times.push('');
-        d1HeatTimes.forEach((t, hi) => { times[hi] = t; });
+        slots.forEach((t, hi) => { times[hi] = t; });
         await fsUpdate('sats', curSat.id ?? curSat._id ?? '', {
           heatAssignmentsJson: JSON.stringify(opt.map((h) => h.map((t) => t.name))),
           heatTimes: times,
@@ -1535,6 +1539,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           <div style={{ ...card, marginBottom: 12, borderLeft: '3px solid #c084fc' }}>
             <div style={cHead}>
               <span style={cTitle}>🎟 Play-in</span>
+              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>🕐 {SAT_TIME_SLOTS[0]}</span>
               <span style={cSub}>
                 {playInTeams.length} lowest seeds · {playIn.advance} advance{playIn.advance === 1 ? 's' : ''} ·{' '}
                 {playInWinners.length === playIn.advance ? 'decided' : `pick ${playIn.advance - playInWinners.length} more`}
@@ -1579,7 +1584,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               </button>
             </div>
             <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginBottom: 10 }}>
-              Round 1 sessions: {d1HeatTimes.map((t, hi) => <span key={hi} style={{ marginRight: 10 }}>H{hi + 1} <span style={{ color: '#c8a030' }}>{t}</span></span>)}
+              Sessions: {playIn.size > 0 && <span style={{ marginRight: 10 }}>Play-in <span style={{ color: '#c8a030' }}>{SAT_TIME_SLOTS[0]}</span></span>}{d1HeatTimes.map((t, hi) => <span key={hi} style={{ marginRight: 10 }}>H{hi + 1} <span style={{ color: '#c8a030' }}>{t}</span></span>)}
               <span style={{ color: '#445' }}>(change a heat's session from its 🕐 button)</span>
             </div>
             {Object.entries(timeRequests).map(([player, time]) => {
