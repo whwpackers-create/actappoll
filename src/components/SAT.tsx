@@ -1,7 +1,7 @@
 import { useState, Fragment, useMemo } from 'react';
 import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
-import { computeStats, SAT_ROUND_MULTI, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
+import { computeStats, satMultiFor, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
 import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, teamKey, toSlot, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
 import {
   card,
@@ -1621,7 +1621,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>🏁 Round 1</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#50fa7b', background: 'rgba(80,250,123,0.08)', border: '1px solid rgba(80,250,123,0.2)', borderRadius: 4, padding: '1px 6px' }}>1.1×</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#50fa7b', background: 'rgba(80,250,123,0.08)', border: '1px solid rgba(80,250,123,0.2)', borderRadius: 4, padding: '1px 6px' }}>{satMultiFor({ satId: 'sat', satRound: 1, date: curSat.date }).toFixed(1)}×</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={cSub}>{heatsReleased ? `${completedCount}/${NUM_HEATS} heats` : 'Heats not assigned yet'}</span>
               {!heatsReleased && (
@@ -1759,7 +1759,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>🏁 Round 2</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#8be9fd', background: 'rgba(139,233,253,0.08)', border: '1px solid rgba(139,233,253,0.2)', borderRadius: 4, padding: '1px 6px' }}>1.2×</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#8be9fd', background: 'rgba(139,233,253,0.08)', border: '1px solid rgba(139,233,253,0.2)', borderRadius: 4, padding: '1px 6px' }}>{satMultiFor({ satId: 'sat', satRound: 2, date: curSat.date }).toFixed(1)}×</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={cSub}>{day2Teams.length > 0 ? `${d2CompletedCount}/${NUM_D2} heats` : `Complete Round 1 first (${completedCount}/${NUM_HEATS})`}</span>
               {day2Teams.length > 0 && d2CompletedCount === 0 && !editingBracket && (
@@ -1886,7 +1886,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>🔥 Semifinals</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#fbbf24', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 4, padding: '1px 6px' }}>1.5×</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#fbbf24', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 4, padding: '1px 6px' }}>{satMultiFor({ satId: 'sat', satRound: 3, date: curSat.date }).toFixed(1)}×</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={cSub}>{semiTeams.length > 0 ? `${semiCompletedCount}/${NUM_SEMI} heats` : `Complete ${prevLabel(2)} first`}</span>
               {semiTeams.length > 0 && semiCompletedCount === 0 && !editingSemiBracket && (
@@ -1994,7 +1994,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={cHead}>
             <span style={cTitle}>👑 Final</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#f5a623', background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 4, padding: '1px 6px' }}>2.0×</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#f5a623', background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 4, padding: '1px 6px' }}>{satMultiFor({ satId: 'sat', satRound: 4, date: curSat.date }).toFixed(1)}×</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={cSub}>{finalsTeams.length > 0 ? (finalsHeatResult ? '1/1 heats' : '0/1 heats') : 'Complete Semifinals first'}</span>
               {finalsTeams.length > 0 && !finalsHeatResult && !editingFinalsBracket && (
@@ -2401,7 +2401,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                   {ri === rounds - 1 ? '👑' : ri === rounds - 2 ? '🔥' : '🏁'} {rn}
                 </span>
                 {(() => {
-                  const mult = SAT_ROUND_MULTI[ri + 1];
+                  const mult = satMultiFor({ satId: 'sat', satRound: ri + 1, date: curSat.date });
                   const multColors: Record<number, string> = { 1: '#50fa7b', 2: '#8be9fd', 3: '#fbbf24', 4: '#f5a623' };
                   return mult ? (
                     <span style={{ fontFamily: 'monospace', fontSize: 10, color: multColors[ri + 1] ?? '#aaa', background: `${multColors[ri + 1] ?? '#aaa'}18`, border: `1px solid ${multColors[ri + 1] ?? '#aaa'}33`, borderRadius: 4, padding: '1px 6px' }}>

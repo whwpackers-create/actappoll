@@ -49,6 +49,25 @@ const UNDERDOG_MAX    = 0.85;  // maximum loss reduction (85%)
 export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 2.0 };
 export const SAT_ROUND_MULTI_DEFAULT = 1.1;
 
+// From the Fall 2026 SAT on (not retroactive):
+//  - SATs use a flat 1.5× gain multiplier for every round
+//  - skill gap scales results Elo-style: beating much weaker rooms earns little,
+//    losing to much stronger rooms costs little (and upsets pay more)
+export const SKILL_ERA_CUTOFF = '2026-10-15';
+export const SAT_FLAT_MULTI   = 1.5;
+const SKILL_SCALE      = 800;   // VR gap at which the expected-result factor shifts ~3×
+const SKILL_MIN_FACTOR = 0.1;   // never fully zero out a result
+const SKILL_MAX_FACTOR = 1.5;   // cap how much an upset can amplify a result
+
+export const inSkillEra = (date: string | undefined) => (date ?? '') >= SKILL_ERA_CUTOFF;
+
+// SAT gain multiplier for an act (1 for non-SAT acts)
+export function satMultiFor(act: { satId?: string; satRound?: number; date?: string }): number {
+  if (!act.satId) return 1;
+  if (inSkillEra(act.date)) return SAT_FLAT_MULTI;
+  return SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT;
+}
+
 // Season base floor (no one starts below this)
 export const SEASON_BASE_ELO = 5000;
 
@@ -79,13 +98,14 @@ export const SAT_PLACEMENT_BONUS: Record<string, number> = {
 };
 
 // ─── Core VR change for a single race ───────────────────────────────────────
-function vrChange(
+export function vrChange(
   myVR: number,
   oppVRs: number[],
   pos: number,           // 0=1st, 1=2nd, 2=3rd, 3=4th
   satGainMult: number,
   provMult: number = 1.0,  // provisional period multiplier (gains only)
-  actCount: number = 0     // all-time ACTs played (for floor dampening tier)
+  actCount: number = 0,    // all-time ACTs played (for floor dampening tier)
+  skillEra: boolean = false
 ): number {
   if (oppVRs.length === 0) return 0;
 
@@ -95,9 +115,17 @@ function vrChange(
   // Base points from finish position
   const base = VR_BASE_PTS[Math.min(pos, VR_BASE_PTS.length - 1)];
 
-  // Skill modifier — being above the room reduces gains, increases losses
-  const adj  = Math.max(-VR_DIFF_CAP, Math.min(VR_DIFF_CAP, -(diff / VR_DIFF_K)));
-  let change = base + adj;
+  let change: number;
+  if (skillEra) {
+    // Elo-style: gains shrink (and losses grow) the further you're above the room, and vice versa
+    const gainF = 2 / (1 + Math.pow(10, diff / SKILL_SCALE));
+    const lossF = 2 / (1 + Math.pow(10, -diff / SKILL_SCALE));
+    change = base * Math.min(SKILL_MAX_FACTOR, Math.max(SKILL_MIN_FACTOR, base > 0 ? gainF : lossF));
+  } else {
+    // Skill modifier — being above the room reduces gains, increases losses
+    const adj = Math.max(-VR_DIFF_CAP, Math.min(VR_DIFF_CAP, -(diff / VR_DIFF_K)));
+    change = base + adj;
+  }
 
   // SAT day multiplier + provisional dampening (gains only)
   if (change > 0) {
@@ -106,7 +134,7 @@ function vrChange(
   }
 
   // Underdog protection: reduce losses when substantially below room average
-  if (change < 0 && diff < -UNDERDOG_FLOOR) {
+  if (!skillEra && change < 0 && diff < -UNDERDOG_FLOOR) {
     const deficit = Math.abs(diff) - UNDERDOG_FLOOR;
     const reductionFactor = Math.min(UNDERDOG_MAX, (deficit / UNDERDOG_SCALE) * UNDERDOG_MAX);
     change *= (1 - reductionFactor);
@@ -173,8 +201,7 @@ export function computeAllElos(
       });
       const remap = (n: string) => subMap[n] ?? n;
 
-      const satGainMult = act.satId
-        ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
+      const satGainMult = satMultiFor(act);
 
       // For 16-man acts: if act.races is missing TV2 data, reconstruct TV2 races
       // from gridJson+playerMapJson so TV2 players get proper VR changes.
@@ -247,7 +274,7 @@ export function computeAllElos(
           const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => vrs[opp] ?? STARTING_VR);
           const snap = actProvSnapshot[name] ?? 0;
           const provMult = snap < PROVISIONAL_ACTS ? PROVISIONAL_GAIN_MULT : 1.0;
-          const change = vrChange(vrs[name], oppVRs, pos, satGainMult, provMult, snap);
+          const change = vrChange(vrs[name], oppVRs, pos, satGainMult, provMult, snap, inSkillEra(act.date));
           vrs[name] = Math.max(1, Math.min(VR_MAX, vrs[name] + change));
         });
       });
@@ -309,8 +336,7 @@ export function computeSeasonElos(
     });
     const remap = (n: string) => subMap[n] ?? n;
 
-    const satGainMult = act.satId
-      ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
+    const satGainMult = satMultiFor(act);
 
     // Reconstruct missing TV2 races for 16-man acts (same logic as computeAllElos)
     let effectiveRaces = act.races as { raceNum?: number; results: { player: string; points: number }[] }[];
@@ -369,7 +395,7 @@ export function computeSeasonElos(
         const placementMult = isPlacement ? SEASON_PLACEMENT_MULT : 1;
 
         const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => sVRs[opp] ?? seasonStart(opp));
-        const change = vrChange(sVRs[name], oppVRs, pos, satGainMult * placementMult);
+        const change = vrChange(sVRs[name], oppVRs, pos, satGainMult * placementMult, 1.0, 0, inSkillEra(act.date));
         sVRs[name] = Math.max(1, Math.min(VR_MAX, sVRs[name] + change));
       });
     });
@@ -520,8 +546,7 @@ export function computeActBracketBreakdown(
     return c0 >= c1 ? 0 : 1;
   });
 
-  const satGainMult = act.satId
-    ? (SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT) : 1;
+  const satGainMult = satMultiFor(act);
 
   soloPlayers.forEach((name) => {
     let pts0 = 0, pts1 = 0, ch0 = 0, ch1 = 0;
@@ -536,7 +561,7 @@ export function computeActBracketBreakdown(
       if (pos === -1) return;
 
       const oppVRs = sorted.filter((_, j) => j !== pos).map(({ name: opp }) => vrsBefore[opp] ?? STARTING_VR);
-      const change = vrChange(vrsBefore[name] ?? STARTING_VR, oppVRs, pos, satGainMult);
+      const change = vrChange(vrsBefore[name] ?? STARTING_VR, oppVRs, pos, satGainMult, 1.0, 0, inSkillEra(act.date));
       const pts = sorted[pos].pts;
 
       if (racePos[i] === 0)      { pts0 += pts; ch0 += change; }

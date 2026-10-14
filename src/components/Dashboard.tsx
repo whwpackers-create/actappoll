@@ -1389,7 +1389,7 @@ export function Dashboard({
               },
               {
                 title: 'SAT Multipliers',
-                body: 'SAT gains are boosted by day: Day 1 = 1.1×, Day 2 = 1.2×, Day 3 = 1.5×, Finals = 2×. Only gains are amplified — SAT losses are normal.',
+                body: 'SAT gains get a 1.5× boost every round (from Fall 2026; earlier SATs used 1.1× → 2× by round). Only gains are amplified. Results also scale with skill gap: beating much weaker players earns little, losing to much stronger players costs little.',
               },
             ].map((item) => (
               <div key={item.title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px' }}>
