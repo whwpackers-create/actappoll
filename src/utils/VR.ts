@@ -50,11 +50,12 @@ export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5,
 export const SAT_ROUND_MULTI_DEFAULT = 1.1;
 
 // From the Fall 2026 SAT on (not retroactive):
-//  - SATs use a flat 1.5× gain multiplier for every round
+//  - SATs use a 1.5× gain multiplier every round except the Finals (2×)
 //  - skill gap scales results Elo-style: beating much weaker rooms earns little,
 //    losing to much stronger rooms costs little (and upsets pay more)
 export const SKILL_ERA_CUTOFF = '2026-10-15';
 export const SAT_FLAT_MULTI   = 1.5;
+export const SAT_FINALS_MULTI = 2.0;
 const SKILL_SCALE      = 800;   // VR gap at which the expected-result factor shifts ~3×
 const SKILL_MIN_FACTOR = 0.1;   // never fully zero out a result
 const SKILL_MAX_FACTOR = 1.5;   // cap how much an upset can amplify a result
@@ -64,7 +65,7 @@ export const inSkillEra = (date: string | undefined) => (date ?? '') >= SKILL_ER
 // SAT gain multiplier for an act (1 for non-SAT acts)
 export function satMultiFor(act: { satId?: string; satRound?: number; date?: string }): number {
   if (!act.satId) return 1;
-  if (inSkillEra(act.date)) return SAT_FLAT_MULTI;
+  if (inSkillEra(act.date)) return (act.satRound ?? 1) >= 4 ? SAT_FINALS_MULTI : SAT_FLAT_MULTI;
   return SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT;
 }
 
