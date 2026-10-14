@@ -2,7 +2,7 @@ import { useState, Fragment, useMemo } from 'react';
 import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
 import { computeStats, SAT_ROUND_MULTI, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, normalizeTime, teamKey, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
 import {
   card,
   cHead,
@@ -182,6 +182,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   const [editingFinalsBracket, setEditingFinalsBracket] = useState(false);
   const [editingSubKey, setEditingSubKey] = useState<string | null>(null); // "heatIdx:playerName"
   const [editingSubVal, setEditingSubVal] = useState('');
+  const [reqPlayer, setReqPlayer] = useState('');
+  const [reqTime, setReqTime] = useState('');
 
   const allStats = useMemo(
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
@@ -194,13 +196,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   );
   const playerInfos = useMemo<PlayerInfo[]>(() => buildPlayerInfos(allStats), [allStats]);
   const canon = (n: string) => resolvePlayer(n, playerInfos)?.name ?? n.trim();
+  // Higher-VR player is always player 1
+  const orderByVR = (m: string[]) => [...m].sort((a, b) => (vrMap[b] ?? NEW_PLAYER_VR) - (vrMap[a] ?? NEW_PLAYER_VR));
+  const teamNameOf = (m: string[]) => m.filter(Boolean).map((x) => x.split(' ')[0]).join(' & ');
   const canonRow = (t: RosterRow): RosterRow => ({ ...t, p1: canon(t.p1), p2: canon(t.p2), sub1: canon(t.sub1), sub2: canon(t.sub2) });
   // Normalize typed names to real player names before saving an upcoming roster
   const buildUpRoster = (rows: { p1: string; p2: string }[]) =>
     rows.filter((t) => t.p1.trim() || t.p2.trim()).map((t) => {
-      const p1 = resolvePlayer(t.p1, playerInfos)?.name ?? t.p1.trim();
-      const p2 = resolvePlayer(t.p2, playerInfos)?.name ?? t.p2.trim();
-      return { name: (p1.split(' ')[0] ?? '') + (p2 ? ' & ' + p2.split(' ')[0] : ''), members: [p1, p2] };
+      const members = orderByVR([resolvePlayer(t.p1, playerInfos)?.name ?? t.p1.trim(), resolvePlayer(t.p2, playerInfos)?.name ?? t.p2.trim()]);
+      return { name: teamNameOf(members), members };
     });
   // Add any names not yet on the roster as new active players
   const ensurePlayers = async (names: string[]) => {
@@ -240,12 +244,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       const roster = eSatRoster
         .map(canonRow)
         .filter((t) => t.p1 && t.p2)
-        .map((t) => ({
-          name: t.p1.split(' ')[0] + ' & ' + t.p2.split(' ')[0],
-          members: [t.p1, t.p2],
-          subs: [t.sub1 || '', t.sub2 || ''],
-          seed: t.seed,
-        }));
+        .map((t) => {
+          const swap = (vrMap[t.p2] ?? NEW_PLAYER_VR) > (vrMap[t.p1] ?? NEW_PLAYER_VR);
+          const members = swap ? [t.p2, t.p1] : [t.p1, t.p2];
+          return { name: teamNameOf(members), members, subs: swap ? [t.sub2 || '', t.sub1 || ''] : [t.sub1 || '', t.sub2 || ''], seed: t.seed };
+        });
       await ensurePlayers(roster.flatMap((t) => [...t.members, ...t.subs]));
       const seedMap: Record<string, number> = {};
       roster.forEach((t) => {
@@ -427,12 +430,11 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       const roster = satRoster
         .map(canonRow)
         .filter((t) => t.p1 && t.p2)
-        .map((t) => ({
-          name: t.p1.split(' ')[0] + ' & ' + t.p2.split(' ')[0],
-          members: [t.p1, t.p2],
-          subs: [t.sub1 || '', t.sub2 || ''],
-          seed: t.seed,
-        }));
+        .map((t) => {
+          const swap = (vrMap[t.p2] ?? NEW_PLAYER_VR) > (vrMap[t.p1] ?? NEW_PLAYER_VR);
+          const members = swap ? [t.p2, t.p1] : [t.p1, t.p2];
+          return { name: teamNameOf(members), members, subs: swap ? [t.sub2 || '', t.sub1 || ''] : [t.sub1 || '', t.sub2 || ''], seed: t.seed };
+        });
       await ensurePlayers(roster.flatMap((t) => [...t.members, ...t.subs]));
       const seedMap: Record<string, number> = {};
       roster.forEach((t) => {
@@ -644,9 +646,10 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 const sid = sat.id ?? sat._id ?? '';
                 const listUnknownVR = NEW_PLAYER_VR;
                 const teams = (sat.roster ?? []).map((t) => {
-                  const vr1 = vrMap[t.members[0]] ?? listUnknownVR;
-                  const vr2 = vrMap[t.members[1]] ?? listUnknownVR;
-                  return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
+                  const members = orderByVR(t.members);
+                  const vr1 = vrMap[members[0]] ?? listUnknownVR;
+                  const vr2 = vrMap[members[1]] ?? listUnknownVR;
+                  return { ...t, members, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
                 }).sort((a, b) => b.avgVR - a.avgVR);
                 return (
                   <div key={sid} style={{ ...card, marginBottom: 10, borderLeft: '3px solid #f9a8d4', cursor: 'pointer' }}
@@ -1115,9 +1118,10 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
   if (curSat && !showHeatEntry && !satIsConcluded(curSat)) {
     const unknownVR = NEW_PLAYER_VR;
     const teams = (curSat.roster ?? []).map((t) => {
-      const vr1 = vrMap[t.members[0]] ?? unknownVR;
-      const vr2 = vrMap[t.members[1]] ?? unknownVR;
-      return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
+      const members = orderByVR(t.members);
+      const vr1 = vrMap[members[0]] ?? unknownVR;
+      const vr2 = vrMap[members[1]] ?? unknownVR;
+      return { ...t, members, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
     }).sort((a, b) => b.avgVR - a.avgVR);
 
     // Bracket structure — 4 teams per heat; lowest seeds play in when the field isn't a multiple of 4
@@ -1134,7 +1138,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const playInWinners: string[] = (() => {
       try {
         const w: string[] = curSat.playInWinnersJson ? JSON.parse(curSat.playInWinnersJson) : [];
-        return playInTeams.filter((t) => w.includes(t.name)).slice(0, playIn.advance).map((t) => t.name);
+        const wk = w.map(teamKey);
+        return playInTeams.filter((t) => wk.includes(teamKey(t.name))).slice(0, playIn.advance).map((t) => t.name);
       } catch { return []; }
     })();
     const playInSlots: FieldTeam[] = Array.from({ length: playIn.advance }, (_, k) => {
@@ -1149,21 +1154,43 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     // Day 1 field, seeded by rank (play-in winners take the bottom seeds)
     const d1Field: FieldTeam[] = [...teams.slice(0, teams.length - playIn.size), ...playInSlots]
       .map((t, i) => ({ ...t, seed: i + 1 }));
-    const teamByName: Record<string, FieldTeam> = Object.fromEntries(d1Field.map((t) => [t.name, t]));
+    const teamByKey: Record<string, FieldTeam> = Object.fromEntries(d1Field.map((t) => [teamKey(t.name), t]));
     playInSlots.forEach((_, k) => {
       // a saved bracket may reference the placeholder name — resolve it to whoever fills that slot now
-      teamByName[`Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`] = d1Field[d1Field.length - playIn.advance + k];
+      teamByKey[teamKey(`Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`)] = d1Field[d1Field.length - playIn.advance + k];
     });
+    const teamByName = (name: string) => teamByKey[teamKey(name)];
     const parsedAssignments: string[][] | null = (curSat.heatAssignmentsJson ?? '')
       ? (() => { try { return JSON.parse(curSat.heatAssignmentsJson!); } catch { return null; } })()
       : null;
     let seededHeats: FieldTeam[][] = snake(d1Field, NUM_HEATS);
     if (parsedAssignments && parsedAssignments.length === NUM_HEATS) {
-      const fromSaved = parsedAssignments.map((slot) => slot.map((name) => teamByName[name]).filter(Boolean));
+      const fromSaved = parsedAssignments.map((slot) => slot.map(teamByName).filter(Boolean));
       if (fromSaved.every((h) => h.length === TEAMS_PER_HEAT)) seededHeats = fromSaved;
     }
     const heatColors = ['#f9a8d4','#8be9fd','#50fa7b','#f5a623','#c084fc','#fbbf24','#22d3ee','#a3e635','#f97316','#e94560'];
     const heatsReleased = satHeatsReleased(curSat);
+
+    // Time requests: player → needed Round 1 heat time
+    const timeRequests: Record<string, string> = (() => {
+      try { return curSat.timeRequestsJson ? JSON.parse(curSat.timeRequestsJson) : {}; } catch { return {}; }
+    })();
+    const d1HeatTimes = Array.from({ length: NUM_HEATS }, (_, hi) => curSat.heatTimes?.[hi] ?? '');
+    const d1TimeOptions = [...new Set(d1HeatTimes.filter(Boolean))];
+    const teamRequest = (t: { members: string[] }) => t.members.map((m) => timeRequests[m]).find(Boolean) ?? null;
+    const saveTimeRequests = (next: Record<string, string>) => {
+      auth.req(async () => {
+        await ops.updateSat(curSat.id ?? curSat._id ?? '', { timeRequestsJson: JSON.stringify(next) });
+      });
+    };
+    const optimizeHeats = () => {
+      auth.req(async () => {
+        const { heats: opt, unmet } = applyTimeRequests(snake(d1Field, NUM_HEATS), d1HeatTimes, teamRequest, (t) => t.seed ?? 99);
+        await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { heatAssignmentsJson: JSON.stringify(opt.map((h) => h.map((t) => t.name))) });
+        await reload();
+        showToast(unmet.length ? `Heats optimized — couldn't place: ${unmet.map((u) => `${u.team} (${u.time})`).join(', ')}` : 'Heats optimized for time requests!');
+      });
+    };
 
     const savePlayInWinners = (names: string[]) => {
       auth.req(async () => {
@@ -1386,7 +1413,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       {' & '}
                       {sub2 ? <><span style={{ textDecoration: 'line-through', color: '#556' }}>{p2.split(' ')[0]}</span> <span style={{ color: '#c084fc' }}>{sub2.split(' ')[0]}</span></> : p2.split(' ')[0]}
                     </div>
-                    <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#556' }}>{Math.round((vr1 + vr2) / 2)} VR</div>
+                    <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#556' }}>
+                      {Math.round((vr1 + vr2) / 2)} VR
+                      {round === 0 && (() => {
+                        const req = t.members.map((m) => timeRequests[m]).find(Boolean);
+                        if (!req) return null;
+                        const ok = normalizeTime(req) === normalizeTime(curSat.heatTimes?.[hi]);
+                        return <span style={{ color: ok ? '#c8a030' : '#e94560', marginLeft: 6 }}>🕐 needs {req}{ok ? ' ✓' : ''}</span>;
+                      })()}
+                    </div>
                   </div>
                   {'score' in t && t.score != null && <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#445' }}>{(t as { score: number }).score}pts</span>}
                 </div>
@@ -1468,7 +1503,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               {[...curSat.roster].sort((a, b) => (a.seed ?? 99) - (b.seed ?? 99)).map((t, i) => (
                 <div key={i} style={{ padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.seed ? `(${t.seed}) ` : ''}{t.name}</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#555' }}>{(t.members ?? []).join(' & ')}</div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#555' }}>{orderByVR(t.members ?? []).join(' & ')}</div>
                   {(t.subs ?? []).filter(Boolean).length > 0 && <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#c084fc' }}>Subs: {t.subs!.filter(Boolean).join(', ')}</div>}
                 </div>
               ))}
@@ -1510,6 +1545,53 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Time requests — Round 1 heat times people need */}
+        {heatsReleased && completedCount === 0 && (
+          <div style={{ ...card, marginBottom: 12, borderLeft: '3px solid #c8a030' }}>
+            <div style={cHead}>
+              <span style={cTitle}>⏰ Time Requests</span>
+              <button onClick={optimizeHeats} disabled={Object.keys(timeRequests).length === 0}
+                style={{ fontFamily: FONT_MONO, fontSize: 10, background: 'rgba(200,160,48,0.12)', border: '1px solid rgba(200,160,48,0.35)', borderRadius: 4, padding: '4px 10px', color: '#c8a030', cursor: 'pointer', opacity: Object.keys(timeRequests).length === 0 ? 0.4 : 1 }}>
+                ⚡ Optimize Heats
+              </button>
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginBottom: 10 }}>
+              {d1TimeOptions.length
+                ? <>Round 1 times: {d1HeatTimes.map((t, hi) => <span key={hi} style={{ marginRight: 10 }}>H{hi + 1} <span style={{ color: t ? '#c8a030' : '#445' }}>{t || '—'}</span></span>)}</>
+                : 'Set times on the Round 1 heats below first, then add requests and press Optimize.'}
+            </div>
+            {Object.entries(timeRequests).map(([player, time]) => {
+              const matches = d1HeatTimes.some((t) => normalizeTime(t) === normalizeTime(time));
+              return (
+                <div key={player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontFamily: FONT_MONO, fontSize: 12 }}>
+                  <span style={{ color: '#e0d4c0', flex: 1 }}>{player}</span>
+                  <span style={{ color: matches ? '#c8a030' : '#e94560' }}>🕐 {time}{!matches && ' — no heat at this time'}</span>
+                  <button onClick={() => { const n = { ...timeRequests }; delete n[player]; saveTimeRequests(n); }}
+                    style={{ background: 'none', border: 'none', color: '#556', cursor: 'pointer', fontSize: 12 }}>✕</button>
+                </div>
+              );
+            })}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ flex: '2 1 180px', display: 'flex' }}>
+                <PlayerPicker value={reqPlayer} onChange={setReqPlayer} placeholder="Player" showStats={false}
+                  players={playerInfos.filter((p) => teams.some((t) => t.members.includes(p.name)))} />
+              </div>
+              {d1TimeOptions.length ? (
+                <select value={reqTime} onChange={(e) => setReqTime(e.target.value)} style={{ ...inp, flex: '1 1 120px', width: 'auto' }}>
+                  <option value="">Needed time…</option>
+                  {d1TimeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              ) : (
+                <input value={reqTime} onChange={(e) => setReqTime(e.target.value)} placeholder="6:15" style={{ ...inp, flex: '1 1 120px', width: 'auto' }} />
+              )}
+              <button style={{ ...secBtn, fontSize: 11 }} disabled={!reqPlayer.trim() || !reqTime.trim()}
+                onClick={() => { saveTimeRequests({ ...timeRequests, [canon(reqPlayer)]: reqTime.trim() }); setReqPlayer(''); setReqTime(''); }}>
+                + Add
+              </button>
             </div>
           </div>
         )}

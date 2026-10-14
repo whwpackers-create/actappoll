@@ -71,3 +71,85 @@ export function advanceTeams(
   const alternates = [...ranked.slice(targetSize), ...thirds.slice(fill)].map((t, i) => ({ ...t, seed: targetSize + 1 + i }));
   return { teams, alternates };
 }
+
+// ─── Time requests ───────────────────────────────────────────────────────────
+// "6:15", "6:15 PM", "Thu 6:15pm" → "6:15"; "8" → "8:00"
+export function normalizeTime(s: string | undefined | null): string {
+  const m = (s ?? '').match(/(\d{1,2})(?::(\d{2}))?/);
+  return m ? `${parseInt(m[1], 10)}:${m[2] ?? '00'}` : '';
+}
+
+// "Will & Mug" and "Mug & Will" refer to the same team
+export function teamKey(name: string): string {
+  return name.split('&').map((p) => p.trim().toLowerCase()).sort().join('&');
+}
+
+// Move teams with a requested time into a heat with that time, swapping with the
+// closest-seeded team that can take their spot, so heats stay as balanced as the snake seeding.
+export function applyTimeRequests<T extends { name: string }>(
+  startHeats: T[][],
+  heatTimes: (string | undefined)[],
+  requestOf: (t: T) => string | null,
+  seedOf: (t: T) => number
+): { heats: T[][]; unmet: { team: string; time: string }[] } {
+  const heats = startHeats.map((h) => [...h]);
+  const allowed = (t: T): number[] | null => {
+    const req = normalizeTime(requestOf(t));
+    if (!req) return null;
+    return heats.map((_, i) => i).filter((i) => normalizeTime(heatTimes[i]) === req);
+  };
+  const okIn = (t: T, hi: number) => { const a = allowed(t); return !a || a.includes(hi); };
+  const heatOf = (t: T) => heats.findIndex((h) => h.includes(t));
+  const locked = new Set<T>();
+  const unmet: { team: string; time: string }[] = [];
+
+  const requested = heats.flat().filter((t) => allowed(t) !== null).sort((a, b) => seedOf(a) - seedOf(b));
+  requested.forEach((t) => { if (okIn(t, heatOf(t))) locked.add(t); });
+
+  for (const a of requested) {
+    if (locked.has(a)) continue;
+    const ha = heatOf(a);
+    let best: { hb: number; bi: number; diff: number } | null = null;
+    for (const hb of allowed(a) ?? []) {
+      heats[hb].forEach((b, bi) => {
+        if (locked.has(b) || !okIn(b, ha)) return;
+        const diff = Math.abs(seedOf(a) - seedOf(b));
+        if (!best || diff < best.diff) best = { hb, bi, diff };
+      });
+    }
+    if (!best) { unmet.push({ team: a.name, time: requestOf(a) ?? '' }); continue; }
+    const { hb, bi } = best as { hb: number; bi: number; diff: number };
+    const b = heats[hb][bi];
+    heats[hb][bi] = a;
+    heats[ha][heats[ha].indexOf(a)] = b;
+    locked.add(a);
+    if (allowed(b)) locked.add(b);
+  }
+
+  // Rebalance: swap close seeds (≤3 apart) between heats while it evens out heat seed totals,
+  // never moving a requested team out of an allowed heat
+  const total = (h: T[]) => h.reduce((s, t) => s + seedOf(t), 0);
+  const target = heats.flat().reduce((s, t) => s + seedOf(t), 0) / heats.length;
+  const spread = () => heats.reduce((s, h) => s + (total(h) - target) ** 2, 0);
+  for (let improved = true, guard = 0; improved && guard < 200; guard++) {
+    improved = false;
+    let bestSwap: { i: number; a: number; j: number; b: number; score: number } | null = null;
+    const cur = spread();
+    for (let i = 0; i < heats.length; i++) for (let j = i + 1; j < heats.length; j++) {
+      heats[i].forEach((x, a) => heats[j].forEach((y, b) => {
+        if (Math.abs(seedOf(x) - seedOf(y)) > 3 || !okIn(x, j) || !okIn(y, i)) return;
+        heats[i][a] = y; heats[j][b] = x;
+        const sc = spread();
+        heats[i][a] = x; heats[j][b] = y;
+        if (sc < cur - 1e-9 && (!bestSwap || sc < bestSwap.score)) bestSwap = { i, a, j, b, score: sc };
+      }));
+    }
+    if (bestSwap) {
+      const { i, a, j, b } = bestSwap as { i: number; a: number; j: number; b: number; score: number };
+      [heats[i][a], heats[j][b]] = [heats[j][b], heats[i][a]];
+      improved = true;
+    }
+  }
+  heats.forEach((h) => h.sort((x, y) => seedOf(x) - seedOf(y)));
+  return { heats, unmet };
+}

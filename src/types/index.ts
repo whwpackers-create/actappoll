@@ -98,6 +98,7 @@ export interface Sat extends Act {
   upcoming?: boolean;
   heatTimes?: string[];
   playInWinnersJson?: string; // JSON string[] of play-in teams that advance to Day 1
+  timeRequestsJson?: string; // JSON Record<playerName, Round 1 heat time>
   heatsReleased?: boolean; // false → show ranked team list instead of Day 1 heats
   heatAssignmentsJson?: string;
   heatSubsJson?: string;

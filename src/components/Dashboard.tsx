@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, TEAMS_PER_HEAT } from '../utils/satBracket';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, TEAMS_PER_HEAT } from '../utils/satBracket';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -714,9 +714,11 @@ export function Dashboard({
         // Ranked field + bracket structure (mirrors the SAT page)
         const dashUnknownVR = NEW_PLAYER_VR;
         const teams = (sat.roster ?? []).map((t) => {
-          const vr1 = vrMap[t.members[0]] ?? dashUnknownVR;
-          const vr2 = vrMap[t.members[1]] ?? dashUnknownVR;
-          return { ...t, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
+          // Higher-VR player listed first
+          const members = [...t.members].sort((a, b) => (vrMap[b] ?? dashUnknownVR) - (vrMap[a] ?? dashUnknownVR));
+          const vr1 = vrMap[members[0]] ?? dashUnknownVR;
+          const vr2 = vrMap[members[1]] ?? dashUnknownVR;
+          return { ...t, members, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
         }).sort((a, b) => b.avgVR - a.avgVR).map((t, i) => ({ ...t, seedNum: i + 1 }));
         if (teams.length === 0) return null;
         const playIn = playInInfo(teams.length);
@@ -727,7 +729,8 @@ export function Dashboard({
         const playInWinners: string[] = (() => {
           try {
             const w: string[] = sat.playInWinnersJson ? JSON.parse(sat.playInWinnersJson) : [];
-            return playInTeams.filter((t) => w.includes(t.name)).slice(0, playIn.advance).map((t) => t.name);
+            const wk = w.map(teamKey);
+            return playInTeams.filter((t) => wk.includes(teamKey(t.name))).slice(0, playIn.advance).map((t) => t.name);
           } catch { return []; }
         })();
         const playInStrip = playIn.size > 0 && (
@@ -868,14 +871,14 @@ export function Dashboard({
           return winner ?? { name: `Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`, members: ['TBD', 'TBD'], subs: [], seed: null, avgVR: dashUnknownVR, vr1: dashUnknownVR, vr2: dashUnknownVR, seedNum: 0, placeholder: true };
         });
         const d1Field: FieldTeam[] = [...teams.slice(0, teams.length - playIn.size), ...playInSlots].map((t, i) => ({ ...t, seedNum: i + 1 }));
-        const teamByName: Record<string, FieldTeam> = Object.fromEntries(d1Field.map((t) => [t.name, t]));
-        playInSlots.forEach((_, k) => { teamByName[`Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`] = d1Field[d1Field.length - playIn.advance + k]; });
+        const teamByKey: Record<string, FieldTeam> = Object.fromEntries(d1Field.map((t) => [teamKey(t.name), t]));
+        playInSlots.forEach((_, k) => { teamByKey[teamKey(`Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`)] = d1Field[d1Field.length - playIn.advance + k]; });
         const parsedAssignments: string[][] | null = (sat.heatAssignmentsJson ?? '')
           ? (() => { try { return JSON.parse(sat.heatAssignmentsJson!); } catch { return null; } })()
           : null;
         let seededHeats: FieldTeam[][] = snake(d1Field, NUM_HEATS);
         if (parsedAssignments && parsedAssignments.length === NUM_HEATS) {
-          const fromSaved = parsedAssignments.map((slot) => slot.map((name) => teamByName[name]).filter(Boolean));
+          const fromSaved = parsedAssignments.map((slot) => slot.map((name) => teamByKey[teamKey(name)]).filter(Boolean));
           if (fromSaved.every((h) => h.length === TEAMS_PER_HEAT)) seededHeats = fromSaved;
         }
         const heatColors = ['#f9a8d4', '#8be9fd', '#50fa7b', '#f5a623', '#c084fc', '#fbbf24', '#22d3ee', '#a3e635', '#f97316', '#e94560'];
