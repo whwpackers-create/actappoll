@@ -36,7 +36,7 @@ function generateTeams(
   format: '8man' | '12man' | '16man',
   eloMap: Record<string, number>
 ): { name: string; players: { seed: number; name: string; elo: number; slot: string }[]; total: number }[] {
-  const getElo = (name: string) => eloMap[name] ?? 5000;
+  const getElo = (name: string) => eloMap[name] ?? Math.min(5000, ...Object.values(eloMap));
 
   // Sort by ELO descending to assign seeds
   const sorted = [...playerNames].sort((a, b) => getElo(b) - getElo(a));
@@ -152,7 +152,10 @@ export function Chooser({ setView, stats }: ChooserProps) {
   const [genError, setGenError] = useState('');
   const playerInfos = useMemo(() => buildPlayerInfos(stats), [stats]);
 
-  const eloMap = Object.fromEntries(stats.map(s => [s.name, Math.round(s.elo)]));
+  // Players who haven't raced have no VR — treat them as the lowest in the system
+  const ratedVRs = stats.filter(s => s.actCount > 0).map(s => Math.round(s.elo));
+  const bottomVR = ratedVRs.length ? Math.min(...ratedVRs) - 1 : 4500;
+  const eloMap = Object.fromEntries(stats.map(s => [s.name, s.actCount > 0 ? Math.round(s.elo) : bottomVR]));
 
   const setName = (i: number, val: string) => {
     setNames(prev => { const n = [...prev]; n[i] = val; return n; });

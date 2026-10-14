@@ -563,8 +563,8 @@ export function Roster({
                     </button>
                   </span>
                   <span className="roster-row-elo" style={tc}>
-                    <span style={{ color: '#c8a030', fontWeight: 700 }}>
-                      {p.elo}
+                    <span style={{ color: p.actCount > 0 ? '#c8a030' : '#c084fc', fontWeight: 700 }}>
+                      {p.actCount > 0 ? p.elo : 'NEW'}
                     </span>
                     <br />
                     <span

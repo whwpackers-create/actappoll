@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT } from '../utils/satBracket';
+import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased } from '../utils/VR';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, teamVR, byTeamRank, fmtVR, avgRated } from '../utils/satBracket';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -227,7 +227,7 @@ export function Dashboard({
   );
   // SAT seeding VR — names not on the roster yet fall back to NEW_PLAYER_VR
   const vrMap = useMemo(
-    () => Object.fromEntries(stats.map((s) => [s.name, s.elo])),
+    () => Object.fromEntries(stats.filter((s) => s.actCount > 0).map((s) => [s.name, s.elo])),
     [stats]
   );
   const activePlayers = data.players
@@ -364,6 +364,8 @@ export function Dashboard({
     filtered.sort((a, b) => (csEloMap[b.name] ?? 0) - (csEloMap[a.name] ?? 0));
   } else {
     filtered.sort((a, b) => {
+      // Players who haven't raced have no VR and always sit at the bottom
+      if ((a.actCount > 0) !== (b.actCount > 0)) return a.actCount > 0 ? -1 : 1;
       if (sortBy === 'elo') return b.elo - a.elo;
       if (sortBy === 'peakVR') {
         const peakA = a.eloHistory.length > 0 ? Math.max(...a.eloHistory.map((h) => h.elo)) : a.elo;
@@ -393,7 +395,7 @@ export function Dashboard({
       ...(MANUAL_SAT_PLACEMENTS[selPlayer] ?? []),
       ...getSatPlacements(selPlayer, data.sats ?? []),
     ];
-    const peakElo = ps.eloHistory.length > 0 ? Math.round(Math.max(...ps.eloHistory.map((h) => h.elo))) : Math.round(ps.elo);
+    const peakElo = ps.actCount === 0 ? '—' : ps.eloHistory.length > 0 ? Math.round(Math.max(...ps.eloHistory.map((h) => h.elo))) : Math.round(ps.elo);
     const lbRank = filtered.findIndex((p) => p.name === selPlayer) + 1;
     const seasonRanks = [...allSeasons]
       .sort((a, b) => b.startDate.localeCompare(a.startDate))
@@ -712,14 +714,9 @@ export function Dashboard({
         );
 
         // Ranked field + bracket structure (mirrors the SAT page)
-        const dashUnknownVR = NEW_PLAYER_VR;
-        const teams = (sat.roster ?? []).map((t) => {
-          // Higher-VR player listed first
-          const members = [...t.members].sort((a, b) => (vrMap[b] ?? dashUnknownVR) - (vrMap[a] ?? dashUnknownVR));
-          const vr1 = vrMap[members[0]] ?? dashUnknownVR;
-          const vr2 = vrMap[members[1]] ?? dashUnknownVR;
-          return { ...t, members, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
-        }).sort((a, b) => b.avgVR - a.avgVR).map((t, i) => ({ ...t, seedNum: i + 1 }));
+        // Higher-VR player listed first; teams with unrated (never raced) players rank last
+        const teams = (sat.roster ?? []).map((t) => ({ ...t, ...teamVR(t.members, (n) => vrMap[n]) }))
+          .sort(byTeamRank).map((t, i) => ({ ...t, seedNum: i + 1 }));
         if (teams.length === 0) return null;
         const playIn = playInInfo(teams.length);
         const sizes = stageSizes(playIn.fieldSize);
@@ -769,7 +766,7 @@ export function Dashboard({
                         {t.members[0]}<span style={{ color: '#8090a0' }}> &amp; {t.members[1]}</span>
                       </span>
                       {t.seedNum > teams.length - playIn.size && <span style={{ color: '#c084fc', fontSize: 9 }}>PLAY-IN</span>}
-                      <span style={{ color: '#c8a030', fontSize: 10 }}>{t.avgVR}</span>
+                      <span style={{ color: t.avgVR == null ? '#c084fc' : '#c8a030', fontSize: 10 }}>{t.avgVR ?? 'NEW'}</span>
                     </div>
                   ))}
                 </div>
@@ -795,24 +792,24 @@ export function Dashboard({
               .sort((a, b) => { if (b.score !== a.score) return b.score - a.score; if (act.tiebreaker === a.name) return -1; if (act.tiebreaker === b.name) return 1; return a.origIdx - b.origIdx; });
           };
 
-          const renderHeatCard = (hTeams: SATTeam[], hi: number, hColor: string, label: string, unknownVR: number) => (
+          const renderHeatCard = (hTeams: SATTeam[], hi: number, hColor: string, label: string) => (
             <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}33`, borderRadius: 6, padding: '10px 12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>{label} · HEAT {hi + 1}</span>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {Math.round(hTeams.reduce((s, t) => s + Math.round(((vrMap[t.members[0]] ?? unknownVR) + (vrMap[t.members[1]] ?? unknownVR)) / 2), 0) / Math.max(hTeams.length, 1))}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {fmtVR(avgRated(hTeams, (n) => vrMap[n]))}</span>
               </div>
               {hTeams.map((t, ti) => {
-                const vr1 = vrMap[t.members[0]] ?? unknownVR; const vr2 = vrMap[t.members[1]] ?? unknownVR;
+                const tv = teamVR(t.members, (n) => vrMap[n]);
                 return (
                   <div key={ti} style={{ padding: '4px 0', borderTop: ti > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#e0d4c0' }}>
-                        {t.members[0] && <span>{t.members[0].split(' ')[0]}</span>}
-                        {t.members[1] && <span style={{ color: '#8090a0' }}> &amp; {t.members[1].split(' ')[0]}</span>}
+                        {tv.members[0] && <span>{tv.members[0].split(' ')[0]}</span>}
+                        {tv.members[1] && <span style={{ color: '#8090a0' }}> &amp; {tv.members[1].split(' ')[0]}</span>}
                       </div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#556' }}>{t.score}pts</span>
-                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>{Math.round((vr1 + vr2) / 2)}</span>
+                        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: tv.avgVR == null ? '#c084fc' : '#c8a030' }}>{tv.avgVR ?? 'NEW'}</span>
                       </div>
                     </div>
                   </div>
@@ -822,7 +819,6 @@ export function Dashboard({
           );
 
           const renderUpcomingSection = (title: string, color: string, icon: string, heats: SATTeam[][], colors: string[], label: string) => {
-            const unknownVR = NEW_PLAYER_VR;
             return (
               <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
                 <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
@@ -833,7 +829,7 @@ export function Dashboard({
                     {viewBtn}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-                    {heats.map((hTeams, hi) => hTeams.length === 0 ? null : renderHeatCard(hTeams, hi, colors[hi] ?? color, label, unknownVR))}
+                    {heats.map((hTeams, hi) => hTeams.length === 0 ? null : renderHeatCard(hTeams, hi, colors[hi] ?? color, label))}
                   </div>
                 </div>
               </div>
@@ -869,7 +865,7 @@ export function Dashboard({
         type FieldTeam = (typeof teams)[0] & { placeholder?: boolean };
         const playInSlots: FieldTeam[] = Array.from({ length: playIn.advance }, (_, k) => {
           const winner = playInTeams.find((t) => t.name === playInWinners[k]);
-          return winner ?? { name: `Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`, members: ['TBD', 'TBD'], subs: [], seed: null, avgVR: dashUnknownVR, vr1: dashUnknownVR, vr2: dashUnknownVR, seedNum: 0, placeholder: true };
+          return winner ?? { name: `Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`, members: ['TBD', 'TBD'], subs: [], seed: null, vr1: null, vr2: null, avgVR: null, newCount: 2, sortVR: 0, seedNum: 0, placeholder: true };
         });
         const d1Field: FieldTeam[] = [...teams.slice(0, teams.length - playIn.size), ...playInSlots].map((t, i) => ({ ...t, seedNum: i + 1 }));
         const teamByKey: Record<string, FieldTeam> = Object.fromEntries(d1Field.map((t) => [teamKey(t.name), t]));
@@ -902,7 +898,7 @@ export function Dashboard({
                 {seededHeats.map((hTeams, hi) => {
                   if (hTeams.length === 0) return null;
                   const hColor = heatColors[hi] ?? '#f9a8d4';
-                  const hAvg = Math.round(hTeams.reduce((s, t) => s + t.avgVR, 0) / hTeams.length);
+                  const hAvg = fmtVR(avgRated(hTeams.filter((t) => !t.placeholder), (n) => vrMap[n]));
                   return (
                     <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}33`, borderRadius: 6, padding: '10px 12px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -928,7 +924,7 @@ export function Dashboard({
                                 {t.members[0] && <span style={{ textDecoration: sub0 ? 'line-through' : 'none', color: sub0 ? '#556' : '#e0d4c0' }}>{t.members[0].split(' ')[0]}</span>}
                                 {t.members[1] && <span style={{ color: '#8090a0', textDecoration: sub1 ? 'line-through' : 'none' }}> &amp; {t.members[1].split(' ')[0]}</span>}
                               </div>
-                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c8a030' }}>{t.avgVR}</span>
+                              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: t.avgVR == null ? '#c084fc' : '#c8a030' }}>{t.avgVR ?? 'NEW'}</span>
                             </div>
                             {(sub0 || sub1) && (
                               <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c084fc', marginTop: 2 }}>
@@ -1137,7 +1133,7 @@ export function Dashboard({
                   ? (((p.jerseySwaps ?? 0) / p.actCount) * 100).toFixed(1)
                   : '0';
                 const ch30 = p.change30d ?? 0;
-                const peakVR = p.eloHistory.length > 0
+                const peakVR = p.actCount === 0 ? '—' : p.eloHistory.length > 0
                   ? Math.round(Math.max(...p.eloHistory.map((h) => h.elo)))
                   : Math.round(p.elo);
                 const satWins = countSatWins(data.sats ?? [], p.name);
@@ -1270,7 +1266,7 @@ export function Dashboard({
                         { l: 'AVG PTS/ACT', v: sStats.acts > 0 ? (sStats.pts / sStats.acts).toFixed(1) : '0', c: '#93c5fd' },
                         { l: 'JERSEY SWAPS', v: sStats.js, c: '#f9a8d4' },
                       ] : [
-                        { l: 'VR', v: Math.round(p.elo), c: '#93c5fd' },
+                        { l: 'VR', v: p.actCount > 0 ? Math.round(p.elo) : '—', c: '#93c5fd' },
                         { l: '30D CHANGE', v: (ch30 > 0 ? '+' : '') + ch30, c: ch30 > 0 ? '#86efac' : ch30 < 0 ? '#fca5a5' : '#556' },
                         { l: 'PEAK VR', v: peakVR, c: '#fde68a' },
                         { l: 'WINS', v: p.wins, c: '#86efac' },
@@ -1413,7 +1409,7 @@ export function Dashboard({
       const winRate = ps.actCount ? (ps.wins / ps.actCount * 100).toFixed(1) : '0';
       const jsRate = ps.actCount ? ((ps.jerseySwaps ?? 0) / ps.actCount * 100).toFixed(1) : '0';
       const satWins = countSatWins(data.sats ?? [], ps.name);
-      const currentTier = getTier(Math.round(ps.elo));
+      const currentTier = ps.actCount > 0 ? getTier(Math.round(ps.elo)) : { name: 'Unrated', icon: '🆕', color: '#c084fc' };
 
       const coreStats = [
         { l: 'ACTs', v: ps.actCount, c: '#94b8d8' },
@@ -1450,7 +1446,7 @@ export function Dashboard({
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#60a5fa' }}>
-                  VR {Math.round(ps.elo)}
+                  VR {ps.actCount > 0 ? Math.round(ps.elo) : '— (hasn\'t raced yet)'}
                 </span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: '#6080a0' }}>Peak {peakElo}</span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: ch30 > 0 ? '#4ade80' : ch30 < 0 ? '#f87171' : '#445' }}>

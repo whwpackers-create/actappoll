@@ -172,3 +172,40 @@ export function round1Slots(numHeats: number, heatTimes: (string | undefined)[] 
   return Array.from({ length: numHeats }, (_, hi) =>
     toSlot(heatTimes?.[hi]) || (hi < early ? SAT_TIME_SLOTS[0] : SAT_TIME_SLOTS[1]));
 }
+
+// ─── Team ranking ────────────────────────────────────────────────────────────
+// Players who haven't raced yet have no VR. Teams with them rank below every
+// fully-rated team (fewest unrated players first, then by their known VR).
+export interface TeamVR {
+  members: string[];      // higher-VR player first, unrated last
+  vr1: number | null;
+  vr2: number | null;
+  avgVR: number | null;   // null when any member is unrated
+  newCount: number;       // unrated members
+  sortVR: number;         // average of the rated members (0 if none)
+}
+
+export function teamVR(members: string[], vrOf: (name: string) => number | undefined): TeamVR {
+  const ordered = [...members].sort((a, b) => (vrOf(b) ?? -1) - (vrOf(a) ?? -1));
+  const vrs = ordered.map((m) => vrOf(m));
+  const known = vrs.filter((v): v is number => v !== undefined);
+  const avg = known.length ? known.reduce((s, v) => s + v, 0) / known.length : 0;
+  return {
+    members: ordered,
+    vr1: vrs[0] ?? null,
+    vr2: vrs[1] ?? null,
+    avgVR: known.length === vrs.length && known.length > 0 ? Math.round(avg) : null,
+    newCount: vrs.length - known.length,
+    sortVR: avg,
+  };
+}
+
+export const byTeamRank = (a: TeamVR, b: TeamVR) => a.newCount - b.newCount || b.sortVR - a.sortVR;
+
+export const fmtVR = (v: number | null | undefined) => (v == null ? '—' : String(Math.round(v)));
+
+// Average VR of the rated players in a set of teams (for heat averages)
+export function avgRated(teams: { members: string[] }[], vrOf: (name: string) => number | undefined): number | null {
+  const vs = teams.flatMap((t) => t.members.map(vrOf)).filter((v): v is number => v !== undefined);
+  return vs.length ? Math.round(vs.reduce((s, v) => s + v, 0) / vs.length) : null;
+}

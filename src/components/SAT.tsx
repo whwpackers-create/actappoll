@@ -1,8 +1,8 @@
 import { useState, Fragment, useMemo } from 'react';
 import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
-import { computeStats, satMultiFor, satHeatsReleased, NEW_PLAYER_VR } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, teamKey, toSlot, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
+import { computeStats, satMultiFor, satHeatsReleased } from '../utils/VR';
+import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, teamKey, toSlot, round1Slots, SAT_TIME_SLOTS, teamVR, byTeamRank, fmtVR, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
 import {
   card,
   cHead,
@@ -34,7 +34,7 @@ interface RosterRow {
   sub2: string;
 }
 
-const NEW_MEMBER_LABEL = `New member · will be added to roster · starts at ${NEW_PLAYER_VR} VR`;
+const NEW_MEMBER_LABEL = 'New member · will be added to roster · no VR until they race';
 
 interface AuthState {
   req: (fn: () => void | Promise<void>) => void;
@@ -190,15 +190,15 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     () => computeStats(data.players, data.acts, data.sats ?? [], data.seasons),
     [data.players, data.acts, data.sats, data.seasons]
   );
-  // Names not on the roster yet fall back to NEW_PLAYER_VR
+  // Only players who have raced have a VR — everyone else is unrated (ranked last)
   const vrMap = useMemo(
-    () => Object.fromEntries(allStats.map((s) => [s.name, s.elo])),
+    () => Object.fromEntries(allStats.filter((s) => s.actCount > 0).map((s) => [s.name, s.elo])),
     [allStats]
   );
   const playerInfos = useMemo<PlayerInfo[]>(() => buildPlayerInfos(allStats), [allStats]);
   const canon = (n: string) => resolvePlayer(n, playerInfos)?.name ?? n.trim();
   // Higher-VR player is always player 1
-  const orderByVR = (m: string[]) => [...m].sort((a, b) => (vrMap[b] ?? NEW_PLAYER_VR) - (vrMap[a] ?? NEW_PLAYER_VR));
+  const orderByVR = (m: string[]) => teamVR(m, (n) => vrMap[n]).members;
   const teamNameOf = (m: string[]) => m.filter(Boolean).map((x) => x.split(' ')[0]).join(' & ');
   const canonRow = (t: RosterRow): RosterRow => ({ ...t, p1: canon(t.p1), p2: canon(t.p2), sub1: canon(t.sub1), sub2: canon(t.sub2) });
   // Normalize typed names to real player names before saving an upcoming roster
@@ -246,7 +246,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         .map(canonRow)
         .filter((t) => t.p1 && t.p2)
         .map((t) => {
-          const swap = (vrMap[t.p2] ?? NEW_PLAYER_VR) > (vrMap[t.p1] ?? NEW_PLAYER_VR);
+          const swap = (vrMap[t.p2] ?? -1) > (vrMap[t.p1] ?? -1);
           const members = swap ? [t.p2, t.p1] : [t.p1, t.p2];
           return { name: teamNameOf(members), members, subs: swap ? [t.sub2 || '', t.sub1 || ''] : [t.sub1 || '', t.sub2 || ''], seed: t.seed };
         });
@@ -432,7 +432,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         .map(canonRow)
         .filter((t) => t.p1 && t.p2)
         .map((t) => {
-          const swap = (vrMap[t.p2] ?? NEW_PLAYER_VR) > (vrMap[t.p1] ?? NEW_PLAYER_VR);
+          const swap = (vrMap[t.p2] ?? -1) > (vrMap[t.p1] ?? -1);
           const members = swap ? [t.p2, t.p1] : [t.p1, t.p2];
           return { name: teamNameOf(members), members, subs: swap ? [t.sub2 || '', t.sub1 || ''] : [t.sub1 || '', t.sub2 || ''], seed: t.seed };
         });
@@ -645,13 +645,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#8090a0', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Upcoming</div>
               {upcoming.map((sat) => {
                 const sid = sat.id ?? sat._id ?? '';
-                const listUnknownVR = NEW_PLAYER_VR;
-                const teams = (sat.roster ?? []).map((t) => {
-                  const members = orderByVR(t.members);
-                  const vr1 = vrMap[members[0]] ?? listUnknownVR;
-                  const vr2 = vrMap[members[1]] ?? listUnknownVR;
-                  return { ...t, members, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
-                }).sort((a, b) => b.avgVR - a.avgVR);
+                const teams = (sat.roster ?? []).map((t) => ({ ...t, ...teamVR(t.members, (n) => vrMap[n]) })).sort(byTeamRank);
                 return (
                   <div key={sid} style={{ ...card, marginBottom: 10, borderLeft: '3px solid #f9a8d4', cursor: 'pointer' }}
                     onClick={() => { setSelSat(sid); setMode('detail'); }}>
@@ -664,8 +658,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: FONT_MONO, fontSize: 12 }}>
                               <span style={{ color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : '#445', minWidth: 22, fontFamily: FONT_HEADER }}>#{i + 1}</span>
                               <span style={{ color: '#e0d4c0', minWidth: 120 }}>{t.members[0]} & {t.members[1]}</span>
-                              <span style={{ color: '#c8a030' }}>avg {t.avgVR} VR</span>
-                              <span style={{ color: '#445', fontSize: 10 }}>({t.vr1} / {t.vr2})</span>
+                              <span style={{ color: t.avgVR == null ? '#c084fc' : '#c8a030' }}>{t.avgVR == null ? 'NEW' : `avg ${t.avgVR} VR`}</span>
+                              <span style={{ color: '#445', fontSize: 10 }}>({fmtVR(t.vr1)} / {fmtVR(t.vr2)})</span>
                             </div>
                           ))}
                         </div>
@@ -1117,13 +1111,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
 
   // === UPCOMING DETAIL — REPLACED BELOW ===
   if (curSat && !showHeatEntry && !satIsConcluded(curSat)) {
-    const unknownVR = NEW_PLAYER_VR;
-    const teams = (curSat.roster ?? []).map((t) => {
-      const members = orderByVR(t.members);
-      const vr1 = vrMap[members[0]] ?? unknownVR;
-      const vr2 = vrMap[members[1]] ?? unknownVR;
-      return { ...t, members, avgVR: Math.round((vr1 + vr2) / 2), vr1, vr2 };
-    }).sort((a, b) => b.avgVR - a.avgVR);
+    const teams = (curSat.roster ?? []).map((t) => ({ ...t, ...teamVR(t.members, (n) => vrMap[n]) })).sort(byTeamRank);
 
     // Bracket structure — 4 teams per heat; lowest seeds play in when the field isn't a multiple of 4
     const playIn = playInInfo(teams.length);
@@ -1148,7 +1136,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       return winner ?? {
         name: `Play-in winner${playIn.advance > 1 ? ' ' + (k + 1) : ''}`,
         members: ['TBD', 'TBD'], subs: [], seed: null,
-        avgVR: unknownVR, vr1: unknownVR, vr2: unknownVR,
+        vr1: null, vr2: null, avgVR: null, newCount: 2, sortVR: 0,
         placeholder: true, playInFrom: playInTeams.map((t) => t.name),
       };
     });
@@ -1348,7 +1336,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           ? (heatSubs[`${slotIdx}:${t.members[1]}`] || '')
           : (heatSubs[`r${round}:${slotIdx}:${t.members[1]}`] || '');
         const eff0 = sub0 || t.members[0]; const eff1 = sub1 || t.members[1];
-        const vr0 = vrMap[eff0] ?? unknownVR; const vr1 = vrMap[eff1] ?? unknownVR;
+        const vr0 = vrMap[eff0] ?? -1; const vr1 = vrMap[eff1] ?? -1;
         const swap = vr1 > vr0;
         return { name: t.name, members: swap ? [t.members[1], t.members[0]] : [...t.members], subs: swap ? [sub1, sub0] : [sub0, sub1], seed: t.seed ?? null };
       }));
@@ -1422,8 +1410,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                 </div>
               </div>
             );
-            const vr1 = vrMap[t.members[0]] ?? unknownVR; const vr2 = vrMap[t.members[1]] ?? unknownVR;
-            const [p1, p2] = vr1 >= vr2 ? [t.members[0], t.members[1]] : [t.members[1], t.members[0]];
+            const tv = teamVR(t.members, (n) => vrMap[n]);
+            const [p1, p2] = tv.members;
             const sub1 = round === 0 ? (heatSubs[`${hi}:${p1}`] || '') : (heatSubs[`r${round}:${hi}:${p1}`] || '');
             const sub2 = round === 0 ? (heatSubs[`${hi}:${p2}`] || '') : (heatSubs[`r${round}:${hi}:${p2}`] || '');
             return (
@@ -1437,7 +1425,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       {sub2 ? <><span style={{ textDecoration: 'line-through', color: '#556' }}>{p2.split(' ')[0]}</span> <span style={{ color: '#c084fc' }}>{sub2.split(' ')[0]}</span></> : p2.split(' ')[0]}
                     </div>
                     <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#556' }}>
-                      {Math.round((vr1 + vr2) / 2)} VR
+                      {tv.avgVR == null ? <span style={{ color: '#c084fc' }}>NEW</span> : `${tv.avgVR} VR`}
                       {round === 0 && (() => {
                         const req = t.members.map((m) => timeRequests[m]).find(Boolean);
                         if (!req || !auth.unlocked) return null;
@@ -1564,7 +1552,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                       opacity: decided && !won ? 0.45 : 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: '#f0e6d3' }}>{t.members.join(' & ')}</span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: won ? '#50fa7b' : '#c8a030' }}>{won ? '✓ advances' : `${t.avgVR} VR`}</span>
+                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: won ? '#50fa7b' : '#c8a030' }}>{won ? '✓ advances' : t.avgVR == null ? 'NEW' : `${t.avgVR} VR`}</span>
                     </div>
                   </div>
                 );
@@ -1746,8 +1734,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                     ))}
                   </span>
                   {i >= teams.length - playIn.size && <span style={{ color: '#c084fc', fontSize: 9, border: '1px solid rgba(192,132,252,0.3)', borderRadius: 3, padding: '0 4px' }}>PLAY-IN</span>}
-                  <span style={{ color: '#445', fontSize: 10 }}>{t.vr1} / {t.vr2}</span>
-                  <span style={{ color: '#c8a030', minWidth: 64, textAlign: 'right' }}>{t.avgVR} VR</span>
+                  <span style={{ color: '#445', fontSize: 10 }}>{fmtVR(t.vr1)} / {fmtVR(t.vr2)}</span>
+                  <span style={{ color: t.avgVR == null ? '#c084fc' : '#c8a030', minWidth: 64, textAlign: 'right' }}>{t.avgVR == null ? 'NEW' : `${t.avgVR} VR`}</span>
                 </div>
               ))}
             </div>
