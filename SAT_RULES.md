@@ -17,6 +17,8 @@ Code: `src/utils/satBracket.ts` (bracket, sessions, seeding), `src/utils/VR.ts` 
 | Semifinals | Saturday morning | **2** | **8** | 11:00 AM |
 | Final | Saturday night | **1** | **4** | 8:00 PM |
 
+- The admin can swap two not-yet-raced heats' sessions (heat time dropdown → "Swap time with…"),
+  which keeps the 6:30 / 8:00 split even.
 - `sat.date` is the Thursday (Round 1). Round 2 = +1 day, Semis and Final = +2 days.
 - Every heat has exactly 4 teams.
 
