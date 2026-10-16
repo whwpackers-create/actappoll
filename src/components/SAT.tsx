@@ -2,7 +2,7 @@ import { useState, Fragment, useMemo } from 'react';
 import { PlayerPicker, buildPlayerInfos, resolvePlayer, type PlayerInfo } from './PlayerPicker';
 import { fsGet, fsSet, fsUpdate, gid } from '../services/firestore';
 import { computeStats, satMultiFor, satHeatsReleased } from '../utils/VR';
-import { playInInfo, defaultAdvance, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, teamKey, toSlot, round1Slots, SAT_TIME_SLOTS, teamVR, byTeamRank, fmtVR, choosePlayIn, playInCandidates, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
+import { playInInfo, defaultAdvance, stageSizes, stageRounds, snake, advanceTeams, applyTimeRequests, teamKey, toSlot, roundSessions, ROUND_TIME_BASE, SAT_TIME_SLOTS, teamVR, byTeamRank, fmtVR, choosePlayIn, playInCandidates, TEAMS_PER_HEAT, STAGE_LABEL, type StageTeam } from '../utils/satBracket';
 import {
   card,
   cHead,
@@ -1199,19 +1199,22 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     const heatColors = ['#f9a8d4','#8be9fd','#50fa7b','#f5a623','#c084fc','#fbbf24','#22d3ee','#a3e635','#f97316','#e94560'];
     const heatsReleased = satHeatsReleased(curSat);
 
-    // Time requests: player → needed Round 1 heat time
-    // (only 6:30 and 8:00 sessions exist — older values snap to the nearest one)
-    const timeRequests: Record<string, string> = (() => {
-      try {
-        const raw: Record<string, string> = curSat.timeRequestsJson ? JSON.parse(curSat.timeRequestsJson) : {};
-        return Object.fromEntries(Object.entries(raw).map(([p, t]) => [p, toSlot(t)]).filter(([, t]) => t));
-      } catch { return {}; }
+    // Time requests: round → player → needed session (6:30 / 8:00). Each round has its own list.
+    const timeReqs: Record<number, Record<string, string>> = (() => {
+      let by: Record<string, Record<string, string>> = {};
+      try { by = curSat.timeRequestsByRoundJson ? JSON.parse(curSat.timeRequestsByRoundJson) : {}; } catch { by = {}; }
+      if (!by['0'] && curSat.timeRequestsJson) { try { by['0'] = JSON.parse(curSat.timeRequestsJson); } catch { /* ignore */ } }
+      return Object.fromEntries(Object.entries(by).map(([rd, m]) => [Number(rd),
+        Object.fromEntries(Object.entries(m ?? {}).map(([p, t]) => [p, toSlot(t)]).filter(([, t]) => t))]));
     })();
-    const d1HeatTimes = round1Slots(NUM_HEATS, curSat.heatTimes, playIn.size > 0);
-    const teamRequest = (t: { members: string[] }) => t.members.map((m) => timeRequests[m]).find(Boolean) ?? null;
-    const saveTimeRequests = (next: Record<string, string>) => {
+    const sessionsAt = (round: number, n: number) => roundSessions(round, n, curSat.heatTimes, round === 0 && playIn.size > 0);
+    const d1HeatTimes = sessionsAt(0, NUM_HEATS);
+    const teamRequest = (t: { members: string[] }, round = 0) => t.members.map((m) => timeReqs[round]?.[m]).find(Boolean) ?? null;
+    const saveTimeRequests = (next: Record<string, string>, round = 0) => {
       auth.req(async () => {
-        await ops.updateSat(curSat.id ?? curSat._id ?? '', { timeRequestsJson: JSON.stringify(next) });
+        const all = Object.fromEntries(Object.entries(timeReqs).map(([rd, m]) => [rd, m]));
+        all[round] = next;
+        await ops.updateSat(curSat.id ?? curSat._id ?? '', { timeRequestsByRoundJson: JSON.stringify(all) });
       });
     };
     // Rebuild Round 1: snake seeding → time requests → rebalance. Passing new play-in teams
@@ -1221,9 +1224,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         const pTeams = newPlayIn ?? playInTeams;
         const field = newPlayIn ? buildField(newPlayIn, []).field : d1Field;
         // Even split of sessions (play-in counts as a 6:30 heat); the play-in winner races at 8:00
-        const slots = round1Slots(NUM_HEATS, undefined, playIn.size > 0);
+        const slots = roundSessions(0, NUM_HEATS, undefined, playIn.size > 0);
         const requestFor = (t: FieldTeam) => (t.placeholder || pTeams.some((p) => p.name === t.name)) && playIn.size > 0
-          ? SAT_TIME_SLOTS[1] : teamRequest(t);
+          ? SAT_TIME_SLOTS[1] : teamRequest(t, 0);
         const { heats: opt, unmet } = applyTimeRequests(snake(field, NUM_HEATS), slots, requestFor, (t) => t.seed ?? 99);
         // Save the bracket plus each Round 1 heat's session so times show everywhere
         const times = [...(curSat.heatTimes ?? [])];
@@ -1232,7 +1235,6 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         await fsUpdate('sats', curSat.id ?? curSat._id ?? '', {
           heatAssignmentsJson: JSON.stringify(opt.map((h) => h.map((t) => t.name))),
           heatTimes: times,
-          timeRequestsJson: JSON.stringify(timeRequests),
           ...(newPlayIn ? { playInTeamsJson: JSON.stringify(newPlayIn.map((t) => t.name)), playInWinnersJson: '[]' } : {}),
         });
         setPickingPlayIn(null);
@@ -1278,7 +1280,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       });
     };
     // flat heatTimes index: Day 1 = 0-19, Day 2 = 20-29, Semis = 30-33, Finals = 34
-    const roundFlatBase = (round: number) => round === 0 ? 0 : round === 1 ? 20 : round === 2 ? 30 : 34;
+    const roundFlatBase = (round: number) => ROUND_TIME_BASE[round] ?? 0;
 
     const deleteHeatResults = (round: number, slotIdx: number) => {
       auth.req(async () => {
@@ -1377,6 +1379,73 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
     // Finals
     const finalsTeams: SeededTeam[] = stageTeamsFor(3).teams;
     const finalsHeatResult = finalsTeams.length > 0 ? rankingsAt(3, 1)[0] : null;
+    // Round 2 (Friday): snake by Round 1 points → time requests → rebalance, saved as the Round 2 bracket
+    const d2Sessions = sessionsAt(1, NUM_D2);
+    const optimizeRound2 = () => {
+      auth.req(async () => {
+        const slots = roundSessions(1, NUM_D2, undefined);
+        const { heats: opt, unmet } = applyTimeRequests(snake(day2Teams, NUM_D2), slots, (t) => teamRequest(t, 1), (t) => t.seed);
+        const base = ROUND_TIME_BASE[1];
+        const times = [...(curSat.heatTimes ?? [])];
+        while (times.length < base + NUM_D2) times.push('');
+        slots.forEach((t, hi) => { times[base + hi] = t; });
+        await fsUpdate('sats', curSat.id ?? curSat._id ?? '', { d2BracketJson: JSON.stringify(opt), heatTimes: times });
+        await reload();
+        showToast(unmet.length ? `Round 2 optimized — couldn't place: ${unmet.map((u) => `${u.team} (${u.time})`).join(', ')}` : 'Round 2 heats optimized!');
+      });
+    };
+
+    // Admin card: who needs which session this round, plus the optimizer
+    const timeRequestsCard = (round: 0 | 1) => {
+      const reqs = timeReqs[round] ?? {};
+      const sessions = round === 0 ? d1HeatTimes : d2Sessions;
+      const heats: { name: string; members: string[] }[][] = round === 0 ? seededHeats : effectiveD2Heats;
+      const pool = round === 0 ? teams : day2Teams;
+      const optimize = round === 0 ? () => optimizeHeats() : optimizeRound2;
+      return (
+        <div style={{ ...card, marginBottom: 12, borderLeft: '3px solid #c8a030' }}>
+          <div style={cHead}>
+            <span style={cTitle}>⏰ Time Requests — {round === 0 ? 'Round 1 (Thu)' : 'Round 2 (Fri)'}</span>
+            <button onClick={optimize}
+              style={{ fontFamily: FONT_MONO, fontSize: 10, background: 'rgba(200,160,48,0.12)', border: '1px solid rgba(200,160,48,0.35)', borderRadius: 4, padding: '4px 10px', color: '#c8a030', cursor: 'pointer' }}>
+              ⚡ Optimize Heats
+            </button>
+          </div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginBottom: 10 }}>
+            Sessions: {round === 0 && playIn.size > 0 && <span style={{ marginRight: 10 }}>Play-in <span style={{ color: '#c8a030' }}>{SAT_TIME_SLOTS[0]}</span></span>}
+            {sessions.map((t, hi) => <span key={hi} style={{ marginRight: 10 }}>H{hi + 1} <span style={{ color: '#c8a030' }}>{t}</span></span>)}
+            <span style={{ color: '#445' }}>(requests only apply to this round)</span>
+          </div>
+          {Object.entries(reqs).map(([player, time]) => {
+            const hi = heats.findIndex((h) => h.some((t) => t.members.includes(player)));
+            const placed = hi >= 0 && sessions[hi] === time;
+            return (
+              <div key={player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontFamily: FONT_MONO, fontSize: 12 }}>
+                <span style={{ color: '#e0d4c0', flex: 1 }}>{player}</span>
+                <span style={{ color: placed ? '#50fa7b' : '#e94560' }}>🕐 {time} {placed ? `✓ Heat ${hi + 1}` : '— not placed yet, press Optimize'}</span>
+                <button onClick={() => { const n = { ...reqs }; delete n[player]; saveTimeRequests(n, round); }}
+                  style={{ background: 'none', border: 'none', color: '#556', cursor: 'pointer', fontSize: 12 }}>✕</button>
+              </div>
+            );
+          })}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div style={{ flex: '2 1 180px', display: 'flex' }}>
+              <PlayerPicker value={reqPlayer} onChange={setReqPlayer} placeholder="Player" showStats={false}
+                players={playerInfos.filter((p) => pool.some((t) => t.members.includes(p.name)))} />
+            </div>
+            <select value={reqTime} onChange={(e) => setReqTime(e.target.value)} style={{ ...inp, flex: '1 1 120px', width: 'auto' }}>
+              <option value="">Needed time…</option>
+              {SAT_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <button style={{ ...secBtn, fontSize: 11 }} disabled={!reqPlayer.trim() || !reqTime.trim()}
+              onClick={() => { saveTimeRequests({ ...reqs, [canon(reqPlayer)]: reqTime.trim() }, round); setReqPlayer(''); setReqTime(''); }}>
+              + Add
+            </button>
+          </div>
+        </div>
+      );
+    };
+
     // Who actually made the next round (once known) — drives the ✓/✗ on finished heats
     const advancedFrom: Record<number, Set<string>> = {};
     ([[1, day2Teams], [2, semiTeams], [3, finalsTeams]] as [number, SeededTeam[]][]).forEach(([round, list]) => {
@@ -1437,13 +1506,14 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
       hi: number, round: number, hColor: string, _advCount: number,
       flatTimeIdx?: number
     ) => {
-      const savedTime = round === 0 ? d1HeatTimes[hi] : flatTimeIdx != null ? (curSat.heatTimes?.[flatTimeIdx] ?? '') : '';
+      const roundHeats = round === 0 ? NUM_HEATS : round === 1 ? NUM_D2 : round === 2 ? NUM_SEMI : 1;
+      const savedTime = sessionsAt(round, roundHeats)[hi] ?? '';
       return (
       <div key={hi} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(106,96,64,0.25)', borderTop: `3px solid ${hColor}`, borderRadius: 8, padding: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontFamily: FONT_HEADER, fontSize: 12, color: hColor }}>Heat {hi + 1}</span>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {round === 0 && flatTimeIdx != null ? (!auth.unlocked ? (
+            {round <= 1 && flatTimeIdx != null ? (!auth.unlocked ? (
               <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030' }}>🕐 {savedTime}</span>
             ) : (
               <select value={savedTime} onChange={(e) => saveHeatTime(flatTimeIdx, e.target.value)}
@@ -1513,10 +1583,10 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
                     </div>
                     <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: '#556' }}>
                       {tv.avgVR == null ? <span style={{ color: '#c084fc' }}>NEW</span> : `${tv.avgVR} VR`}
-                      {round === 0 && (() => {
-                        const req = t.members.map((m) => timeRequests[m]).find(Boolean);
+                      {round <= 1 && (() => {
+                        const req = teamRequest(t, round);
                         if (!req || !auth.unlocked) return null;
-                        const ok = toSlot(req) === d1HeatTimes[hi];
+                        const ok = toSlot(req) === savedTime;
                         return <span style={{ color: ok ? '#c8a030' : '#e94560', marginLeft: 6 }}>🕐 needs {toSlot(req)}{ok ? ' ✓' : ''}</span>;
                       })()}
                     </div>
@@ -1698,49 +1768,8 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
           </div>
         )}
 
-        {/* Time requests — Round 1 heat times people need */}
-        {auth.unlocked && heatsReleased && completedCount === 0 && (
-          <div style={{ ...card, marginBottom: 12, borderLeft: '3px solid #c8a030' }}>
-            <div style={cHead}>
-              <span style={cTitle}>⏰ Time Requests</span>
-              <button onClick={() => optimizeHeats()} disabled={Object.keys(timeRequests).length === 0}
-                style={{ fontFamily: FONT_MONO, fontSize: 10, background: 'rgba(200,160,48,0.12)', border: '1px solid rgba(200,160,48,0.35)', borderRadius: 4, padding: '4px 10px', color: '#c8a030', cursor: 'pointer', opacity: Object.keys(timeRequests).length === 0 ? 0.4 : 1 }}>
-                ⚡ Optimize Heats
-              </button>
-            </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556', marginBottom: 10 }}>
-              Sessions: {playIn.size > 0 && <span style={{ marginRight: 10 }}>Play-in <span style={{ color: '#c8a030' }}>{SAT_TIME_SLOTS[0]}</span></span>}{d1HeatTimes.map((t, hi) => <span key={hi} style={{ marginRight: 10 }}>H{hi + 1} <span style={{ color: '#c8a030' }}>{t}</span></span>)}
-              <span style={{ color: '#445' }}>(change a heat's session from its 🕐 button)</span>
-            </div>
-            {Object.entries(timeRequests).map(([player, time]) => {
-              const team = teams.find((t) => t.members.includes(player));
-              const hi = seededHeats.findIndex((h) => h.some((t) => t.name === team?.name));
-              const placed = hi >= 0 && d1HeatTimes[hi] === time;
-              return (
-                <div key={player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontFamily: FONT_MONO, fontSize: 12 }}>
-                  <span style={{ color: '#e0d4c0', flex: 1 }}>{player}</span>
-                  <span style={{ color: placed ? '#50fa7b' : '#e94560' }}>🕐 {time} {placed ? `✓ Heat ${hi + 1}` : '— not placed yet, press Optimize'}</span>
-                  <button onClick={() => { const n = { ...timeRequests }; delete n[player]; saveTimeRequests(n); }}
-                    style={{ background: 'none', border: 'none', color: '#556', cursor: 'pointer', fontSize: 12 }}>✕</button>
-                </div>
-              );
-            })}
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <div style={{ flex: '2 1 180px', display: 'flex' }}>
-                <PlayerPicker value={reqPlayer} onChange={setReqPlayer} placeholder="Player" showStats={false}
-                  players={playerInfos.filter((p) => teams.some((t) => t.members.includes(p.name)))} />
-              </div>
-              <select value={reqTime} onChange={(e) => setReqTime(e.target.value)} style={{ ...inp, flex: '1 1 120px', width: 'auto' }}>
-                <option value="">Needed time…</option>
-                {SAT_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <button style={{ ...secBtn, fontSize: 11 }} disabled={!reqPlayer.trim() || !reqTime.trim()}
-                onClick={() => { saveTimeRequests({ ...timeRequests, [canon(reqPlayer)]: reqTime.trim() }); setReqPlayer(''); setReqTime(''); }}>
-                + Add
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Time requests — Round 1 */}
+        {auth.unlocked && heatsReleased && completedCount === 0 && timeRequestsCard(0)}
 
         {/* Round 1 */}
         <div style={{ ...card, marginBottom: 12 }}>
@@ -1878,6 +1907,9 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             </div>
           )}
         </div>
+
+        {/* Time requests — Round 2 */}
+        {auth.unlocked && day2Teams.length > 0 && d2CompletedCount === 0 && timeRequestsCard(1)}
 
         {/* Round 2 — only when the field needs 4 rounds */}
         {NUM_D2 > 0 && (
@@ -2134,7 +2166,7 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
               )}
               {(() => {
                 const flatIdx = roundFlatBase(3);
-                const savedTime = curSat.heatTimes?.[flatIdx] ?? '';
+                const savedTime = sessionsAt(3, 1)[0];
                 return editingTimeIdx === flatIdx ? (
                   <div style={{ display: 'flex', gap: 3 }}>
                     <input style={{ ...inp, width: 90, fontSize: 10, padding: '2px 5px' }} value={editingTimeVal} placeholder="8:00 PM" autoFocus

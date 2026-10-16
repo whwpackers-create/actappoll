@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased } from '../utils/VR';
-import { playInInfo, defaultAdvance, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, teamVR, byTeamRank, fmtVR, avgRated, choosePlayIn } from '../utils/satBracket';
+import { playInInfo, defaultAdvance, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, roundSessions, SAT_TIME_SLOTS, TEAMS_PER_HEAT, teamVR, byTeamRank, fmtVR, avgRated, choosePlayIn } from '../utils/satBracket';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -792,10 +792,10 @@ export function Dashboard({
               .sort((a, b) => { if (b.score !== a.score) return b.score - a.score; if (act.tiebreaker === a.name) return -1; if (act.tiebreaker === b.name) return 1; return a.origIdx - b.origIdx; });
           };
 
-          const renderHeatCard = (hTeams: SATTeam[], hi: number, hColor: string, label: string) => (
+          const renderHeatCard = (hTeams: SATTeam[], hi: number, hColor: string, label: string, time?: string) => (
             <div key={hi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${hColor}33`, borderRadius: 6, padding: '10px 12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>{label} · HEAT {hi + 1}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: hColor, letterSpacing: 2 }}>{label} · HEAT {hi + 1}{time && <span style={{ color: '#c8a030', marginLeft: 8 }}>🕐 {time}</span>}</span>
                 <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#556' }}>avg {fmtVR(avgRated(hTeams, (n) => vrMap[n]))}</span>
               </div>
               {hTeams.map((t, ti) => {
@@ -818,7 +818,7 @@ export function Dashboard({
             </div>
           );
 
-          const renderUpcomingSection = (title: string, color: string, icon: string, heats: SATTeam[][], colors: string[], label: string) => {
+          const renderUpcomingSection = (title: string, color: string, icon: string, heats: SATTeam[][], colors: string[], label: string, times: string[] = []) => {
             return (
               <div style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
                 <div style={{ background: 'rgba(8,12,22,0.58)', backdropFilter: 'blur(4px)', border: '2px solid #2a3550', borderRadius: 8, padding: 16 }}>
@@ -829,7 +829,7 @@ export function Dashboard({
                     {viewBtn}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-                    {heats.map((hTeams, hi) => hTeams.length === 0 ? null : renderHeatCard(hTeams, hi, colors[hi] ?? color, label))}
+                    {heats.map((hTeams, hi) => hTeams.length === 0 ? null : renderHeatCard(hTeams, hi, colors[hi] ?? color, label, times[hi]))}
                   </div>
                 </div>
               </div>
@@ -859,7 +859,7 @@ export function Dashboard({
             const saved: SATTeam[][] | null = meta.json ? (() => { try { const b = JSON.parse(meta.json!); return b.length === n ? b : null; } catch { return null; } })() : null;
             const stageHeats: SATTeam[][] = saved ?? snake(advancing, n);
             const raced = (sat.heats ?? []).filter((h) => h.round === round);
-            if (raced.length < n) return renderUpcomingSection(meta.title, meta.color, meta.icon, stageHeats, meta.colors, meta.label);
+            if (raced.length < n) return renderUpcomingSection(meta.title, meta.color, meta.icon, stageHeats, meta.colors, meta.label, roundSessions(round, n, sat.heatTimes));
             prevRankings = stageHeats.map((_, hi) => getActRankings(raced.find((h) => h.slotIdx === hi)?.actId) ?? []);
             prevCounts = stageHeats.map((_, hi) => countOf(raced.find((h) => h.slotIdx === hi), round));
           }

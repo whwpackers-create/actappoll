@@ -4,9 +4,10 @@
 //   1 extra team  → 2 lowest seeds play in, 1 advances
 //   2 extra teams → 4 lowest seeds play in, 2 advance
 //   3 extra teams → 4 lowest seeds play in, 1 advances
-// Advancing: Round 1 sends 3 per heat when more than 24 teams entered (else 2); every later
-// round sends 2. If that isn't a multiple of 4, the lowest-scoring advancers are dropped until
-// it is. Rounds continue until 4 teams (Finals).
+// Every SAT has 4 rounds: Round 1 (Thursday, field/4 heats) → Round 2 (Friday, 4 heats / 16 teams)
+// → Semis (Saturday morning, 2 heats / 8) → Final (Saturday night, 1 heat / 4).
+// Round 1 sends 3 per heat when 24+ teams entered (else 2); later rounds send 2. Extra advancers
+// are cut lowest points first; if short, the best remaining finishers fill in (3rds, then 4ths).
 
 export const TEAMS_PER_HEAT = 4;
 
@@ -21,34 +22,22 @@ export function playInInfo(nTeams: number): { size: number; advance: number; fie
 }
 
 export const BIG_FIELD_TEAMS = 24;
+export const ROUND_SIZES = [16, 8, 4]; // Round 2, Semis, Final
 
 // Default teams advancing from each heat of a round
 export function defaultAdvance(round: number, teamCount: number): number {
-  return round === 0 && teamCount > BIG_FIELD_TEAMS ? 3 : 2;
+  return round === 0 && teamCount >= BIG_FIELD_TEAMS ? 3 : 2;
 }
 
-// Team count per round, starting from the Day 1 field, e.g. 29 teams → 28 → [28, 20, 8, 4]
-export function stageSizes(fieldSize: number, teamCount = fieldSize): number[] {
-  const sizes = [fieldSize];
-  let t = fieldSize;
-  let perHeat = defaultAdvance(0, teamCount);
-  while (t > TEAMS_PER_HEAT) {
-    const adv = (t / TEAMS_PER_HEAT) * perHeat;
-    t = Math.max(TEAMS_PER_HEAT, Math.floor(adv / TEAMS_PER_HEAT) * TEAMS_PER_HEAT);
-    sizes.push(t);
-    perHeat = 2;
-  }
-  // Very large fields would need 5+ rounds — cap at Day 1 → 16 → 8 → 4
-  return sizes.length > 4 ? [fieldSize, 16, 8, 4] : sizes;
+// Team count per round, e.g. 29 teams (28 after play-in) → [28, 16, 8, 4]
+export function stageSizes(fieldSize: number, _teamCount = fieldSize): number[] {
+  return [fieldSize, ...ROUND_SIZES.map((n) => Math.min(n, fieldSize))];
 }
 
 // Map each stage to its stored round index. Finals is always 3, Semis 2; Day 2 only exists for 4-stage SATs.
 export function stageRounds(sizes: number[]): number[] {
   const n = sizes.length;
-  if (n === 1) return [3];
-  if (n === 2) return [0, 3];
-  if (n === 3) return [0, 2, 3];
-  return [0, 1, 2, 3];
+  return n === 4 ? [0, 1, 2, 3] : n === 3 ? [0, 2, 3] : n === 2 ? [0, 3] : [3];
 }
 
 // Snake seeding: 1→H1, 2→H2 … H→HH, H+1→HH, …
@@ -79,10 +68,14 @@ export function advanceTeams(
   const byScore = (a: RankedTeam, b: RankedTeam) => b.score - a.score || seedTie(a, b);
   const nOf = (i: number) => counts[i] ?? 2;
   const adv = heatRankings.flatMap((r, i) => r.slice(0, nOf(i)).map(norm)).sort(byScore);
-  const next = heatRankings.flatMap((r, i) => (r[nOf(i)] ? [norm(r[nOf(i)])] : [])).sort(byScore);
+  // Fill pool: everyone who didn't advance, best finishing position first, then points
+  const next = heatRankings
+    .flatMap((r, i) => r.slice(nOf(i)).map((t, k) => ({ t: norm(t), place: k })))
+    .sort((a, b) => a.place - b.place || byScore(a.t, b.t))
+    .map((x) => x.t);
   const fill = Math.max(0, targetSize - adv.length);
   const ranked = [...adv.slice(0, targetSize), ...next.slice(0, fill)].sort(byScore);
-  const left = [...adv.slice(targetSize), ...next.slice(fill)].sort(byScore);
+  const left = [...adv.slice(targetSize), ...next.slice(fill)];
   return {
     teams: ranked.map((t, i) => ({ ...t, seed: i + 1 })),
     alternates: left.map((t, i) => ({ ...t, seed: targetSize + 1 + i })),
@@ -245,4 +238,18 @@ export function choosePlayIn<T extends { name: string; newCount: number }>(ranke
     if (picked.length === size) return picked;
   } catch { /* fall through */ }
   return ranked.slice(ranked.length - size);
+}
+
+// ─── Sessions per round ──────────────────────────────────────────────────────
+// Thu Round 1 and Fri Round 2: 6:30 / 8:00 split evenly · Sat morning Semis: 11:00 AM · Sat night Final: 8:00 PM
+export const ROUND_TIME_BASE: Record<number, number> = { 0: 0, 1: 20, 2: 30, 3: 34 }; // index into sat.heatTimes
+export const SEMIS_TIME = '11:00 AM';
+export const FINAL_TIME = '8:00 PM';
+
+export function roundSessions(round: number, numHeats: number, heatTimes: (string | undefined)[] | undefined, hasPlayIn = false): string[] {
+  const base = ROUND_TIME_BASE[round] ?? 0;
+  const saved = Array.from({ length: numHeats }, (_, hi) => heatTimes?.[base + hi]);
+  if (round === 0) return round1Slots(numHeats, saved, hasPlayIn);
+  if (round === 1) return round1Slots(numHeats, saved, false);
+  return saved.map((t) => t || (round === 2 ? SEMIS_TIME : FINAL_TIME));
 }

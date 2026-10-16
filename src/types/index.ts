@@ -100,7 +100,8 @@ export interface Sat extends Act {
   heatTimes?: string[];
   playInTeamsJson?: string; // JSON string[] of teams picked for the play-in (default: lowest seeds)
   playInWinnersJson?: string; // JSON string[] of play-in teams that advance to Day 1
-  timeRequestsJson?: string; // JSON Record<playerName, Round 1 heat time>
+  timeRequestsJson?: string; // legacy: Round 1 only
+  timeRequestsByRoundJson?: string; // JSON Record<round, Record<playerName, session>> // JSON Record<playerName, Round 1 heat time>
   heatsReleased?: boolean; // false → show ranked team list instead of Day 1 heats
   heatAssignmentsJson?: string;
   heatSubsJson?: string;
