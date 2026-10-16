@@ -1279,6 +1279,19 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
         showToast('Time saved!');
       });
     };
+    // Swap two heats' sessions in a round (keeps the 6:30 / 8:00 split even)
+    const swapHeatTimes = (round: number, hi: number, hj: number, sessions: string[]) => {
+      auth.req(async () => {
+        const base = ROUND_TIME_BASE[round] ?? 0;
+        const times = [...(curSat.heatTimes ?? [])];
+        while (times.length < base + sessions.length) times.push('');
+        sessions.forEach((t, k) => { if (!times[base + k]) times[base + k] = t; });
+        times[base + hi] = sessions[hj];
+        times[base + hj] = sessions[hi];
+        await ops.updateSat(curSat.id ?? curSat._id ?? '', { heatTimes: times });
+        showToast(`Heat ${hi + 1} → ${sessions[hj]}, Heat ${hj + 1} → ${sessions[hi]}`);
+      });
+    };
     // flat heatTimes index: Day 1 = 0-19, Day 2 = 20-29, Semis = 30-33, Finals = 34
     const roundFlatBase = (round: number) => ROUND_TIME_BASE[round] ?? 0;
 
@@ -1516,9 +1529,24 @@ export function SAT({ data, ops, reload, showToast, auth, setView, setSelAct, se
             {round <= 1 && flatTimeIdx != null ? (!auth.unlocked ? (
               <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030' }}>🕐 {savedTime}</span>
             ) : (
-              <select value={savedTime} onChange={(e) => saveHeatTime(flatTimeIdx, e.target.value)}
+              <select value={savedTime}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v.startsWith('swap:')) swapHeatTimes(round, hi, Number(v.slice(5)), sessionsAt(round, roundHeats));
+                  else saveHeatTime(flatTimeIdx, v);
+                }}
                 style={{ background: 'none', border: '1px solid rgba(200,160,48,0.25)', borderRadius: 4, fontFamily: FONT_MONO, fontSize: 9, color: '#c8a030', padding: '1px 3px', cursor: 'pointer' }}>
                 {SAT_TIME_SLOTS.map((t) => <option key={t} value={t}>🕐 {t}</option>)}
+                {!teamRankings && (() => {
+                  // Swap with any not-yet-raced heat at the other session
+                  const sess = sessionsAt(round, roundHeats);
+                  const others = sess.map((t, j) => ({ t, j })).filter(({ t, j }) => j !== hi && t !== savedTime && !rankingsAt(round, roundHeats)[j]);
+                  return others.length ? (
+                    <optgroup label="Swap time with…">
+                      {others.map(({ t, j }) => <option key={j} value={`swap:${j}`}>⇄ Heat {j + 1} ({t})</option>)}
+                    </optgroup>
+                  ) : null;
+                })()}
               </select>
             )) : flatTimeIdx != null && (editingTimeIdx === flatTimeIdx ? (
               <div style={{ display: 'flex', gap: 3 }}>
