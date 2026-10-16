@@ -55,20 +55,28 @@ export interface RankedTeam { name: string; members: string[]; subs?: string[]; 
 export interface StageTeam { name: string; members: string[]; subs: string[]; score: number; seed: number }
 
 // Teams advancing from a completed round into a round of `targetSize`.
-// Returns seeded advancing teams + unused 3rd-placers (alternates, best first).
+// Each heat sends its top `counts[i]` (default 2); the next finisher from each heat
+// competes on score for any remaining spots. If heats send more than `targetSize`,
+// the round grows to the next multiple of 4 — unless `fixedSize` (the Final), where
+// the highest scores win the spots.
+// Returns seeded advancing teams + unused next-placers (alternates, best first).
 export function advanceTeams(
   heatRankings: RankedTeam[][],
   targetSize: number,
-  seedTie: (a: RankedTeam, b: RankedTeam) => number
+  seedTie: (a: RankedTeam, b: RankedTeam) => number,
+  counts: number[] = [],
+  fixedSize = false
 ): { teams: StageTeam[]; alternates: StageTeam[] } {
   const norm = (t: RankedTeam) => ({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score });
-  const adv = heatRankings.flatMap((r) => r.slice(0, 2).map(norm));
-  const thirds = heatRankings.filter((r) => r[2]).map((r) => norm(r[2]))
-    .sort((a, b) => b.score - a.score || seedTie(a, b));
-  const fill = Math.max(0, targetSize - adv.length);
-  const ranked = [...adv, ...thirds.slice(0, fill)].sort((a, b) => b.score - a.score || seedTie(a, b));
-  const teams = ranked.slice(0, targetSize).map((t, i) => ({ ...t, seed: i + 1 }));
-  const alternates = [...ranked.slice(targetSize), ...thirds.slice(fill)].map((t, i) => ({ ...t, seed: targetSize + 1 + i }));
+  const byScore = (a: RankedTeam, b: RankedTeam) => b.score - a.score || seedTie(a, b);
+  const nOf = (i: number) => counts[i] ?? 2;
+  const adv = heatRankings.flatMap((r, i) => r.slice(0, nOf(i)).map(norm));
+  const next = heatRankings.flatMap((r, i) => (r[nOf(i)] ? [norm(r[nOf(i)])] : [])).sort(byScore);
+  const size = fixedSize ? targetSize : Math.max(targetSize, Math.ceil(adv.length / TEAMS_PER_HEAT) * TEAMS_PER_HEAT);
+  const fill = Math.max(0, size - adv.length);
+  const ranked = [...adv, ...next.slice(0, fill)].sort(byScore);
+  const teams = ranked.slice(0, size).map((t, i) => ({ ...t, seed: i + 1 }));
+  const alternates = [...ranked.slice(size), ...next.slice(fill)].map((t, i) => ({ ...t, seed: size + 1 + i }));
   return { teams, alternates };
 }
 

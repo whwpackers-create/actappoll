@@ -845,18 +845,21 @@ export function Dashboard({
             2: { title: 'UPCOMING SEMIFINALS', color: '#fbbf24', icon: '🔥', colors: ['#fbbf24', '#8be9fd', '#50fa7b'], label: 'SEMI', json: sat.semiBracketJson },
             3: { title: 'UPCOMING FINALS', color: '#f5a623', icon: '👑', colors: ['#f5a623'], label: 'FINALS' },
           };
-          let prevRankings = [...day1Heats].sort((a, b) => (a.slotIdx ?? 0) - (b.slotIdx ?? 0)).map((h) =>
+          const d1Sorted = [...day1Heats].sort((a, b) => (a.slotIdx ?? 0) - (b.slotIdx ?? 0));
+          let prevCounts = d1Sorted.map((h) => h.advanceCount ?? 2);
+          let prevRankings = d1Sorted.map((h) =>
             getActRankings(h.actId) ?? (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0, origIdx: 0 })));
           for (let i = 1; i < sizes.length; i++) {
             const round = stageRoundIdx[i];
             const meta = stageMeta[round];
-            const n = sizes[i] / TEAMS_PER_HEAT;
-            const advancing = advanceTeams(prevRankings, sizes[i], satSeedTie).teams;
+            const advancing = advanceTeams(prevRankings, sizes[i], satSeedTie, prevCounts, round === 3).teams;
+            const n = advancing.length / TEAMS_PER_HEAT;
             const saved: SATTeam[][] | null = meta.json ? (() => { try { const b = JSON.parse(meta.json!); return b.length === n ? b : null; } catch { return null; } })() : null;
             const stageHeats: SATTeam[][] = saved ?? snake(advancing, n);
             const raced = (sat.heats ?? []).filter((h) => h.round === round);
             if (raced.length < n) return renderUpcomingSection(meta.title, meta.color, meta.icon, stageHeats, meta.colors, meta.label);
             prevRankings = stageHeats.map((_, hi) => getActRankings(raced.find((h) => h.slotIdx === hi)?.actId) ?? []);
+            prevCounts = stageHeats.map((_, hi) => raced.find((h) => h.slotIdx === hi)?.advanceCount ?? 2);
           }
           return null;
         }
