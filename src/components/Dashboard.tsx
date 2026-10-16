@@ -1390,7 +1390,7 @@ export function Dashboard({
               },
               {
                 title: 'SAT Multipliers',
-                body: 'SAT gains get a 1.5× boost every round and 2× in the Finals (from Fall 2026; earlier SATs used 1.1× → 2× by round). Only gains are amplified. Results also scale with skill gap: beating much weaker players earns little, losing to much stronger players costs little.',
+                body: 'SAT gains are boosted by round: Round 1 = 1.1×, Round 2 = 1.2×, Semis = 1.5×, Final = 2× (Fall 2026 used 1.5× every round and 2× in the Final). Only gains are boosted. Results scale with skill gap: beating much weaker players earns less, upsets earn more, and in SATs losses are cushioned unless you are the favorite.',
               },
             ].map((item) => (
               <div key={item.title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px' }}>

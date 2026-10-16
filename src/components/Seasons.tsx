@@ -697,7 +697,7 @@ export function Seasons({
           <br />
           <strong style={{ color: '#50fa7b' }}>Skill modifier</strong> adjusts gains and losses based on your VR vs the room average.
           <br />
-          <strong style={{ color: '#e94560' }}>SAT multiplier</strong> boosts gains 1.5× every round and 2× in the Finals (earlier SATs: 1.1× Day 1 through 2× Finals).
+          <strong style={{ color: '#e94560' }}>SAT multiplier</strong> boosts gains 1.1× in Round 1 up to 2× in the Final (Fall 2026: 1.5× every round, 2× Final).
         </div>
       </div>
     </div>

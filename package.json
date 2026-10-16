@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:sat": "esbuild scripts/sat-dryrun.ts --bundle --platform=node --outfile=node_modules/.cache/sat-dryrun.cjs --log-level=error && node node_modules/.cache/sat-dryrun.cjs"
   },
   "dependencies": {
     "firebase": "^12.11.0",
