@@ -49,8 +49,9 @@ const UNDERDOG_MAX    = 0.85;  // maximum loss reduction (85%)
 export const SAT_ROUND_MULTI: Record<number, number> = { 1: 1.1, 2: 1.2, 3: 1.5, 4: 2.0 };
 export const SAT_ROUND_MULTI_DEFAULT = 1.1;
 
+// Fall 2026 SAT only: 1.5× gains every round except the Final (2×). Every other SAT (past and
+// future) uses the round multipliers above.
 // From the Fall 2026 SAT on (not retroactive):
-//  - SATs use a 1.5× gain multiplier every round except the Finals (2×)
 //  - skill gap scales results Elo-style: beating much weaker rooms earns little,
 //    losing to much stronger rooms costs little (and upsets pay more)
 export const SKILL_ERA_CUTOFF = '2026-10-15';
@@ -61,11 +62,19 @@ const SKILL_MIN_FACTOR = 0.25;  // favorites still earn something for a good nig
 const SKILL_MAX_FACTOR = 1.5;   // cap how much an upset can amplify a result
 
 export const inSkillEra = (date: string | undefined) => (date ?? '') >= SKILL_ERA_CUTOFF;
+const FLAT_MULTI_SAT_DATES = ['2026-10-15', '2026-10-17']; // Fall 2026 SAT weekend
+const inFlatMultiSat = (date: string | undefined) =>
+  (date ?? '') >= FLAT_MULTI_SAT_DATES[0] && (date ?? '') <= FLAT_MULTI_SAT_DATES[1];
+
+// SAT losses are cushioned unless you're clearly the favorite: half-size at even VR,
+// scaling back to full size at 300+ VR above the room
+const SAT_LOSS_MIN    = 0.5;
+const SAT_LOSS_FULL_AT = 300;
 
 // SAT gain multiplier for an act (1 for non-SAT acts)
 export function satMultiFor(act: { satId?: string; satRound?: number; date?: string }): number {
   if (!act.satId) return 1;
-  if (inSkillEra(act.date)) return (act.satRound ?? 1) >= 4 ? SAT_FINALS_MULTI : SAT_FLAT_MULTI;
+  if (inFlatMultiSat(act.date)) return (act.satRound ?? 1) >= 4 ? SAT_FINALS_MULTI : SAT_FLAT_MULTI;
   return SAT_ROUND_MULTI[act.satRound ?? 1] ?? SAT_ROUND_MULTI_DEFAULT;
 }
 
@@ -106,7 +115,8 @@ export function vrChange(
   satGainMult: number,
   provMult: number = 1.0,  // provisional period multiplier (gains only)
   actCount: number = 0,    // all-time ACTs played (for floor dampening tier)
-  skillEra: boolean = false
+  skillEra: boolean = false,
+  isSat: boolean = false
 ): number {
   if (oppVRs.length === 0) return 0;
 
@@ -124,6 +134,8 @@ export function vrChange(
     const gainF = 2 / (1 + Math.pow(10, diff / SKILL_SCALE));
     const lossF = Math.min(1, 2 / (1 + Math.pow(10, -diff / SKILL_SCALE)));
     change = base * Math.min(SKILL_MAX_FACTOR, Math.max(SKILL_MIN_FACTOR, base > 0 ? gainF : lossF));
+    // In SATs it's hard to lose VR unless you're the favorite and underperform
+    if (isSat && change < 0) change *= Math.min(1, Math.max(SAT_LOSS_MIN, SAT_LOSS_MIN + (diff / SAT_LOSS_FULL_AT) * (1 - SAT_LOSS_MIN)));
   } else {
     // Skill modifier — being above the room reduces gains, increases losses
     const adj = Math.max(-VR_DIFF_CAP, Math.min(VR_DIFF_CAP, -(diff / VR_DIFF_K)));
@@ -277,7 +289,7 @@ export function computeAllElos(
           const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => vrs[opp] ?? STARTING_VR);
           const snap = actProvSnapshot[name] ?? 0;
           const provMult = snap < PROVISIONAL_ACTS ? PROVISIONAL_GAIN_MULT : 1.0;
-          const change = vrChange(vrs[name], oppVRs, pos, satGainMult, provMult, snap, inSkillEra(act.date));
+          const change = vrChange(vrs[name], oppVRs, pos, satGainMult, provMult, snap, inSkillEra(act.date), !!act.satId);
           vrs[name] = Math.max(1, Math.min(VR_MAX, vrs[name] + change));
         });
       });
@@ -398,7 +410,7 @@ export function computeSeasonElos(
         const placementMult = isPlacement ? SEASON_PLACEMENT_MULT : 1;
 
         const oppVRs = sorted.filter((_, i) => i !== pos).map(({ name: opp }) => sVRs[opp] ?? seasonStart(opp));
-        const change = vrChange(sVRs[name], oppVRs, pos, satGainMult * placementMult, 1.0, 0, inSkillEra(act.date));
+        const change = vrChange(sVRs[name], oppVRs, pos, satGainMult * placementMult, 1.0, 0, inSkillEra(act.date), !!act.satId);
         sVRs[name] = Math.max(1, Math.min(VR_MAX, sVRs[name] + change));
       });
     });
@@ -564,7 +576,7 @@ export function computeActBracketBreakdown(
       if (pos === -1) return;
 
       const oppVRs = sorted.filter((_, j) => j !== pos).map(({ name: opp }) => vrsBefore[opp] ?? STARTING_VR);
-      const change = vrChange(vrsBefore[name] ?? STARTING_VR, oppVRs, pos, satGainMult, 1.0, 0, inSkillEra(act.date));
+      const change = vrChange(vrsBefore[name] ?? STARTING_VR, oppVRs, pos, satGainMult, 1.0, 0, inSkillEra(act.date), !!act.satId);
       const pts = sorted[pos].pts;
 
       if (racePos[i] === 0)      { pts0 += pts; ch0 += change; }
