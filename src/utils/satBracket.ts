@@ -4,8 +4,9 @@
 //   1 extra team  → 2 lowest seeds play in, 1 advances
 //   2 extra teams → 4 lowest seeds play in, 2 advance
 //   3 extra teams → 4 lowest seeds play in, 1 advances
-// After Day 1, each round takes the top 2 from every heat, plus the best 3rd-placers
-// only when needed to make the next round a multiple of 4. Rounds continue until 4 teams (Finals).
+// Advancing: Round 1 sends 3 per heat when more than 24 teams entered (else 2); every later
+// round sends 2. If that isn't a multiple of 4, the lowest-scoring advancers are dropped until
+// it is. Rounds continue until 4 teams (Finals).
 
 export const TEAMS_PER_HEAT = 4;
 
@@ -19,16 +20,25 @@ export function playInInfo(nTeams: number): { size: number; advance: number; fie
   return { size, advance: size - extra, fieldSize: nTeams - extra };
 }
 
-// Team count per round, starting from the Day 1 field, e.g. 28 → [28, 16, 8, 4]
-export function stageSizes(fieldSize: number): number[] {
+export const BIG_FIELD_TEAMS = 24;
+
+// Default teams advancing from each heat of a round
+export function defaultAdvance(round: number, teamCount: number): number {
+  return round === 0 && teamCount > BIG_FIELD_TEAMS ? 3 : 2;
+}
+
+// Team count per round, starting from the Day 1 field, e.g. 29 teams → 28 → [28, 20, 8, 4]
+export function stageSizes(fieldSize: number, teamCount = fieldSize): number[] {
   const sizes = [fieldSize];
   let t = fieldSize;
+  let perHeat = defaultAdvance(0, teamCount);
   while (t > TEAMS_PER_HEAT) {
-    const adv = 2 * (t / TEAMS_PER_HEAT);
-    t = Math.ceil(adv / TEAMS_PER_HEAT) * TEAMS_PER_HEAT;
+    const adv = (t / TEAMS_PER_HEAT) * perHeat;
+    t = Math.max(TEAMS_PER_HEAT, Math.floor(adv / TEAMS_PER_HEAT) * TEAMS_PER_HEAT);
     sizes.push(t);
+    perHeat = 2;
   }
-  // Very large fields (36+) would need 5+ rounds — cap at Day 1 → 16 → 8 → 4
+  // Very large fields would need 5+ rounds — cap at Day 1 → 16 → 8 → 4
   return sizes.length > 4 ? [fieldSize, 16, 8, 4] : sizes;
 }
 
@@ -55,29 +65,28 @@ export interface RankedTeam { name: string; members: string[]; subs?: string[]; 
 export interface StageTeam { name: string; members: string[]; subs: string[]; score: number; seed: number }
 
 // Teams advancing from a completed round into a round of `targetSize`.
-// Each heat sends its top `counts[i]` (default 2); the next finisher from each heat
-// competes on score for any remaining spots. If heats send more than `targetSize`,
-// the round grows to the next multiple of 4 — unless `fixedSize` (the Final), where
-// the highest scores win the spots.
-// Returns seeded advancing teams + unused next-placers (alternates, best first).
+// Each heat sends its top `counts[i]` (default 2). Extra advancers beyond `targetSize` are
+// dropped lowest score first; if heats send fewer, the next finisher from each heat
+// competes on score for the open spots.
+// Returns seeded advancing teams + everyone left out (alternates, best first).
 export function advanceTeams(
   heatRankings: RankedTeam[][],
   targetSize: number,
   seedTie: (a: RankedTeam, b: RankedTeam) => number,
-  counts: number[] = [],
-  fixedSize = false
+  counts: number[] = []
 ): { teams: StageTeam[]; alternates: StageTeam[] } {
   const norm = (t: RankedTeam) => ({ name: t.name, members: t.members, subs: t.subs ?? [], score: t.score });
   const byScore = (a: RankedTeam, b: RankedTeam) => b.score - a.score || seedTie(a, b);
   const nOf = (i: number) => counts[i] ?? 2;
-  const adv = heatRankings.flatMap((r, i) => r.slice(0, nOf(i)).map(norm));
+  const adv = heatRankings.flatMap((r, i) => r.slice(0, nOf(i)).map(norm)).sort(byScore);
   const next = heatRankings.flatMap((r, i) => (r[nOf(i)] ? [norm(r[nOf(i)])] : [])).sort(byScore);
-  const size = fixedSize ? targetSize : Math.max(targetSize, Math.ceil(adv.length / TEAMS_PER_HEAT) * TEAMS_PER_HEAT);
-  const fill = Math.max(0, size - adv.length);
-  const ranked = [...adv, ...next.slice(0, fill)].sort(byScore);
-  const teams = ranked.slice(0, size).map((t, i) => ({ ...t, seed: i + 1 }));
-  const alternates = [...ranked.slice(size), ...next.slice(fill)].map((t, i) => ({ ...t, seed: size + 1 + i }));
-  return { teams, alternates };
+  const fill = Math.max(0, targetSize - adv.length);
+  const ranked = [...adv.slice(0, targetSize), ...next.slice(0, fill)].sort(byScore);
+  const left = [...adv.slice(targetSize), ...next.slice(fill)].sort(byScore);
+  return {
+    teams: ranked.map((t, i) => ({ ...t, seed: i + 1 })),
+    alternates: left.map((t, i) => ({ ...t, seed: targetSize + 1 + i })),
+  };
 }
 
 // ─── Time requests ───────────────────────────────────────────────────────────

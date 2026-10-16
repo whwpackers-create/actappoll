@@ -76,6 +76,7 @@ export interface SatHeat {
   actId?: string;
   round?: number;
   advanceCount?: number;
+  advanceCountManual?: boolean; // true when the admin picked a count other than the round default
   slotIdx?: number;
   teams?: SatHeatTeam[];
   advanced?: SatHeatTeam[];

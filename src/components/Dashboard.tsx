@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { computeStats, computeSeasonElos, computeAllElos, getSeasonRank, SEASON_RANKED_THRESHOLD, satHeatsReleased } from '../utils/VR';
-import { playInInfo, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, teamVR, byTeamRank, fmtVR, avgRated, choosePlayIn } from '../utils/satBracket';
+import { playInInfo, defaultAdvance, stageSizes, stageRounds, snake, advanceTeams, teamKey, round1Slots, SAT_TIME_SLOTS, TEAMS_PER_HEAT, teamVR, byTeamRank, fmtVR, avgRated, choosePlayIn } from '../utils/satBracket';
 import { PRESETS } from '../constants';
 import type { AppData, Act, Sat } from '../types';
 import type { PlayerStats } from '../types';
@@ -719,7 +719,7 @@ export function Dashboard({
           .sort(byTeamRank).map((t, i) => ({ ...t, seedNum: i + 1 }));
         if (teams.length === 0) return null;
         const playIn = playInInfo(teams.length);
-        const sizes = stageSizes(playIn.fieldSize);
+        const sizes = stageSizes(playIn.fieldSize, teams.length);
         const stageRoundIdx = stageRounds(sizes);
         const NUM_HEATS = sizes[0] / TEAMS_PER_HEAT;
         const playInTeams = choosePlayIn(teams, playIn.size, sat.playInTeamsJson);
@@ -846,20 +846,22 @@ export function Dashboard({
             3: { title: 'UPCOMING FINALS', color: '#f5a623', icon: '👑', colors: ['#f5a623'], label: 'FINALS' },
           };
           const d1Sorted = [...day1Heats].sort((a, b) => (a.slotIdx ?? 0) - (b.slotIdx ?? 0));
-          let prevCounts = d1Sorted.map((h) => h.advanceCount ?? 2);
+          const countOf = (h: { advanceCount?: number; advanceCountManual?: boolean } | undefined, round: number) =>
+            h?.advanceCountManual && h.advanceCount ? h.advanceCount : defaultAdvance(round, teams.length);
+          let prevCounts = d1Sorted.map((h) => countOf(h, 0));
           let prevRankings = d1Sorted.map((h) =>
             getActRankings(h.actId) ?? (h.scores ?? []).map((s) => ({ name: s.name ?? '', members: h.teams?.find((t) => t.name === s.name)?.members ?? [], subs: [] as string[], score: s.score ?? 0, origIdx: 0 })));
           for (let i = 1; i < sizes.length; i++) {
             const round = stageRoundIdx[i];
             const meta = stageMeta[round];
-            const advancing = advanceTeams(prevRankings, sizes[i], satSeedTie, prevCounts, round === 3).teams;
+            const advancing = advanceTeams(prevRankings, sizes[i], satSeedTie, prevCounts).teams;
             const n = advancing.length / TEAMS_PER_HEAT;
             const saved: SATTeam[][] | null = meta.json ? (() => { try { const b = JSON.parse(meta.json!); return b.length === n ? b : null; } catch { return null; } })() : null;
             const stageHeats: SATTeam[][] = saved ?? snake(advancing, n);
             const raced = (sat.heats ?? []).filter((h) => h.round === round);
             if (raced.length < n) return renderUpcomingSection(meta.title, meta.color, meta.icon, stageHeats, meta.colors, meta.label);
             prevRankings = stageHeats.map((_, hi) => getActRankings(raced.find((h) => h.slotIdx === hi)?.actId) ?? []);
-            prevCounts = stageHeats.map((_, hi) => raced.find((h) => h.slotIdx === hi)?.advanceCount ?? 2);
+            prevCounts = stageHeats.map((_, hi) => countOf(raced.find((h) => h.slotIdx === hi), round));
           }
           return null;
         }

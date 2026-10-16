@@ -57,7 +57,7 @@ export const SKILL_ERA_CUTOFF = '2026-10-15';
 export const SAT_FLAT_MULTI   = 1.5;
 export const SAT_FINALS_MULTI = 2.0;
 const SKILL_SCALE      = 800;   // VR gap at which the expected-result factor shifts ~3×
-const SKILL_MIN_FACTOR = 0.1;   // never fully zero out a result
+const SKILL_MIN_FACTOR = 0.25;  // favorites still earn something for a good night
 const SKILL_MAX_FACTOR = 1.5;   // cap how much an upset can amplify a result
 
 export const inSkillEra = (date: string | undefined) => (date ?? '') >= SKILL_ERA_CUTOFF;
@@ -118,9 +118,11 @@ export function vrChange(
 
   let change: number;
   if (skillEra) {
-    // Elo-style: gains shrink (and losses grow) the further you're above the room, and vice versa
+    // Elo-style, but only in the direction that prevents farming:
+    //  - favorites earn less for beating much weaker rooms (losses are never inflated)
+    //  - underdogs earn more for upsets and lose less to much stronger rooms
     const gainF = 2 / (1 + Math.pow(10, diff / SKILL_SCALE));
-    const lossF = 2 / (1 + Math.pow(10, -diff / SKILL_SCALE));
+    const lossF = Math.min(1, 2 / (1 + Math.pow(10, -diff / SKILL_SCALE)));
     change = base * Math.min(SKILL_MAX_FACTOR, Math.max(SKILL_MIN_FACTOR, base > 0 ? gainF : lossF));
   } else {
     // Skill modifier — being above the room reduces gains, increases losses
